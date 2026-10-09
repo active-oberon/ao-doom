@@ -1,0 +1,18 @@
+# Active Oberon compiler output
+*.Gof*
+*.Sym*
+
+# Build output
+/build/
+/target/
+/ao-doom
+/ao-doom.exe
+
+# Local game data
+*.[wW][aA][dD]
+
+# AI
+AGENTS.md
+CLAUDE.md
+.codex/
+.claude/
