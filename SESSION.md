@@ -1,8 +1,59 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 22:50:05 UTC
+Updated: 2026-10-10 23:13:04 UTC
 
-## Current continuation: pickups and inventory
+## Current continuation: locked manual doors
+
+The user asked to continue after pickups/inventory. Doom and engine started
+clean on main. The next completed milestone uses collected keys for manual
+doors. Logical local commits remain authorized; pushes are not authorized.
+
+- DoomDoors now supports locked raise/wait/close types 26/27/28 and open-only
+  types 32/33/34. Blue is 26/32, yellow 27/34 and red 28/33. Cards and skulls
+  of the matching color work without consumption. Key authorization precedes
+  active-door toggles. Existing front/range/occlusion, movement speed, waiting,
+  player-clearance reversal and immutable world snapshots are preserved.
+  Supported moving sectors preload and validate their future upper materials.
+- Use receives the inventory under the game monitor. A missing color is kept
+  in the captured inventory value and drawn by DoomHud. Hints clear on the next
+  use, matching pickup or successful load; failed loads preserve them. They
+  have no timed expiry. A collected key requires a fresh Space press after
+  denial. The grille fixture's flags and actor collision were not changed.
+- Before implementation, a six-strafe-tick game probe collected the blue card
+  in door-key.wad, then asserted opening after Use; it returned Trap 5.8.
+  The same probe passed after integration. The new fixture uses type 32 and
+  puts the blue key 64 units to the player's right: run task run --
+  build/door-key.wad E1M1, try Space, briefly hold D, then press Space again.
+- task check passed four engine binaries, 157 generated WAD fixtures, the new
+  locked-door suite and every previous suite, plus Linux64 GUI compilation.
+  All six types passed with cards and skulls, wrong colors, authorization
+  while active, key retention, motion cycles and hidden-material rejection.
+  Actual game pickup/unlocking/crossing, hint and load/snapshot cases passed.
+- All eleven X11 scenes passed, including blue-key denial/pickup/unlocking and
+  existing Space/release/focus/turn/Escape checks. All 132 original maps passed
+  loading/rendering/short movement again; all archive hashes still match.
+  Locked-door probes passed Doom E1M2 line 528/type 28, Doom II MAP02 line
+  396/type 32, TNT MAP02 line 704/type 26 and Plutonia MAP04 line 199/type 27.
+  The probe's --keys mode verifies denial then explicitly supplies all keys;
+  it does not collect them along a playable route. TNT MAP01 yielded no valid
+  fixed probe position; MAP02 was used instead, without asserting a map bug.
+- Inspected missing-key, collected-key and open-door captures. Source operation
+  layout passed 37 modules; whitespace and Python syntax passed. Temporary
+  caller-edit and CONTINUE compiler errors were fixed before full validation.
+  A bwrap mount failure required authorized native execution for affected
+  checks. No failing required task suites remain. Engine and MiniA2 stay clean
+  and unchanged; this uses the installed Linux64 SDK. See
+  scratch/locked-doors-check.md for exact evidence and validation limits.
+- Doom code/tests commit: 94249c4. Doom documentation/reporting is separate.
+  No pushes, merges or deployments were made.
+- Next: solid actor collision and combat, then other map actions and sound.
+  Locked tagged switches, walk-over actions, lifts, firing/damage, monster
+  behavior/animation, powers and inter-map inventory remain absent.
+  Full playthroughs, every original key/door, exact pixels/collision equivalence,
+  performance targets, other platforms and Brutal Doom PK3 remain unverified
+  or unsupported.
+
+## Previous continuation: pickups and inventory
 
 The user resumed Doom work after keeping the passable grille fixture unchanged.
 The later continuation authorizes the next gameplay milestone. Both targets

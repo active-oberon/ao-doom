@@ -25,8 +25,11 @@ holes. Opaque black pixels remain visible. Layered grilles retain the nearest
 covered pixel, repeat horizontally, and draw their height once inside the
 sector opening. Sidedef offsets and top/bottom pegging remain active while
 ceilings move. Blocking flags still decide whether the player can cross.
-Space activates unlocked manual doors (types 1, 31, 117 and 118) from their front
-side within 64 Doom units. Their ceilings animate, open the passage, and either
+Space activates manual doors from their front side within 64 Doom units.
+Types 1, 31, 117 and 118 are unlocked. Types 26/32 require blue, 27/34 yellow,
+and 28/33 red: either a card or a skull of that color works without consumption.
+Types 26-28 raise, wait and close; 32-34 stay open and consume their line action.
+Their ceilings animate, open the passage, and either
 stay open or wait 150 ticks before closing. Closing reverses if the player would
 lose clearance. Normal doors move two units per tick; fast doors move eight.
 Sprites for 116 classic visible object types render at their spawn frames: monsters,
@@ -50,6 +53,9 @@ rules. The backpack doubles ammo capacity once. Placed weapons grant ownership
 and ammunition; weapon selection and firing are not implemented.
 The bottom 20 pixels show health, armor, four ammo stocks, total pickups,
 weapon count and colored key indicators (`C` card, `S` skull; blue/yellow/red).
+Trying a locked manual door without its key shows the required color in the panel.
+The hint clears on the next use, matching key pickup or successful map load;
+it has no timed expiry. Collecting a key requires a fresh Space press to use it.
 Pickups require horizontal overlap, reachable height and a clear physical path;
 solid walls, blocking grilles and closed portals prevent collection through them.
 The existing `sprites-grate.wad` grille stays passable by its map flags.
@@ -90,6 +96,9 @@ task run -- build/valid.wad E1M1
 task run -- build/sectors.wad E1M1
 # A closed manual door; press Space, then walk through.
 task run -- build/door.wad E1M1
+# A locked blue door: try Space, briefly strafe right with D to collect its key,
+# release Space, press it again, then walk through.
+task run -- build/door-key.wad E1M1
 # A grille with transparent holes; the line permits crossing.
 task run -- build/masked.wad E1M1
 # Original synthetic sprites behind a grille.
@@ -103,14 +112,20 @@ task run -- '/path/to/doom2.wad' MAP01
 task wad-check -- '/path/to/DOOM.WAD' E1M1
 # Place a probe near a closed manual door, open it and verify crossing.
 task door-check -- '/path/to/DOOM.WAD' E1M1
+# Probe a locked door: verify denial, supply keys to the probe, then cross.
+task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 # Targeted events and frame reads in the program's own X11 window.
 task gui-check
 ```
 
-`task check` runs engine checks, generates 142 original WAD fixtures, rejects
+`task check` runs engine checks, generates 157 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
-use range/side/occlusion and texture anchoring. It exports
+use range/side/occlusion and texture anchoring. Locked-door checks cover all six
+types with cards and skulls, wrong colors, key retention, active-door toggles,
+hidden material validation and actual tick-driven pickup/unlocking.
+It exports `build/locked-door-missing.ppm`, `build/locked-door-key.ppm` and
+`build/locked-door-open.ppm`, plus
 `build/pickups-before.ppm`, `build/pickups-after.ppm` and `build/pickups-hud.ppm`, plus
 `build/sprites-scene.ppm`, `build/sprites-layered.ppm`,
 `build/sprites-grate.ppm` and `build/sprites-facing.ppm`, plus
@@ -124,14 +139,19 @@ it requires an absolute WAD path because the check runs in `build/`.
 `task door-check` writes `build/original-door-closed.ppm` and
 `build/original-door-open.ppm`; it requires an absolute WAD path and fails if
 there is no supported closed door with a valid probe position. It checks an
-isolated crossing, not the route from the map's player start.
-`task gui-check` additionally verifies ten scenes: corridor, single-sector,
-multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups and doors.
+isolated crossing, not the route from the map's player start. With `--keys`,
+it selects locked manual doors, verifies denial with no keys, then explicitly
+grants all six keys to the probe; it does not find the keys along a playable route.
+`task gui-check` additionally verifies eleven scenes: corridor, single-sector,
+multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
+and a locked door with an actual key pickup.
 Each checks movement, release, focus loss, turning, and Escape shutdown.
 The pickup scene walks into items and checks that the inventory panel changes.
 Both windowed and headless visible-scene checks exclude the status panel so
 text alone cannot hide an empty map frame.
 The door scene also checks held/released Space, closing and reopening.
+The locked-door scene checks the missing-color hint, card pickup, hint clearing,
+opening after a new Space press and movement through the doorway.
 It needs Xlib and an accessible X11 server. Each check launches a temporary
 copy of the executable so it identifies
 its own window even when another copy of the game is running.
@@ -181,14 +201,17 @@ adds 512000 bytes at 320 x 200 and avoids sprite sorting or per-frame allocation
 Pickup checks and the new original-map regression are recorded in
 [the inventory report](scratch/pickups-check.md). Collection copies at most an
 8192-byte bitset per tick that accepts items; frames without pickups reuse it.
+Locked-door checks and another 132-map regression are recorded in
+[the key-door report](scratch/locked-doors-check.md).
 
-Next: locked doors using inventory keys, solid actor collision, combat and other map actions.
+Next: solid actor collision, combat and other map actions.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
-Locked doors, tagged switches, walk-over triggers, lifts and sound are unsupported.
+Tagged switches (including locked switches), walk-over triggers, lifts and sound
+are unsupported.
 Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references
