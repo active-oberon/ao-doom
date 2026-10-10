@@ -29,8 +29,15 @@ Space activates unlocked manual doors (types 1, 31, 117 and 118) from their fron
 side within 64 Doom units. Their ceilings animate, open the passage, and either
 stay open or wait 150 ticks before closing. Closing reverses if the player would
 lose clearance. Normal doors move two units per tick; fast doors move eight.
-This is not yet a playable reproduction of original Doom:
-there are no sprites, weapons or monsters. The WAD
+Sprites for 116 classic visible object types render at their spawn frames: monsters,
+pickups, decorations and corpses. Medium-skill single-player flags select them.
+Directional frames support all eight views and paired mirrored lump names;
+patch header offsets position each image. Transparent holes, opaque black,
+sector lighting, fullbright objects and ceiling attachments are preserved.
+Walls, grilles, planes and overlapping sprites share depth checks. Actors
+remain static and have no collision, pickup behavior or animation; weapons
+and monster behavior are absent. Unknown types are skipped for previewing,
+and spectres currently render without the original fuzz effect. The WAD
 scene loads wall textures from PLAYPAL, PNAMES and TEXTURE1/TEXTURE2, composing
 classic column patches. The built-in scene uses original procedural brick textures.
 
@@ -66,6 +73,8 @@ task run -- build/sectors.wad E1M1
 task run -- build/door.wad E1M1
 # A grille with transparent holes; the line permits crossing.
 task run -- build/masked.wad E1M1
+# Original synthetic sprites behind a grille.
+task run -- build/sprites-grate.wad E1M1
 # Local base-game archives; quote paths containing spaces.
 task run -- '/path/to/DOOM.WAD' E1M1
 task run -- '/path/to/doom2.wad' MAP01
@@ -77,10 +86,12 @@ task door-check -- '/path/to/DOOM.WAD' E1M1
 task gui-check
 ```
 
-`task check` runs engine checks, generates 113 original WAD fixtures, rejects
+`task check` runs engine checks, generates 136 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. It exports
+`build/sprites-scene.ppm`, `build/sprites-layered.ppm`,
+`build/sprites-grate.ppm` and `build/sprites-facing.ppm`, plus
 `build/masked-scene.ppm`, `build/masked-reverse.ppm` and
 `build/masked-layered.ppm` for grille inspection, plus
 `build/scene.ppm` and `build/wad-scene.ppm` for
@@ -92,8 +103,9 @@ it requires an absolute WAD path because the check runs in `build/`.
 `build/original-door-open.ppm`; it requires an absolute WAD path and fails if
 there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start.
-`task gui-check` additionally verifies the corridor, single-sector, multi-sector,
-sky, BSP, grille and door scenes, movement, release, focus loss, turning, and Escape shutdown.
+`task gui-check` additionally verifies nine scenes: corridor, single-sector,
+multi-sector, sky, BSP, grille, sprites, sprites behind a grille and doors.
+Each checks movement, release, focus loss, turning, and Escape shutdown.
 The door scene also checks held/released Space, closing and reopening.
 It needs Xlib and an accessible X11 server. Each check launches a temporary
 copy of the executable so it identifies
@@ -104,7 +116,11 @@ loader validates patch references, column offsets, post lengths and terminators.
 It bounds dimensions to 1024, decoded cache pixels to 16 million and decode work
 to 64 million samples/posts/columns. Flats require exactly 4096 palette indices
 and share these resource budgets with wall textures; their caches are separate
-even when names match. Map contour validation is capped at 64 million work units.
+even when names match. Sprite patches share these budgets but cache by lump
+index. Sprite frame directory lookup has a separate 64-million-work budget;
+THINGS is capped at 65536 records. Missing, malformed, conflicting or incomplete
+directional frames reject a known visible object. Map contour validation is
+capped at 64 million work units.
 BSP decoding caps SEGS at 65536 and SSECTORS/NODES at 32768 each, validates
 indices/ranges and requires child nodes to precede parents, preventing cycles.
 Subsector membership follows its first seg; unused sectors are retained.
@@ -116,8 +132,10 @@ extended tall-patch support is absent.
 Reusable simulation, geometry, rendering, buffers, timing, display presentation,
 and bounded binary reads belong in `ao-game-engine`. Doom WAD interpretation,
 map semantics, player rules and compatibility belong here. `DoomWad` handles the
-archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene. Game state uses a
-monitor; rendering captures camera state and the sealed world together before
+archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene.
+`DoomThings` owns spawn-frame facts; `DoomSprites` loads immutable actors and
+chooses directional images. Game state uses a monitor; rendering captures camera
+state, the sprite scene and the sealed world together before
 working without the game lock.
 
 A short headless load/render/movement check passed all 132 maps from the supplied
@@ -130,8 +148,11 @@ and crossing probe. Details and limits are in [the door report](scratch/doors-ch
 
 The masked-wall checks and a fresh 132-map regression are recorded in
 [the grille report](scratch/masked-check.md).
+Sprite checks, another 132-map regression and inspected captures are recorded
+in [the sprite report](scratch/sprites-check.md). The reusable frame depth buffer
+adds 512000 bytes at 320 x 200 and avoids sprite sorting or per-frame allocation.
 
-Next: sprites/actors, inventory, other map actions and gameplay.
+Next: actor simulation, inventory, other map actions and gameplay.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
@@ -160,6 +181,10 @@ and [p_map.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_m
 Manual door types, speed, waiting and targets are referenced from
 [p_doors.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_doors.c)
 and [p_spec.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_spec.c).
+Sprite metadata, directional naming and spawn flags are referenced from
+[info.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/info.c),
+[r_things.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_things.c)
+and [p_mobj.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_mobj.c).
 The current parser and engine are original implementations; no upstream source
 has been copied. Preserve applicable license notices when porting code later.
 

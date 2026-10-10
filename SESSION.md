@@ -1,8 +1,54 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 21:02:00 UTC
+Updated: 2026-10-10 21:34:00 UTC
 
-## Current continuation: masked middle walls
+## Current continuation: static map sprites
+
+This section supersedes the grille stop point below. The user asked to continue;
+both Doom and engine started clean on main. Reusable rendering stays in the
+engine; spawn semantics and resources stay here. Logical local commits remain
+authorized; pushes are not authorized.
+
+- GameSurface now reuses a FLOAT64 depth buffer, adding 512000 bytes at 320 x 200.
+  GameRenderer projects generic sprites and uses the same camera-forward depth
+  for walls, planes and grilles. Physical boundaries occlude sprites even when
+  their material is absent. The old local grille-row buffer was removed.
+- DoomThings owns spawn-image facts for 116 visible classic types. DoomSprites
+  filters medium-skill single-player THINGS, validates frames, supports eight
+  directions and paired mirrored names, and caches immutable actor images.
+  DoomTextures reuses its patch decoder and resource budgets with a lump-index
+  sprite cache and signed header offsets. Actor and directory-work caps apply.
+- Doom captures camera, world and sprites together under its monitor. Rendering
+  holds no game lock and allocates no per-frame heap data. Ceiling attachments
+  follow current world heights without changing old snapshots. Failed loads
+  keep the current frame intact and publish no incomplete sprite scene.
+- The baseline ignored visible THINGS: its sprite and empty frames matched.
+  Final task check passed four engine binaries, 136 generated WAD fixtures,
+  all prior Doom checks and Linux64 GUI compilation. New coverage includes
+  holes/black, walls/grilles, sprite depth order, flags, resource rejection,
+  ceiling motion, rotation/mirroring and failed-load preservation.
+- All nine X11 scenes passed, including sprites and sprites behind grilles.
+  All 132 original maps passed loading, rendering and short movement again;
+  all four hashes match. After the last map publication-order adjustment,
+  normal task check, four representative original starts and the sprite/grille
+  window check passed on the final binary. Captures were inspected.
+- Initial fixture assertions sampled outside an image or inside a patch hole;
+  the directional fixture had an occluding island. Correcting those tests
+  restored passing results. The layout helper initially matched multiline
+  parameter separators; fixing it yielded 31 passing source files. Sandbox
+  DNS blocked a reference download; an authorized native download passed.
+- Source layout and whitespace checks passed; MiniA2 is unchanged and clean.
+  See scratch/sprites-check.md for evidence, reproduction and limitations.
+  Commits: engine projection/depth `291ef26`, engine documentation `f4cb591`,
+  Doom integration/tests `ead962c`; Doom documentation/reporting is separate.
+  No pushes.
+- Next: actor simulation, pickups/inventory and keys, then locked/tagged actions,
+  weapons, monster behavior and sound. Actors are static spawn images without
+  collision or pickups; spectres lack fuzz. Unknown types are skipped, medium
+  skill is fixed, and whole routes, original pixels, performance targets,
+  other platforms and Brutal Doom PK3 behavior remain unverified/unsupported.
+
+## Previous continuation: masked middle walls
 
 This section supersedes the manual-door stop point below. The user resumed
 the interrupted Doom session; both Doom and engine started clean on main.
