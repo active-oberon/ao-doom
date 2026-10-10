@@ -1,8 +1,56 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 21:34:00 UTC
+Updated: 2026-10-10 22:50:05 UTC
 
-## Current continuation: static map sprites
+## Current continuation: pickups and inventory
+
+The user resumed Doom work after keeping the passable grille fixture unchanged.
+The later continuation authorizes the next gameplay milestone. Both targets
+started clean on main; logical local commits remain authorized, not pushes.
+
+- DoomInventory supplies 30 classic placed-item effects: health/armor, four
+  ammo classes, nine weapon ownership bits, backpacks, cards and skull keys.
+  Accepted items disappear; capped supplies remain. Bonuses, duplicate keys
+  and backpacks preserve their consumption rules. Capacity doubles once.
+  Full-armor megaspheres retain the current armor type. Unsupported powers
+  remain on the map. Success resets inventory; failed loads preserve it.
+- DoomSprites keeps immutable actor/image data and copies a SET32 collection
+  bitmap only when a tick accepts items. The copied payload is at most 8192
+  bytes. Count now reports remaining visible objects. Horizontal/vertical
+  reach and a bounded portal trace prevent collection through solid walls,
+  blocking grilles and closed passages. Existing grille flags are unchanged.
+- Doom captures pose, world, sprites and a value copy of inventory together.
+  DoomHud displays health/armor, ammo stocks, pickup/weapon counts and colored
+  card/skull indicators in the bottom 20 pixels. GameText is reusable engine
+  drawing with an original 3-by-5 font and no font assets or per-frame heap
+  allocation. Both visible-scene helpers exclude the panel.
+- Before implementation, a 40-tick probe left 24852 sprite pixels above the
+  panel instead of removing a reached armor bonus and returned Trap 5.8.
+  The same probe passed after integration. The final task check passed four
+  engine binaries, 142 generated WAD fixtures, new inventory/pickup suites,
+  prior Doom suites and Linux64 window compilation. The 33-item case verifies
+  the bitmap word boundary; old scenes remain unchanged after collection.
+- Ten X11 scenes passed, including real pickup-driven panel updates and the
+  existing door/release/focus/turn/Escape checks. All 132 original maps passed
+  load/render/short-movement again; archive hashes still match. Captures were
+  inspected. After the final SET32 cleanup, focused sprite/pickup/inventory
+  checks, GUI compilation, normal task check, the pickup window and four
+  representative original starts passed on the final binaries.
+- The megasphere armor-type edge was fixed during review. Plain SET follows
+  the SDK address width, so the bitmap now names SET32 explicitly. Source
+  operation layout passed 36 modules; whitespace and Python syntax passed.
+  MiniA2 is unchanged and clean; this uses the installed Linux64 SDK.
+  See scratch/pickups-check.md for evidence and exact validation limits.
+- Commits: engine text/tests `3f38b75`, engine documentation `5ac7532`, Doom
+  pickup/HUD integration/tests `a730244`; Doom documentation/reporting is
+  separate. No pushes, merges or deployments were made.
+- Next: use collected keys for locked doors, then solid actor collision and
+  combat. Weapon selection/firing, damage, monster behavior/animation, powers,
+  sound, dropped loot and inventory continuity between maps are absent.
+  Full playthroughs, performance targets, original pixel/collision equivalence,
+  other platforms and Brutal Doom PK3 behavior remain unverified/unsupported.
+
+## Previous continuation: static map sprites
 
 This section supersedes the grille stop point below. The user asked to continue;
 both Doom and engine started clean on main. Reusable rendering stays in the

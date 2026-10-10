@@ -35,11 +35,26 @@ Directional frames support all eight views and paired mirrored lump names;
 patch header offsets position each image. Transparent holes, opaque black,
 sector lighting, fullbright objects and ceiling attachments are preserved.
 Walls, grilles, planes and overlapping sprites share depth checks. Actors
-remain static and have no collision, pickup behavior or animation; weapons
-and monster behavior are absent. Unknown types are skipped for previewing,
+remain at spawn frames without solid actor collision or animation. Unknown
+types are skipped for previewing,
 and spectres currently render without the original fuzz effect. The WAD
 scene loads wall textures from PLAYPAL, PNAMES and TEXTURE1/TEXTURE2, composing
 classic column patches. The built-in scene uses original procedural brick textures.
+
+Touching 30 classic placed-item types now updates the player's inventory and
+removes accepted pickups: health/armor, ammunition, weapons, backpacks, cards
+and skull keys. Health and armor bonuses can reach 200; ordinary medicine stops
+at 100. Ammo and armor remain in the map when they cannot improve the current
+stock. Bonuses, duplicate keys and backpacks retain their classic consumption
+rules. The backpack doubles ammo capacity once. Placed weapons grant ownership
+and ammunition; weapon selection and firing are not implemented.
+The bottom 20 pixels show health, armor, four ammo stocks, total pickups,
+weapon count and colored key indicators (`C` card, `S` skull; blue/yellow/red).
+Pickups require horizontal overlap, reachable height and a clear physical path;
+solid walls, blocking grilles and closed portals prevent collection through them.
+The existing `sprites-grate.wad` grille stays passable by its map flags.
+Timed powers and berserk remain visible until their effects are implemented.
+Successful map loading resets inventory; failed replacement loads preserve it.
 
 ## Build, run and check
 
@@ -79,6 +94,8 @@ task run -- build/door.wad E1M1
 task run -- build/masked.wad E1M1
 # Original synthetic sprites behind a grille.
 task run -- build/sprites-grate.wad E1M1
+# Walk into health/armor, ammo, a key, a weapon and a backpack.
+task run -- build/pickups.wad E1M1
 # Local base-game archives; quote paths containing spaces.
 task run -- '/path/to/DOOM.WAD' E1M1
 task run -- '/path/to/doom2.wad' MAP01
@@ -90,10 +107,11 @@ task door-check -- '/path/to/DOOM.WAD' E1M1
 task gui-check
 ```
 
-`task check` runs engine checks, generates 136 original WAD fixtures, rejects
+`task check` runs engine checks, generates 142 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. It exports
+`build/pickups-before.ppm`, `build/pickups-after.ppm` and `build/pickups-hud.ppm`, plus
 `build/sprites-scene.ppm`, `build/sprites-layered.ppm`,
 `build/sprites-grate.ppm` and `build/sprites-facing.ppm`, plus
 `build/masked-scene.ppm`, `build/masked-reverse.ppm` and
@@ -107,9 +125,12 @@ it requires an absolute WAD path because the check runs in `build/`.
 `build/original-door-open.ppm`; it requires an absolute WAD path and fails if
 there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start.
-`task gui-check` additionally verifies nine scenes: corridor, single-sector,
-multi-sector, sky, BSP, grille, sprites, sprites behind a grille and doors.
+`task gui-check` additionally verifies ten scenes: corridor, single-sector,
+multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups and doors.
 Each checks movement, release, focus loss, turning, and Escape shutdown.
+The pickup scene walks into items and checks that the inventory panel changes.
+Both windowed and headless visible-scene checks exclude the status panel so
+text alone cannot hide an empty map frame.
 The door scene also checks held/released Space, closing and reopening.
 It needs Xlib and an accessible X11 server. Each check launches a temporary
 copy of the executable so it identifies
@@ -137,9 +158,11 @@ Reusable simulation, geometry, rendering, buffers, timing, display presentation,
 and bounded binary reads belong in `ao-game-engine`. Doom WAD interpretation,
 map semantics, player rules and compatibility belong here. `DoomWad` handles the
 archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene.
-`DoomThings` owns spawn-frame facts; `DoomSprites` loads immutable actors and
-chooses directional images. Game state uses a monitor; rendering captures camera
-state, the sprite scene and the sealed world together before
+`DoomThings` owns spawn-frame facts; `DoomSprites` loads immutable actors,
+chooses directional images and publishes copied collection bits after pickups.
+`DoomInventory` owns item effects; `DoomHud` owns the status panel layout.
+Game state uses a monitor; rendering captures camera, inventory,
+the sprite scene and the sealed world together before
 working without the game lock.
 
 A short headless load/render/movement check passed all 132 maps from the supplied
@@ -155,8 +178,11 @@ The masked-wall checks and a fresh 132-map regression are recorded in
 Sprite checks, another 132-map regression and inspected captures are recorded
 in [the sprite report](scratch/sprites-check.md). The reusable frame depth buffer
 adds 512000 bytes at 320 x 200 and avoids sprite sorting or per-frame allocation.
+Pickup checks and the new original-map regression are recorded in
+[the inventory report](scratch/pickups-check.md). Collection copies at most an
+8192-byte bitset per tick that accepts items; frames without pickups reuse it.
 
-Next: actor simulation, inventory, other map actions and gameplay.
+Next: locked doors using inventory keys, solid actor collision, combat and other map actions.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
@@ -189,6 +215,8 @@ Sprite metadata, directional naming and spawn flags are referenced from
 [info.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/info.c),
 [r_things.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_things.c)
 and [p_mobj.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_mobj.c).
+Pickup quantities and limits follow
+[p_inter.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_inter.c).
 The current parser and engine are original implementations; no upstream source
 has been copied. Preserve applicable license notices when porting code later.
 
