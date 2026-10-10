@@ -1,0 +1,58 @@
+version: '3'
+
+vars:
+  ENGINE_DIR: '{{.ENGINE_DIR | default "../ao-game-engine"}}'
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  stage:
+    cmds:
+      - mkdir -p build
+      - cp "{{.ENGINE_DIR}}"/Game*.Mod build/
+      - cp Doom*.Mod build/
+
+  build:
+    desc: Build the Linux64 windowed scene
+    cmds:
+      - task: stage
+      - cd build && ob build --gui=640x400 DoomWindow.Mod -o ao-doom
+
+  run:
+    desc: Run the scene (optional WAD path and map after --)
+    cmds:
+      - task: build
+      - ./build/ao-doom {{.CLI_ARGS}}
+
+  check:
+    desc: Check engine, WAD validation, movement and collision
+    cmds:
+      - task --dir "{{.ENGINE_DIR}}" check
+      - task: stage
+      - cp tests/DoomWadSmoke.Mod tests/DoomTexturesSmoke.Mod build/
+      - python3 tests/wad_fixtures.py build
+      - cd build && ob build DoomWadSmoke.Mod -o wad-check
+      - cd build && timeout 10 ./wad-check
+      - cd build && ob build DoomTexturesSmoke.Mod -o textures-check
+      - cd build && timeout 10 ./textures-check
+      - cd build && ob build Doom.Mod -o doom-check
+      - cd build && timeout 10 ./doom-check
+      - task: build
+
+  gui-check:
+    desc: Check rendering, input and shutdown on X11
+    cmds:
+      - task: build
+      - python3 tests/gui_smoke.py build/ao-doom
+      - python3 tests/wad_fixtures.py build
+      - python3 tests/gui_smoke.py build/ao-doom build/valid.wad E1M1
+
+  bench:
+    desc: Measure 200 textured frames without display transfer
+    cmds:
+      - task: stage
+      - cp tests/SceneBench.Mod build/
+      - cd build && ob build SceneBench.Mod -o scene-bench
+      - cd build && timeout 30 ./scene-bench

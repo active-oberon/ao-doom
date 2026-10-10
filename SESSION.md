@@ -1,0 +1,134 @@
+# ao-doom session handoff
+
+Updated: 2026-10-10 02:33:27 UTC
+
+## Saved stop point
+
+The user requested saving state and exiting. Work is stopped until the next request.
+Changes are saved on disk and remain uncommitted in these repositories:
+
+- /home/andrejjj/Projects/A2/ao-doom
+- /home/andrejjj/Projects/A2/ao-game-engine
+- /home/andrejjj/Projects/A2/minia2
+
+Resume from the implementation and verification notes below; the historical
+original stop point does not describe the current implementation. The next
+milestone is sector portals, floors and multi-sector collision. Use Task for builds.
+No commits or pushes were made when saving this handoff; tests were not rerun.
+
+## Current continuation: 2026-10-10
+
+This section supersedes the original stop point below. The user requested a
+reusable Active Oberon engine in ao-game-engine, Doom as its first game, Task
+instead of Make, continued autonomous work, and MiniA2 fixes when necessary.
+
+### Implemented
+
+- ao-game-engine owns simulation, clock, immutable wall geometry/materials,
+  collision, binary reads, framebuffer export, ray rendering and presentation.
+- ao-doom owns the corridor scene, procedural brick art, 35 Hz player rules,
+  the WAD archive/map/texture parsers and Linux64 window/input integration.
+- `task run` launches the built-in scene; W/S and Up/Down move, A/D strafe,
+  Left/Right turn, Escape exits. `task run -- build/valid.wad E1M1` loads an
+  original generated fixture after `task check`.
+- The WAD loader validates bounds, record sizes, references, closed boundaries,
+  and a player start inside the sector. It supports single-sector maps only.
+  Multi-sector maps fail explicitly. Classic wall textures load from PLAYPAL,
+  PNAMES and TEXTURE1/TEXTURE2; patches are composed with clipping and cached.
+- Renderer captures camera and sealed world together under the game monitor,
+  then renders without holding that monitor. It uses a reused 320 x 200 buffer.
+- Window rendering follows simulation ticks and does not redraw identical frames
+  between ticks. Long frame delays are clamped to 250 ms by game policy.
+
+### MiniA2 fixes and exact SDK
+
+- Ordinary X11 key releases were missing. The original installed SDK failed the
+  window release test and the standalone key test timed out. Fixed
+  source/Unix.KbdMouse.Mod; letters, arrows, modifiers and Escape now release.
+- Losing focus also left movement held. Reproduced that separately, added
+  Inputs.FocusMsg and X11 focus notifications, and reset held controls in Doom.
+- Added tests/X11Keys.Mod, tests/x11-keys.c, tests/x11-keys-check.sh and
+  `task x11-keys` in MiniA2. Tests run on their own Xephyr server.
+- Ran tests/gen-a64-stdlib.sh; configs/moduleListA64.txt remained unchanged.
+- Rebuilt `task Linux64` and `task bundle` after each driver/API change, then
+  installed the exact local tarball through sdk/install.sh. Installed KbdMouse
+  and Inputs object checksums match target/bundle.
+- SDK version: 2026.09.26-2-g07139b1-dirty. Only Linux64 was rebuilt/validated;
+  advertised cross-target libraries are not evidence of checks in this session.
+
+### Verification
+
+- `task check`: passed engine, signed decoding, pixel/material and collision
+  assertions, WAD/map/texture parsing with 39 generated fixtures, and native GUI compilation.
+- `task gui-check`: passed both corridor and WAD scenes for visible rendering,
+  movement, release, focus loss, turning and Escape shutdown on local X11.
+- `task x11-keys` in MiniA2: passed release and focus messages on Xephyr.
+- Invalid window startup returned exit 1 for missing WAD, bad vertices, damaged
+  patch columns, and unsupported multi-sector maps.
+- `task gui-repaint` after the first driver change: passed covered-window
+  restoration; unmap preservation is explicitly not required by that check.
+- `task bench`: 200 textured 320 x 200 frames in 453 ms on this machine; rendering
+  only, not display transfer or real Doom map performance.
+- Inspected build/scene.ppm and build/wad-scene.ppm; PNG previews are diagnostic
+  build artifacts. Whitespace checks passed in all three repositories.
+
+### Texture continuation
+
+- Split DoomWad (archive), DoomMap (level interpretation), and DoomTextures
+  (palettes, texture definitions, classic posts and cached composites) to keep
+  dependencies acyclic. GameMaterials remains format-independent in the engine.
+- Added texture scale/offset and light fields to immutable engine wall materials.
+  Map texture coordinates account for sidedef offsets and bottom alignment flags.
+- Texture tests cover caching, case-insensitive lookup, TEXTURE2, clipping,
+  ordered multi-patch composition, invalid references and truncated post data.
+- Texture limits: 1024 dimensions, 16 million cached pixels, 64 million decode
+  samples/posts/columns. No masked wall drawing or extended tall-patch support.
+
+### Remaining work and boundaries
+
+- Next: sector portals, floors and multi-sector collision. Original Doom maps, sprites, actors, weapons, doors and compatibility
+  remain unimplemented or unverified. Do not call the prototype a finished clone.
+- Callback traps/reentrant calls are unsupported by GameLoop. Geometry/rendering
+  currently scan all walls; no spatial index or original-game performance claim.
+- No original Doom assets or upstream implementation code were copied. Format
+  references are id Software's w_wad.c, doomdata.h, r_data.c and r_segs.c; generated fixtures are ours.
+- No commits or pushes were made. Existing dirty/untracked work was preserved.
+- Writes/builds outside ao-doom needed sandbox escalation, already authorized by
+  the user's engine placement and explicit MiniA2 instruction.
+
+## Original objective and stop point
+
+Rewrite the classic Doom engine in Active Oberon.
+The user authorized repository setup, explicitly asked to stop there, and then requested a reference review.
+The latest instruction is to save state and exit. Engine implementation has not started.
+
+## Current repository
+
+- Path: /home/andrejjj/Projects/A2/ao-doom.
+- Branch: main. Existing HEAD: 96cf17e (`Initial coomit`).
+- The tracked worktree was clean before this handoff was written.
+- README.md describes the project, the initial Linux64/MiniA2 target, and the first milestone: load a WAD, render one map, and walk with collision detection.
+- .gitignore excludes compiler output, build output, local WAD files, and agent files.
+- AGENTS.md exists locally and is ignored by Git. Read it before continuing; it owns the one-operation-per-line rule for all Active Oberon source.
+- No source modules, build scripts, game data, or runnable game have been added.
+
+## Reference decisions and findings
+
+- Recommended primary reference: https://github.com/id-Software/DOOM/tree/master/linuxdoom-1.10.
+- Doom was recommended over Quake for the first rewrite because Quake adds full 3D models and a QuakeC interpreter.
+- Additional reference reviewed: https://github.com/PascalCorpsman/FPC_DOOM.
+- Inspected FPC_DOOM commit: a901194e01c6153875761f63e362ef345f2b8057, dated 2026-09-06.
+- FPC_DOOM is derived from Crispy Doom and has its own behavior changes. Use it as a porting example; keep id Software's code as the primary reference.
+- Its lessons_learned.md documents signed shifts, C expression side effects, pointers, and array layout pitfalls.
+- Its OpenGL output uploads an already rendered software framebuffer as a texture; this is not a replacement 3D renderer.
+- A source scan found 44 explicit `Port me.` exceptions in 18 of 107 engine units.
+- Its README reports broken demo playback and unavailable savegames. These claims were not tested.
+- Its license.md offers Postcardware or modified LGPL, while Crispy Doom is GPL. Clarify applicable terms before copying FPC_DOOM code.
+- Temporary checkout: /tmp/ao-doom-fpc-reference.QRDoiE. It may disappear; recover it from the upstream commit if needed.
+
+## Verification and continuation
+
+Whitespace, final newlines, and .gitignore behavior were checked during repository setup.
+FPC_DOOM was inspected only; it was not built or run. Game compatibility and Active Oberon performance remain unverified.
+No commits, pushes, upstream messages, or engine implementation were performed by the agent.
+Continue from README.md and AGENTS.md when the user gives the next implementation instruction.

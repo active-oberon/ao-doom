@@ -16,3 +16,6 @@ AGENTS.md
 CLAUDE.md
 .codex/
 .claude/
+
+# Python test artifacts
+__pycache__/
