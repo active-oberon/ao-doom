@@ -14,8 +14,10 @@
 # AI
 AGENTS.md
 CLAUDE.md
+SESSION.md
 .codex/
 .claude/
+scratch/
 
 # Python test artifacts
 __pycache__/

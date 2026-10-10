@@ -58,6 +58,10 @@ leave movement keys held after release or focus loss.
 
 `task build` produces `build/ao-doom`. The default engine checkout is
 `../ao-game-engine`; override it with `ENGINE_DIR=/path/to/ao-game-engine`.
+
+The native MiniA2 language server reads `sourcePaths` from `a2pkg.json` to find the
+engine without editor-specific environment variables. If the engine checkout is
+elsewhere, update that relative or absolute path in the manifest too.
 Sources are staged in `build/`, with no shared compiler objects between trees.
 Staging clears generated objects/symbols so a changed engine record cannot link
 against objects left by a manual `ob compile`.
