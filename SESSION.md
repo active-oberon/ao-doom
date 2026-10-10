@@ -1,8 +1,59 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 15:57:15 UTC
+Updated: 2026-10-10 17:14:00 UTC
 
-## Current continuation: all original maps load
+## Current continuation: manual doors
+
+This section supersedes the static-sector state below. The user asked to
+continue and retains the instruction to make separate logical local commits.
+Both target repositories were clean on main at the start of this continuation.
+
+- ao-game-engine `WithCeilings` publishes copied height arrays on shared sealed
+  geometry/materials/partition data. Region reads, ray hits and standing
+  clearance see one snapshot; old render snapshots stay unchanged. Wall hits
+  carry opaque caller IDs and update ceiling-relative texture anchors.
+- ao-doom `DoomDoors` implements manual unlocked types 1/31/117/118. Space
+  activates from the front within 64 Doom units. Normal/fast speeds are 2/8
+  units per tick; the target is the lowest neighboring ceiling minus 4 units.
+  Raise doors wait 150 ticks and close; open doors stay open and consume their
+  action. Active raise doors toggle direction. Obstruction by the player
+  reverses closure before its world snapshot is published.
+- DoomMap copies validated line/sector references into the door controller,
+  maps wall IDs to linedefs and loads future upper materials around moving
+  ceilings. Pegging flags retain correct texture anchoring during motion.
+- Keyboard handling queues one use pulse until Space release and clears held
+  input on focus loss. Game simulation consumes the pulse on its next tick;
+  camera/world snapshots still use the game monitor without holding it while
+  rendering. A failed replacement map leaves the current controller intact.
+- `task check` passed engine checks, 103 generated WAD fixtures, full door
+  cycles, obstruction/range/side/occlusion cases, texture anchors, snapshot
+  immutability, local-door probing and Linux64 GUI compilation.
+- `task gui-check` passed all six scenes, including animated opening, held
+  Space, released/new Space, manual closure and reopening, followed by the
+  existing movement/release/focus/turn/Escape checks.
+- All 132 original maps passed the strengthened load/render/short-movement
+  check again: Doom 36/36 and Doom II/TNT/Plutonia 32/32 each. `door-check`
+  confirmed blocked-before/open-after crossing at Doom E1M1 line 148 (type 1),
+  Doom II MAP01 line 47 (31), TNT MAP01 line 512 (31), and Plutonia MAP01 line
+  205 (117). The probe places a camera near a door; it does not walk there
+  from the original player start. See `scratch/doors-check.md` for evidence.
+- The first door GUI check falsely rejected a legitimate two-color frame with
+  `Frame contains no visible scene`. The helper now rejects uniform startup
+  frames and background-only colors while accepting that textured door.
+  The first original-door probe build missed an END; correcting its loop
+  terminator restored compilation. All affected checks passed afterward.
+- Source layout and whitespace checks passed. Game data and captures remain
+  external/ignored. MiniA2 is unchanged; the existing Linux64 SDK was used.
+- Commits: engine snapshots/anchors `4270236`; Doom doors/input/regressions
+  `eeb13e0`. Documentation/reporting is committed separately. No pushes.
+- Next: masked walls and sprites/actors, then inventory/keys and other map
+  actions. Locked doors, tagged switches, walk-over triggers, lifts, moving
+  floors, sound, weapons, monsters, gravity and Brutal Doom PK3 behavior are
+  absent. Use traces scan walls and stop after 256 hits; ceiling motion copies
+  a full height array per plane update. Full routes, performance targets,
+  original pixel accuracy and other platforms remain unverified.
+
+## Previous continuation: all original maps load
 
 This section supersedes the earlier 90/132-map result. The user asked to
 continue Doom work and retains the instruction to commit changes in separate

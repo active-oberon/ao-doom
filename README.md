@@ -20,8 +20,12 @@ Explicitly absent wall textures (`-`) are accepted and omitted. Movement
 respects blocking lines, 56-unit player clearance and a maximum 24-unit step.
 Exact tangent contact with a wall is valid; inverted sector heights describe
 closed regions and remain impassable.
+Space activates unlocked manual doors (types 1, 31, 117 and 118) from their front
+side within 64 Doom units. Their ceilings animate, open the passage, and either
+stay open or wait 150 ticks before closing. Closing reverses if the player would
+lose clearance. Normal doors move two units per tick; fast doors move eight.
 This is not yet a playable reproduction of original Doom:
-there are no sprites, weapons, monsters or moving doors. The WAD
+there are no sprites, weapons or monsters. The WAD
 scene loads wall textures from PLAYPAL, PNAMES and TEXTURE1/TEXTURE2, composing
 classic column patches. The built-in scene uses original procedural brick textures.
 
@@ -34,7 +38,8 @@ task check
 task run
 ```
 
-Controls: W/S or Up/Down move, A/D strafe, Left/Right turn, Escape exits.
+Controls: W/S or Up/Down move, A/D strafe, Left/Right turn, Space uses, Escape exits.
+Holding Space issues one action until release; losing focus clears held input.
 Linux execution needs an X11 display. The installed SDK must contain the
 key release and focus notification fixes in MiniA2 `source/Unix.KbdMouse.Mod`; older drivers
 leave movement keys held after release or focus loss.
@@ -52,24 +57,35 @@ task run -- /path/to/local.wad E1M1
 task run -- build/valid.wad E1M1
 # Three connected rooms, a step and a lower ceiling.
 task run -- build/sectors.wad E1M1
+# A closed manual door; press Space, then walk through.
+task run -- build/door.wad E1M1
 # Local base-game archives; quote paths containing spaces.
 task run -- '/path/to/DOOM.WAD' E1M1
 task run -- '/path/to/doom2.wad' MAP01
 # Load, render, advance movement and turn without an X11 display.
 task wad-check -- '/path/to/DOOM.WAD' E1M1
+# Place a probe near a closed manual door, open it and verify crossing.
+task door-check -- '/path/to/DOOM.WAD' E1M1
 # Targeted events and frame reads in the program's own X11 window.
 task gui-check
 ```
 
-`task check` runs engine checks, generates 92 original WAD fixtures, rejects
+`task check` runs engine checks, generates 103 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
-windowed executable. It exports `build/scene.ppm` and `build/wad-scene.ppm` for
+windowed executable. Door checks cover animation, clearance, closing/reopening,
+use range/side/occlusion and texture anchoring. It exports
+`build/scene.ppm` and `build/wad-scene.ppm` for
 inspection, plus four views of the multi-sector map and `build/sky-scene.ppm`.
 `task wad-check` rejects completely empty start/walk frames and writes
 `build/original-start.ppm` and `build/original-walk.ppm`;
 it requires an absolute WAD path because the check runs in `build/`.
+`task door-check` writes `build/original-door-closed.ppm` and
+`build/original-door-open.ppm`; it requires an absolute WAD path and fails if
+there is no supported closed door with a valid probe position. It checks an
+isolated crossing, not the route from the map's player start.
 `task gui-check` additionally verifies the corridor, single-sector, multi-sector,
-sky and BSP scenes, movement, release, focus loss, turning, and Escape shutdown.
+sky, BSP and door scenes, movement, release, focus loss, turning, and Escape shutdown.
+The door scene also checks held/released Space, closing and reopening.
 It needs Xlib and an accessible X11 server. Each check launches a temporary
 copy of the executable so it identifies
 its own window even when another copy of the game is running.
@@ -100,11 +116,16 @@ Doom, Doom II, TNT and Plutonia IWADs, up from 90 before BSP lookup. Interactive
 validation and archive hashes are in [the original-map report](scratch/original-map-check.md).
 Exact portal starts, including Doom E4M5, select the sector ahead of each ray
 to avoid a blank view at a zero-distance boundary.
+Manual doors from Doom E1M1 and Doom II/TNT/Plutonia MAP01 passed the opening
+and crossing probe. Details and limits are in [the door report](scratch/doors-check.md).
 
-Next: masked walls, actors, moving doors and gameplay.
-Sector heights are immutable; stepping changes eye height immediately, and drops
+Next: masked walls, actors, inventory, other map actions and gameplay.
+Door motion publishes copied ceiling heights on shared immutable geometry, so
+rendering and collision use a consistent world snapshot. Floors remain fixed;
+stepping changes eye height immediately, and drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
+Locked doors, tagged switches, walk-over triggers, lifts and sound are unsupported.
 Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references
@@ -124,6 +145,9 @@ BSP loading/lookup and tangent collision follow
 [p_setup.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_setup.c),
 [r_main.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_main.c)
 and [p_map.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_map.c).
+Manual door types, speed, waiting and targets are referenced from
+[p_doors.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_doors.c)
+and [p_spec.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_spec.c).
 The current parser and engine are original implementations; no upstream source
 has been copied. Preserve applicable license notices when porting code later.
 

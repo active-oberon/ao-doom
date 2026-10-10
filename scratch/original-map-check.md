@@ -89,7 +89,10 @@ a circle with axis sliding rather than an exact original bounding-box solver.
 Missing materials leave uncovered pixels as the frame background; original
 hall-of-mirrors effects are not reproduced.
 
-Masked middle walls, sprites, weapons, monsters, moving doors, gravity and
+The later [door milestone](doors-check.md) adds manual unlocked types
+1/31/117/118 and repeats this 132-map check. Other map actions remain absent.
+
+Masked middle walls, sprites, weapons, monsters, gravity and
 Brutal Doom/Project Brutality PK3 behavior remain unimplemented. Whole-level
 traversal, exact original rendering, performance targets and non-Linux platforms
 were not checked.
