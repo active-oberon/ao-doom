@@ -1,8 +1,55 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 15:11:55 UTC
+Updated: 2026-10-10 15:57:15 UTC
 
-## Current continuation: original maps
+## Current continuation: all original maps load
+
+This section supersedes the earlier 90/132-map result. The user asked to
+continue Doom work and retains the instruction to commit changes in separate
+logical groups. All repositories were clean at the start of this continuation.
+
+- ao-game-engine now accepts a copied, validated bottom-up partition tree for
+  sector lookup. Nonnegative children must precede their parent; negative
+  children name leaves. Wall bounds reject distant outside positions.
+- ao-doom reads classic SEGS/SSECTORS/NODES, validates references and ranges,
+  and follows the first seg for each subsector. Unused sectors and non-closed
+  sector contours no longer reject valid original BSP maps. Empty BSP lumps
+  retain the existing bounded contour checks for synthetic maps.
+- Remaining original cases required exact wall tangency, inverted closed
+  sector heights and absent one-sided middle materials. Missing materials
+  remain physically solid; unknown named materials still fail.
+- Doom E4M5 exposed a blank start frame at an exact portal boundary. Rays now
+  choose the sector immediately ahead of the camera; regressions cover both
+  viewing directions. The headless check now rejects background-only frames.
+- `task check` passed engine checks, 92 generated WAD fixtures, map/resource
+  rejection, movement, rendering, the local-map check and GUI compilation.
+- The stronger native check passed all 132 original maps: Doom 36/36, Doom II
+  32/32, TNT 32/32 and Plutonia 32/32. Each map renders start/walk views, takes
+  35 forward and 97 turning ticks, then verifies a valid standing pose.
+  Archive hashes and reproduced edge cases are in `scratch/original-map-check.md`.
+- `task gui-check` passed all five generated scenes. Original Doom E4M5,
+  Doom II MAP03, TNT MAP16 and Plutonia MAP02 passed targeted X11 input,
+  release, focus loss, turning and Escape shutdown on the final build.
+- GUI checks use a unique temporary executable copy and wait for a visible
+  frame. A two-copy regression confirmed the other game's process, window
+  and frame remain unchanged. An earlier parallel Plutonia MAP02 check
+  exceeded the five-second shutdown budget; isolated checks passed, and its
+  original cause remains unconfirmed. E4M5's separate rendering failure was
+  reproduced natively and fixed. The first visible-frame helper used constant
+  ASSERT(FALSE), rejected by the compiler; its runtime boolean check passed.
+- Source operation layout and whitespace checks passed. Original WADs and
+  captures remain external/ignored. MiniA2 is unchanged in this continuation;
+  the installed Linux64 SDK and its previous driver fixes were used.
+- Commits: ao-game-engine `a7eef4a`; ao-doom map loading/regressions `eaf13b1`.
+  Window-check isolation, stronger frame checks and reporting are committed
+  separately. No pushes were made.
+- Next: masked walls, sprites/actors, moving doors and gameplay. Geometry is
+  static; there are no weapons, monsters or gravity. These short checks do
+  not establish a full playthrough, exact original pixels or performance.
+  BSP accelerates region lookup only; edited leaf coverage, Brutal Doom PK3
+  behavior and other platforms remain unverified or unsupported.
+
+## Previous continuation: original maps
 
 The user supplied local base-game IWADs in
 `/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2`.

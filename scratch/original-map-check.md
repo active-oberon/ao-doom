@@ -3,91 +3,93 @@
 Checked: 2026-10-10. Sources: local IWADs in
 `/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2`.
 
-The headless check passed 90 of 132 maps. This checks loading, several rendered
-views, 35 forward simulation ticks and 97 turning ticks, then a standing pose
-inside the world with valid player clearance. It does not verify a full route,
-exact original pixels, dynamic map specials, enemies or complete gameplay.
-Rejected maps indicate current loader incompatibility, not corrupt source data.
+The final headless check passed all 132 maps; the previous milestone passed
+90. Each check loads a map, rejects start/walk frames containing only the two
+background colors, renders several views, advances 35 forward ticks
+and 97 turning ticks, then verifies a standing pose inside the world with valid
+player clearance. Forward movement can stop against static walls or doors.
+This does not verify a full route, exact original pixels, dynamic map specials,
+enemies or complete gameplay.
 
 ## Reproduce
 
 ```sh
-task wad-check -- '/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2/DOOM.WAD' E1M1
-task run -- '/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2/doom2.wad' MAP01
+task wad-check -- '/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2/DOOM.WAD' E1M3
+task run -- '/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2/doom2.wad' MAP03
 ```
 
-The first command exports `build/original-start.ppm` and
-`build/original-walk.ppm`, overwriting those diagnostics on each run. The WADs
-remain external and are read only. No copyrighted data or rendered captures
-are included in this repository.
+The first command overwrites `build/original-start.ppm` and
+`build/original-walk.ppm`. The archives remain external and are read only.
+No game data or rendered captures are committed.
 
 ## Per-archive results
 
-### DOOM.WAD
+- `DOOM.WAD`: 36/36 maps passed; SHA-256
+  `6fdf361847b46228cfebd9f3af09cd844282ac75f3edbb61ca4cb27103ce2e7f`.
+- `doom2.wad`: 32/32 maps passed; SHA-256
+  `10d67824b11025ddd9198e8cfc87ca335ee6e2d3e63af4180fa9b8a471893255`.
+- `tnt.wad`: 32/32 maps passed; SHA-256
+  `9cbc54a6e46ec9f99dd9e9b59a39c7264460b9041c780344ed7cae899e4d92f9`.
+- `PLUTONIA.wad`: 32/32 maps passed; SHA-256
+  `a83b00c636fa3308286e76b1b3153fc14507caf994b0450770421260b08efed8`.
 
-29/36 maps passed.
-SHA-256: `6fdf361847b46228cfebd9f3af09cd844282ac75f3edbb61ca4cb27103ce2e7f`.
-
-Passed: `E1M1`, `E1M2`, `E1M4`, `E1M5`, `E1M6`, `E1M7`, `E1M8`, `E1M9`, `E2M1`, `E2M2`, `E2M3`, `E2M4`, `E2M5`, `E2M6`, `E2M7`, `E2M8`, `E2M9`, `E3M1`, `E3M3`, `E3M4`, `E3M5`, `E3M6`, `E3M7`, `E3M9`, `E4M2`, `E4M4`, `E4M6`, `E4M7`, `E4M9`.
-
-- `E1M3`, `E3M2`, `E3M8`, `E4M1`, `E4M3`, `E4M8`: `Sector boundary must form closed contours`.
-- `E4M5`: `Wall texture is not defined in TEXTURE1 or TEXTURE2`.
-
-### doom2.wad
-
-21/32 maps passed.
-SHA-256: `10d67824b11025ddd9198e8cfc87ca335ee6e2d3e63af4180fa9b8a471893255`.
-
-Passed: `MAP01`, `MAP04`, `MAP05`, `MAP06`, `MAP07`, `MAP08`, `MAP09`, `MAP10`, `MAP11`, `MAP12`, `MAP13`, `MAP15`, `MAP20`, `MAP23`, `MAP24`, `MAP25`, `MAP27`, `MAP28`, `MAP29`, `MAP31`, `MAP32`.
-
-- `MAP02`, `MAP14`, `MAP16`, `MAP17`, `MAP18`, `MAP19`, `MAP21`, `MAP22`, `MAP26`, `MAP30`: `Sector boundary must form closed contours`.
-- `MAP03`: `Player start intersects a wall or has insufficient clearance`.
-
-### tnt.wad
-
-26/32 maps passed.
-SHA-256: `9cbc54a6e46ec9f99dd9e9b59a39c7264460b9041c780344ed7cae899e4d92f9`.
-
-Passed: `MAP01`, `MAP03`, `MAP04`, `MAP05`, `MAP06`, `MAP07`, `MAP08`, `MAP09`, `MAP10`, `MAP11`, `MAP12`, `MAP13`, `MAP14`, `MAP15`, `MAP17`, `MAP18`, `MAP19`, `MAP20`, `MAP22`, `MAP24`, `MAP25`, `MAP26`, `MAP28`, `MAP29`, `MAP30`, `MAP32`.
-
-- `MAP02`, `MAP21`, `MAP27`: `Sector boundary must form closed contours`.
-- `MAP16`: `Sector has invalid heights or light level`.
-- `MAP23`, `MAP31`: `Sector has no closed boundary`.
-
-### PLUTONIA.wad
-
-14/32 maps passed.
-SHA-256: `a83b00c636fa3308286e76b1b3153fc14507caf994b0450770421260b08efed8`.
-
-Passed: `MAP01`, `MAP04`, `MAP05`, `MAP06`, `MAP07`, `MAP10`, `MAP12`, `MAP15`, `MAP19`, `MAP21`, `MAP22`, `MAP23`, `MAP27`, `MAP32`.
-
-- `MAP02`, `MAP03`, `MAP08`, `MAP09`, `MAP13`, `MAP14`, `MAP17`, `MAP18`, `MAP20`, `MAP24`, `MAP25`, `MAP26`, `MAP28`, `MAP29`, `MAP30`: `Sector has no closed boundary`.
-- `MAP11`, `MAP31`: `Sector boundary must form closed contours`.
-- `MAP16`: `Wall texture is not defined in TEXTURE1 or TEXTURE2`.
+No original-map loader or simulation failures remain in this short check.
 
 ## Interactive validation
 
-- Doom `E1M1` and Doom II `MAP01`: X11 visible rendering, forward movement,
-  key release, focus loss, turning and Escape shutdown passed.
-- Generated corridor, single-sector, multi-sector and sky scenes passed
-  `task gui-check`; `task check` passed with 64 original synthetic WADs.
-- TNT/Plutonia and the remaining original maps received headless checks only.
-- Original-map forward movement can stop against static doors or walls; the
-  check is not a playthrough and does not require every forward tick to move.
+- `task check` passed with 92 original synthetic WAD fixtures, including BSP
+  references/ranges/cycles, first-seg subsectors, unused sectors, absent wall
+  materials, inverted closed sectors and tangent player starts.
+- `task gui-check` passed the corridor, single-sector, multi-sector, sky and
+  BSP scenes: visible rendering, movement, release, focus loss, turn and Escape.
+- Original Doom II `MAP03`, TNT `MAP16`, Plutonia `MAP02` and Doom `E4M5` passed
+  the same X11 input/render/shutdown check sequentially on the final build.
+- A parallel Plutonia `MAP02` run initially exceeded the five-second Escape
+  shutdown budget. Two isolated reruns passed; the initial cause is unconfirmed.
+- GUI checks now launch a unique temporary executable copy so an already
+  running game with the same source path cannot receive their test events.
+- A two-copy ownership check passed: the pre-existing temporary game's process,
+  window and frame stayed unchanged while the second copy received test input.
 
-## Changes and remaining limits
+## Changes since the 90-map baseline
 
-The initial E1M1/MAP01 failures required classic sky selection, fullbright
-panorama sampling, shared sky between ceilings of different heights, and
-omission of explicitly absent upper/lower wall textures (`-`). These rules
-have synthetic regression checks; unknown named wall materials still fail.
+Classic SEGS/SSECTORS/NODES now supply sector lookup instead of requiring every
+sector to be a closed contour. The subsector uses its first seg, matching the
+original loader even when later segs reference another sector. Every seg index,
+subsector range and node child is validated. Child nodes must precede their
+parent, making traversal finite without recursion. Empty BSP lumps retain the
+closed-contour checks used by the original synthetic fixtures.
 
-The 42 remaining rejections comprise 21 open-contour checks, 17 sectors without
-a boundary, two missing wall materials, one start-clearance check and one
-sector-height/light check. The contour and start checks remain enabled.
-Do not claim whole-IWAD compatibility from the passing subset.
+BSP fixed the 38 original contour/unused-sector rejections. The intermediate
+check passed 125/132 maps and exposed seven remaining cases. Those were fixed:
+
+- Doom II `MAP03` starts exactly 16 units from a wall. Tangency is now valid;
+  actual penetration remains blocked.
+- TNT `MAP16` contains two ceilings one unit below their floors. These closed
+  sectors retain their original heights and cannot provide player clearance.
+- Doom `E4M5`/`E4M8`, TNT `MAP21`, Plutonia `MAP16`/`MAP25` include one-sided
+  walls whose middle texture is `-`. Their material is omitted; the wall still
+  blocks movement and terminates rays. Unknown named textures still fail.
+
+The first E4M5 GUI check still failed with `Frame contains no visible scene`.
+Its exported start frame had only the two background colors: the camera sits
+exactly on a portal, while ray casting skips zero-distance hits. Selecting the
+sector immediately ahead of each ray fixed both portal directions in the
+synthetic regression and E4M5's native/window checks. All 132 maps were rerun
+with the stronger visible-frame assertion after this fix. The assertion helper
+initially used constant `ASSERT(FALSE)`, which the compiler rejected; it now
+returns a boolean for the caller's runtime assertion.
+
+## Remaining limits
+
+The renderer still traverses sector walls rather than using BSP for drawing.
+BSP identifies the region; the wall bounds reject distant outside positions,
+but leaf polygon coverage is not validated for edited maps. Collision remains
+a circle with axis sliding rather than an exact original bounding-box solver.
+Missing materials leave uncovered pixels as the frame background; original
+hall-of-mirrors effects are not reproduced.
 
 Masked middle walls, sprites, weapons, monsters, moving doors, gravity and
-Brutal Doom/Project Brutality PK3 behavior remain unimplemented. Missing wall
-tiers are omitted; original hall-of-mirrors effects are not reproduced.
-No performance target or non-Linux platform was checked.
+Brutal Doom/Project Brutality PK3 behavior remain unimplemented. Whole-level
+traversal, exact original rendering, performance targets and non-Linux platforms
+were not checked.

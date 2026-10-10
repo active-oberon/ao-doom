@@ -3,8 +3,10 @@
 
 import ctypes as C
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 X = C.CDLL("libX11.so.6")
@@ -111,8 +113,8 @@ def focus(display, window, gained):
     X.XFlush(display)
 
 
-def main():
-    executable = pathlib.Path(sys.argv[1]).resolve()
+def check(executable):
+    executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
         raise RuntimeError("No X11 display is accessible for the window check")
@@ -127,8 +129,14 @@ def main():
             window = find_window(display, root, executable)
             time.sleep(0.05)
         assert window is not None, "Game window did not appear"
-        time.sleep(0.2)
-        initial = pixels(display, window)
+        deadline = time.monotonic() + 5
+        initial = ()
+        while time.monotonic() < deadline:
+            assert process.poll() is None, "Game exited before rendering its scene"
+            initial = pixels(display, window)
+            if len(set(initial)) >= 4:
+                break
+            time.sleep(0.05)
         assert len(set(initial)) >= 4, "Frame contains no visible scene"
         key(display, window, root, ord("w"))
         time.sleep(0.3)
@@ -161,6 +169,13 @@ def main():
             process.kill()
             process.communicate()
         X.XCloseDisplay(display)
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
+        executable = pathlib.Path(directory) / "ao-doom"
+        shutil.copy2(sys.argv[1], executable)
+        check(executable)
 
 
 if __name__ == "__main__":

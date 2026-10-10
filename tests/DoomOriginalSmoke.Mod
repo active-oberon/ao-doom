@@ -2,6 +2,20 @@ MODULE DoomOriginalSmoke;
 
 IMPORT Doom, GameSurface, KernelLog, Unix, Commands;
 
+PROCEDURE Visible(frame: GameSurface.Frame): BOOLEAN;
+VAR x, y, color: SIGNED32;
+BEGIN
+	FOR y := 0 TO frame.height - 1 DO
+		FOR x := 0 TO frame.width - 1 DO
+			color := frame.Pixel(x, y);
+			IF (color # 0202938H) & (color # 035302CH) THEN
+				RETURN TRUE
+			END
+		END
+	END;
+	RETURN FALSE
+END Visible;
+
 PROCEDURE Do*(context: Commands.Context);
 VAR game: Doom.Game;
 	frame: GameSurface.Frame;
@@ -31,12 +45,14 @@ BEGIN
 	END;
 	NEW(frame, 320, 200);
 	game.Render(frame);
+	ASSERT(Visible(frame));
 	ASSERT(frame.Save("original-start.ppm"));
 	game.Controls(1, 0, 0);
 	FOR i := 1 TO 35 DO
 		game.Step(i)
 	END;
 	game.Render(frame);
+	ASSERT(Visible(frame));
 	ASSERT(frame.Save("original-walk.ppm"));
 	game.Controls(0, 0, 1);
 	FOR i := 36 TO 132 DO
