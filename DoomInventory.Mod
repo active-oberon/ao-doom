@@ -22,6 +22,8 @@ CONST Bullets* = 0;
 
 TYPE State* = RECORD
 	health*, armor*, armorType*, pickups*: SIGNED32;
+	(* shortcut: key hints persist until use or matching pickup; add expiry with timed player messages. *)
+	neededKey*: SIGNED32;
 	ammo*, maximum*: ARRAY 4 OF SIGNED32;
 	weapons*, keys*: SET;
 	backpack*: BOOLEAN
@@ -36,6 +38,7 @@ BEGIN
 	player.pickups := 0;
 	player.weapons := {Fist, Pistol};
 	player.keys := {};
+	player.neededKey := -1;
 	player.backpack := FALSE;
 	FOR i := 0 TO 3 DO
 		player.ammo[i] := 0
@@ -218,6 +221,10 @@ BEGIN
 	ELSE
 		(* shortcut: powerups remain visible until combat and environment effects are implemented. *)
 		RETURN FALSE
+	END;
+	IF (player.neededKey >= 0) &
+		((player.neededKey IN player.keys) OR (player.neededKey + 3 IN player.keys)) THEN
+		player.neededKey := -1
 	END;
 	INC(player.pickups);
 	RETURN TRUE

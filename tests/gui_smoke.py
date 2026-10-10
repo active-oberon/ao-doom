@@ -119,7 +119,7 @@ def focus(display, window, gained):
     X.XFlush(display)
 
 
-def check(executable, arguments, door=False, pickup=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -144,6 +144,30 @@ def check(executable, arguments, door=False, pickup=False):
                 break
             time.sleep(0.05)
         assert visible(initial), "Frame contains no visible scene"
+        if locked_door:
+            key(display, window, root, 0x20)
+            time.sleep(0.2)
+            locked = pixels(display, window)
+            panel = pixels(display, window, hud=True)
+            assert locked[:45 * 80] == initial[:45 * 80], "Door opened without its key"
+            assert panel[13 * 320 + 216] == 0x60A0FF, "Missing blue key hint was not drawn"
+            key(display, window, root, ord("d"))
+            deadline = time.monotonic() + 3
+            while pixels(display, window, hud=True)[13 * 320 + 144] != 0x60A0FF:
+                assert time.monotonic() < deadline, "Strafing did not collect the blue card"
+                time.sleep(0.05)
+            key(display, window, root, ord("d"), release=True)
+            time.sleep(0.2)
+            assert pixels(display, window, hud=True)[13 * 320 + 216] == 0x12161C, "Collected key did not clear its hint"
+            key(display, window, root, 0x20, release=True)
+            before_open = pixels(display, window)
+            key(display, window, root, 0x20)
+            key(display, window, root, 0x20, release=True)
+            time.sleep(2)
+            initial = pixels(display, window)
+            assert initial[:45 * 80] != before_open[:45 * 80], "Collected key did not unlock the door"
+            time.sleep(0.2)
+            assert pixels(display, window) == initial, "Locked open-only door did not stop moving"
         if pickup:
             before = pixels(display, window, hud=True)
             key(display, window, root, ord("w"))
@@ -203,6 +227,8 @@ def check(executable, arguments, door=False, pickup=False):
             print("Door GUI check passed: opening, held/released Space, closing and reopening")
         if pickup:
             print("Pickup GUI check passed: touching items updates the inventory HUD")
+        if locked_door:
+            print("Locked door GUI check passed: key denial hint, card pickup, unlocking and crossing")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
     finally:
         if process.poll() is None:
@@ -215,12 +241,13 @@ def main():
     arguments = sys.argv[1:]
     door = arguments[0] == "--door"
     pickup = arguments[0] == "--pickup"
-    if door or pickup:
+    locked_door = arguments[0] == "--locked-door"
+    if door or pickup or locked_door:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
         shutil.copy2(arguments[0], executable)
-        check(executable, arguments[1:], door, pickup)
+        check(executable, arguments[1:], door, pickup, locked_door)
 
 
 if __name__ == "__main__":

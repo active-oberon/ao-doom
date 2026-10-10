@@ -1,6 +1,6 @@
 MODULE DoomDoors;
 
-IMPORT DoomWad, GameBytes, GameGeometry, MathL;
+IMPORT DoomWad, DoomInventory, GameBytes, GameGeometry, MathL;
 
 CONST Speed = 2.0 / 64;
 	Wait = 150;
@@ -74,12 +74,14 @@ TYPE
 			RETURN height - 4.0 / 64
 		END Top;
 
-		PROCEDURE Use*(world: GameGeometry.World; x, y, angle: FLOAT64): BOOLEAN;
+		PROCEDURE Use*(world: GameGeometry.World; x, y, angle: FLOAT64;
+			VAR player: DoomInventory.State): BOOLEAN;
 		VAR wall: GameGeometry.Wall;
 			front, back: GameGeometry.Sector;
-			i, sector, special: SIGNED32;
+			i, sector, special, key: SIGNED32;
 			distance, near, top: FLOAT64;
 		BEGIN
+			player.neededKey := -1;
 			near := 0;
 			(* shortcut: use traces stop after 256 hits; add spatial traversal for denser edited maps. *)
 			FOR i := 1 TO MIN(world.Count(), 256) DO
@@ -95,8 +97,22 @@ TYPE
 						((x - wall.ax) * (wall.by - wall.ay) > (y - wall.ay) * (wall.bx - wall.ax)) THEN
 						RETURN FALSE
 					END;
+					CASE special OF
+					26, 32:
+						key := DoomInventory.BlueCard
+					| 27, 34:
+						key := DoomInventory.YellowCard
+					| 28, 33:
+						key := DoomInventory.RedCard
+					ELSE
+						key := -1
+					END;
+					IF (key >= 0) & ~((key IN player.keys) OR (key + 3 IN player.keys)) THEN
+						player.neededKey := key;
+						RETURN FALSE
+					END;
 					IF doors[sector].direction # 0 THEN
-						IF (special = 1) OR (special = 117) THEN
+						IF (special = 1) OR ((special >= 26) & (special <= 28)) OR (special = 117) THEN
 							IF doors[sector].direction = -1 THEN
 								doors[sector].direction := 1
 							ELSE
@@ -116,7 +132,7 @@ TYPE
 					IF special >= 117 THEN
 						doors[sector].speed := Speed * 4
 					END;
-					doors[sector].stayOpen := (special = 31) OR (special = 118);
+					doors[sector].stayOpen := ((special >= 31) & (special <= 34)) OR (special = 118);
 					IF doors[sector].stayOpen THEN
 						triggers[wall.id].special := 0
 					END;
@@ -194,7 +210,8 @@ TYPE
 
 PROCEDURE Supported(special: SIGNED32): BOOLEAN;
 BEGIN
-	RETURN (special = 1) OR (special = 31) OR (special = 117) OR (special = 118)
+	RETURN (special = 1) OR ((special >= 26) & (special <= 28)) OR
+		((special >= 31) & (special <= 34)) OR (special = 117) OR (special = 118)
 END Supported;
 
 END DoomDoors.

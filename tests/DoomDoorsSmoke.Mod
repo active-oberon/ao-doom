@@ -1,6 +1,6 @@
 MODULE DoomDoorsSmoke;
 
-IMPORT Doom, DoomMap, DoomWad, GameGeometry, GameRenderer, GameSurface, MathL;
+IMPORT Doom, DoomInventory, DoomMap, DoomWad, GameGeometry, GameRenderer, GameSurface, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -28,23 +28,25 @@ END Ceiling;
 
 PROCEDURE Cycle;
 VAR map: DoomMap.Map;
+	player: DoomInventory.State;
 	old: GameGeometry.World;
 	frame: GameSurface.Frame;
 	x, y, feet, floor: FLOAT64;
 	pixel: SIGNED32;
 BEGIN
+	DoomInventory.Reset(player);
 	Load("door.wad", map);
 	old := map.world;
 	ASSERT(~map.world.Stand(0, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep, floor));
-	ASSERT(~map.doors.Use(map.world, -2, 0, 0));
-	ASSERT(~map.doors.Use(map.world, -1.000001, 0, 0));
-	ASSERT(~map.doors.Use(map.world, map.x, 0, MathL.pi));
-	ASSERT(~map.doors.Use(map.world, 0.5, 0, MathL.pi));
+	ASSERT(~map.doors.Use(map.world, -2, 0, 0, player));
+	ASSERT(~map.doors.Use(map.world, -1.000001, 0, 0, player));
+	ASSERT(~map.doors.Use(map.world, map.x, 0, MathL.pi, player));
+	ASSERT(~map.doors.Use(map.world, 0.5, 0, MathL.pi, player));
 	NEW(frame, 320, 200);
 	GameRenderer.Render(map.world, frame, map.x, 0, 0, map.eye);
 	pixel := frame.Pixel(160, 100);
 	ASSERT(frame.Save("door-closed.ppm"));
-	ASSERT(map.doors.Use(map.world, -1, 0, 0));
+	ASSERT(map.doors.Use(map.world, -1, 0, 0, player));
 	Advance(map, 27, map.x);
 	ASSERT(Ceiling(map.world) = 54.0 / 64);
 	ASSERT(~map.world.Stand(0, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep, floor));
@@ -69,15 +71,15 @@ BEGIN
 	ASSERT(Ceiling(map.world) = 122.0 / 64);
 	Advance(map, 61, map.x);
 	ASSERT(Ceiling(map.world) = 0);
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
 	Advance(map, 1, map.x);
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
 	Advance(map, 1, map.x);
 	ASSERT(Ceiling(map.world) = 0);
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
 	Advance(map, 62, map.x);
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
 	Advance(map, 1, map.x);
 	ASSERT(Ceiling(map.world) = 124.0 / 64);
 	Advance(map, 150, 0.5);
@@ -90,15 +92,17 @@ END Cycle;
 
 PROCEDURE Variant(CONST path: ARRAY OF CHAR; ticks: SIGNED32; stayOpen: BOOLEAN);
 VAR map: DoomMap.Map;
+	player: DoomInventory.State;
 BEGIN
+	DoomInventory.Reset(player);
 	Load(path, map);
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
 	Advance(map, ticks - 1, map.x);
 	ASSERT(Ceiling(map.world) < 124.0 / 64);
 	Advance(map, 1, map.x);
 	ASSERT(Ceiling(map.world) = 124.0 / 64);
 	IF stayOpen THEN
-		ASSERT(~map.doors.Use(map.world, map.x, 0, 0));
+		ASSERT(~map.doors.Use(map.world, map.x, 0, 0, player));
 		Advance(map, 250, map.x);
 		ASSERT(Ceiling(map.world) = 124.0 / 64)
 	ELSE
@@ -109,11 +113,13 @@ END Variant;
 
 PROCEDURE Peg(CONST path: ARRAY OF CHAR; upper, offset, lower: FLOAT64);
 VAR map: DoomMap.Map;
+	player: DoomInventory.State;
 	wall: GameGeometry.Wall;
 	distance: FLOAT64;
 BEGIN
+	DoomInventory.Reset(player);
 	Load(path, map);
-	ASSERT(map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(map.doors.Use(map.world, map.x, 0, 0, player));
 	Advance(map, 1, map.x);
 	ASSERT(map.world.CastSector(0, map.x, 0, 1, 0, 0, distance, wall));
 	ASSERT(wall.upperAnchor = upper);
@@ -127,12 +133,14 @@ END Peg;
 
 PROCEDURE Do*;
 VAR map: DoomMap.Map;
+	player: DoomInventory.State;
 	game: Doom.Game;
 	old: GameGeometry.World;
 	archive: DoomWad.Archive;
 	error: ARRAY 128 OF CHAR;
 	i: SIGNED32;
 BEGIN
+	DoomInventory.Reset(player);
 	Cycle;
 	Variant("door-open.wad", 62, TRUE);
 	Variant("door-fast.wad", 16, FALSE);
@@ -141,13 +149,13 @@ BEGIN
 	Peg("door-peg-top.wad", 2, 0, 0);
 	Peg("door-peg-bottom.wad", 1 + 2.0 / 64, -2.0 / 64, 2.0 / 64);
 	Load("door-locked.wad", map);
-	ASSERT(~map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(~map.doors.Use(map.world, map.x, 0, 0, player));
 	Load("door-unsupported.wad", map);
-	ASSERT(~map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(~map.doors.Use(map.world, map.x, 0, 0, player));
 	Load("door-no-back.wad", map);
-	ASSERT(~map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(~map.doors.Use(map.world, map.x, 0, 0, player));
 	Load("door-occluded.wad", map);
-	ASSERT(~map.doors.Use(map.world, map.x, 0, 0));
+	ASSERT(~map.doors.Use(map.world, map.x, 0, 0, player));
 	archive := DoomWad.Open("door-hidden-unknown.wad", error);
 	ASSERT(archive # NIL);
 	ASSERT(~DoomMap.LoadMap(archive, "E1M1", map, error));

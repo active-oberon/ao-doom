@@ -1,6 +1,6 @@
 MODULE DoomOriginalDoorsSmoke;
 
-IMPORT Doom, DoomWad, DoomMap, GameBytes, GameGeometry, GameSurface, GameRenderer,
+IMPORT Doom, DoomInventory, DoomWad, DoomMap, GameBytes, GameGeometry, GameSurface, GameRenderer,
 	MathL, KernelLog, Unix, Commands;
 
 PROCEDURE Do*(context: Commands.Context);
@@ -10,15 +10,23 @@ VAR archive: DoomWad.Archive;
 	region: GameGeometry.Sector;
 	wall: GameGeometry.Wall;
 	frame: GameSurface.Frame;
+	player: DoomInventory.State;
 	path: ARRAY 512 OF CHAR;
 	marker: ARRAY 9 OF CHAR;
 	error: ARRAY 128 OF CHAR;
+	option: ARRAY 16 OF CHAR;
+	locked: BOOLEAN;
 	i, j, offset, a, b, special, sector: SIGNED32;
 	ax, ay, bx, by, rx, ry, length, x, y, angle, feet, floor, before,
 	blockedX, blockedY, blockedFeet, distance: FLOAT64;
 BEGIN
-	IF Unix.argc < 3 THEN
-		KernelLog.String("Usage: original-doors-check WAD MAP");
+	locked := FALSE;
+	IF Unix.argc = 4 THEN
+		Unix.GetArg(3, option);
+		locked := option = "--keys"
+	END;
+	IF (Unix.argc < 3) OR (Unix.argc > 4) OR ((Unix.argc = 4) & ~locked) THEN
+		KernelLog.String("Usage: original-doors-check WAD MAP [--keys]");
 		KernelLog.Ln;
 		context.result := Commands.CommandError;
 		RETURN
@@ -34,10 +42,12 @@ BEGIN
 	END;
 	lines := archive.Entry(archive.Find(marker) + 2);
 	vertices := archive.Entry(archive.Find(marker) + 4);
+	DoomInventory.Reset(player);
 	FOR i := 0 TO lines.size DIV 14 - 1 DO
 		offset := lines.offset + i * 14;
 		special := GameBytes.U16(archive.data^, offset + 6);
-		IF (special = 1) OR (special = 31) OR (special = 117) OR (special = 118) THEN
+		IF (locked & (((special >= 26) & (special <= 28)) OR ((special >= 32) & (special <= 34)))) OR
+			(~locked & ((special = 1) OR (special = 31) OR (special = 117) OR (special = 118))) THEN
 			a := GameBytes.U16(archive.data^, offset);
 			b := GameBytes.U16(archive.data^, offset + 2);
 			ax := GameBytes.I16(archive.data^, vertices.offset + a * 4) / 64.0;
@@ -71,28 +81,35 @@ BEGIN
 					ASSERT(map.world.MovePlayer(blockedX, blockedY, blockedFeet, rx, ry,
 						Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
 					IF (blockedX * rx + blockedY * ry <= x * rx + y * ry + 0.5) &
-						map.world.Cast(x, y, rx, ry, distance, wall) & (wall.id = i) &
-						map.doors.Use(map.world, x, y, angle) THEN
-						NEW(frame, 320, 200);
-						GameRenderer.Render(map.world, frame, x, y, angle, feet + Doom.PlayerEye);
-						ASSERT(frame.Save("original-door-closed.ppm"));
-						FOR j := 1 TO 70 DO
-							map.doors.Step(map.world, x, y, Doom.PlayerRadius, feet, Doom.PlayerHeight, Doom.PlayerStep)
+						map.world.Cast(x, y, rx, ry, distance, wall) & (wall.id = i) THEN
+						IF locked THEN
+							player.keys := {};
+							ASSERT(~map.doors.Use(map.world, x, y, angle, player));
+							ASSERT(player.neededKey >= 0);
+							player.keys := {0..5}
 						END;
-						GameRenderer.Render(map.world, frame, x, y, angle, feet + Doom.PlayerEye);
-						ASSERT(frame.Save("original-door-open.ppm"));
-						before := x * rx + y * ry;
-						ASSERT(map.world.MovePlayer(x, y, feet, rx, ry, Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
-						ASSERT(x * rx + y * ry > before + 0.5);
-						ASSERT(map.world.Stand(x, y, Doom.PlayerRadius, feet, Doom.PlayerHeight, Doom.PlayerStep, floor));
-						KernelLog.String(marker);
-						KernelLog.String(": opened and crossed manual door line ");
-						KernelLog.Int(i, 1);
-						KernelLog.String(" (type ");
-						KernelLog.Int(special, 1);
-						KernelLog.String(")");
-						KernelLog.Ln;
-						RETURN
+						IF map.doors.Use(map.world, x, y, angle, player) THEN
+							NEW(frame, 320, 200);
+							GameRenderer.Render(map.world, frame, x, y, angle, feet + Doom.PlayerEye);
+							ASSERT(frame.Save("original-door-closed.ppm"));
+							FOR j := 1 TO 70 DO
+								map.doors.Step(map.world, x, y, Doom.PlayerRadius, feet, Doom.PlayerHeight, Doom.PlayerStep)
+							END;
+							GameRenderer.Render(map.world, frame, x, y, angle, feet + Doom.PlayerEye);
+							ASSERT(frame.Save("original-door-open.ppm"));
+							before := x * rx + y * ry;
+							ASSERT(map.world.MovePlayer(x, y, feet, rx, ry, Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
+							ASSERT(x * rx + y * ry > before + 0.5);
+							ASSERT(map.world.Stand(x, y, Doom.PlayerRadius, feet, Doom.PlayerHeight, Doom.PlayerStep, floor));
+							KernelLog.String(marker);
+							KernelLog.String(": opened and crossed manual door line ");
+							KernelLog.Int(i, 1);
+							KernelLog.String(" (type ");
+							KernelLog.Int(special, 1);
+							KernelLog.String(")");
+							KernelLog.Ln;
+							RETURN
+						END
 					END
 				END
 			END

@@ -63,6 +63,15 @@ BEGIN
 		ELSE
 			GameText.Draw(frame, 144 + i * 12, y + 13, color, "S")
 		END
+	END;
+	CASE player.neededKey OF
+	DoomInventory.BlueCard:
+		GameText.Draw(frame, 216, y + 13, 060A0FFH, "NEED BLUE KEY")
+	| DoomInventory.YellowCard:
+		GameText.Draw(frame, 216, y + 13, 0FFE060H, "NEED YELLOW KEY")
+	| DoomInventory.RedCard:
+		GameText.Draw(frame, 216, y + 13, 0FF6060H, "NEED RED KEY")
+	ELSE
 	END
 END Draw;
 
