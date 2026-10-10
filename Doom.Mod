@@ -4,6 +4,9 @@ IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad
 
 CONST TicksPerSecond* = 35;
 	PlayerRadius* = 0.25;
+	PlayerHeight* = 56.0 / 64;
+	PlayerStep* = 24.0 / 64;
+	PlayerEye* = 41.0 / 64;
 
 TYPE
 	Pose* = RECORD
@@ -92,7 +95,7 @@ TYPE
 		END Controls;
 
 		PROCEDURE Step*(tick: SIGNED64);
-		VAR dx, dy, speed: FLOAT64;
+		VAR dx, dy, speed, feet: FLOAT64;
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
@@ -110,7 +113,13 @@ TYPE
 				strafe * MathL.sin(pose.angle)) * speed;
 			dy := (forward * MathL.sin(pose.angle) +
 				strafe * MathL.cos(pose.angle)) * speed;
-			ASSERT(world.Move(pose.x, pose.y, dx, dy, PlayerRadius))
+			IF world.SectorCount() = 0 THEN
+				ASSERT(world.Move(pose.x, pose.y, dx, dy, PlayerRadius))
+			ELSE
+				feet := pose.eye - PlayerEye;
+				ASSERT(world.MovePlayer(pose.x, pose.y, feet, dx, dy, PlayerRadius, PlayerHeight, PlayerStep));
+				pose.eye := feet + PlayerEye
+			END
 		END Step;
 
 		PROCEDURE State*(): Pose;

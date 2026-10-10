@@ -46,7 +46,7 @@ BEGIN
 	ASSERT(archive # NIL);
 	archive := DoomWad.Open("valid.wad", error);
 	ASSERT(archive # NIL);
-	ASSERT(archive.Count() = 15);
+	ASSERT(archive.Count() = 19);
 	ASSERT(DoomMap.LoadMap(archive, "e1m1", map, error));
 	ASSERT(map.world.Count() = 8);
 	ASSERT((map.x = 0) & (map.y = 0) & (map.angle = 0));
@@ -72,7 +72,11 @@ BEGIN
 	RejectMap("bad-stride.wad");
 	RejectMap("multi-sector.wad");
 	RejectMap("low-ceiling.wad");
-	RejectMap("open-boundary.wad")
+	RejectMap("open-boundary.wad");
+	RejectMap("open-sector.wad");
+	RejectMap("bad-two-sided.wad");
+	RejectMap("bad-flat.wad");
+	RejectMap("missing-flat.wad")
 END Do;
 
 END DoomWadSmoke.

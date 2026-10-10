@@ -11,6 +11,7 @@ tasks:
   stage:
     cmds:
       - mkdir -p build
+      - rm -f build/*.Gof* build/*.Sym*
       - cp "{{.ENGINE_DIR}}"/Game*.Mod build/
       - cp Doom*.Mod build/
 
@@ -31,12 +32,14 @@ tasks:
     cmds:
       - task --dir "{{.ENGINE_DIR}}" check
       - task: stage
-      - cp tests/DoomWadSmoke.Mod tests/DoomTexturesSmoke.Mod build/
+      - cp tests/DoomWadSmoke.Mod tests/DoomTexturesSmoke.Mod tests/DoomSectorsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
       - cd build && ob build DoomWadSmoke.Mod -o wad-check
       - cd build && timeout 10 ./wad-check
       - cd build && ob build DoomTexturesSmoke.Mod -o textures-check
       - cd build && timeout 10 ./textures-check
+      - cd build && ob build DoomSectorsSmoke.Mod -o sectors-check
+      - cd build && timeout 10 ./sectors-check
       - cd build && ob build Doom.Mod -o doom-check
       - cd build && timeout 10 ./doom-check
       - task: build
@@ -48,6 +51,7 @@ tasks:
       - python3 tests/gui_smoke.py build/ao-doom
       - python3 tests/wad_fixtures.py build
       - python3 tests/gui_smoke.py build/ao-doom build/valid.wad E1M1
+      - python3 tests/gui_smoke.py build/ao-doom build/sectors.wad E1M1
 
   bench:
     desc: Measure 200 textured frames without display transfer

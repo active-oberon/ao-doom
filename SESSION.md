@@ -1,22 +1,62 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 02:33:27 UTC
+Updated: 2026-10-10 07:43:38 UTC
 
-## Saved stop point
+## Current state
 
-The user requested saving state and exiting. Work is stopped until the next request.
-Changes are saved on disk and remain uncommitted in these repositories:
+The user resumed Doom work and requested logical commits in every changed
+repository. The multi-sector milestone is implemented; this section supersedes
+all previous stop points below.
 
-- /home/andrejjj/Projects/A2/ao-doom
-- /home/andrejjj/Projects/A2/ao-game-engine
-- /home/andrejjj/Projects/A2/minia2
+- ao-game-engine owns immutable sectors, directed sector walls, ray traversal
+  through openings, projected floor/ceiling materials and circle collision with
+  caller-provided height/step limits. Material density is supplied by the game.
+- ao-doom loads multiple classic sectors, validates each closed contour, composes
+  upper/lower wall materials and decodes cached 64 x 64 palette flats.
+- Players cross openings, climb at most 24 Doom units, respect 56-unit clearance,
+  slide against blocking lines and descend onto the floor. Height changes snap;
+  there is no gravity or camera smoothing yet.
+- `task run -- build/sectors.wad E1M1` opens three generated rooms. `task check`
+  generates this and 49 other original fixtures without Doom assets.
+- Staging removes only generated object/symbol files from build/ before copying
+  sources, preventing incompatible imports after manual compiler invocations.
 
-Resume from the implementation and verification notes below; the historical
-original stop point does not describe the current implementation. The next
-milestone is sector portals, floors and multi-sector collision. Use Task for builds.
-No commits or pushes were made when saving this handoff; tests were not rerun.
+## Verification in this continuation
 
-## Current continuation: 2026-10-10
+- `task check`: engine loop/scene/sector checks, 50 WAD fixtures, texture/flat
+  decoding, sector movement/pixels and native GUI compilation passed.
+- `task gui-check`: the corridor, single-sector WAD and multi-sector WAD passed
+  visible rendering, movement, release, focus loss, turning and Escape shutdown.
+- MiniA2 `task x11-keys`: release/focus messages passed again on Xephyr. The prior
+  driver fixes were committed; no additional SDK source changes were needed.
+  The previous exact Linux64 bundle remains the tested/installed SDK. Other
+  targets were not rebuilt in this turn.
+- `task bench`: 200 corridor frames in 502 ms, without display transfer; this is
+  not a real-map or multi-sector performance claim.
+- Pixel assertions exposed seams at portal boundaries and narrow multiplication
+  overflow in flat palette conversion. Both were fixed and the checks passed.
+- A later Wall record extension exposed stale adjacent compiler objects:
+  `GameGeometry.Wall in Doom.@CodeSections: error: incompatible`. Clearing the
+  staged compiler artifacts resolved it; the SDK sources were not changed.
+- Sandbox-only baseline build failure came from writing the neighboring engine
+  output; the authorized build outside that restriction passed.
+- Source statement layout and whitespace checks passed.
+
+## Commit organization and remaining work
+
+- ao-game-engine: simulation/clock (`9cf754a`), basic rendering/collision
+  (`5de0899`), then sectors/portal rendering and movement as a separate commit.
+- ao-doom: WAD/maps/textures (`61b9efd`), window/input/builds (`bb7aa84`), then
+  multi-sector map interpretation, flats and regression checks separately.
+- MiniA2: ordinary X11 releases (`2231be2`), then focus messages and automated
+  key lifetime checks (`276a8d3`).
+- No pushes, merges or deployments were performed.
+- Next: validate an original map, then masked walls, sky rendering, sprites,
+  actors, weapons and moving doors. Original Doom compatibility is unverified.
+- Masked middle textures are still omitted. Geometry remains static. Collision
+  and sector location scan geometry without a spatial index.
+
+## Previous continuation: 2026-10-10
 
 This section supersedes the original stop point below. The user requested a
 reusable Active Oberon engine in ao-game-engine, Doom as its first game, Task

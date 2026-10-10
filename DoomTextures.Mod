@@ -9,6 +9,7 @@ TYPE
 	Cached = POINTER TO RECORD
 		name: ARRAY 9 OF CHAR;
 		texture: GameMaterials.Texture;
+		flat: BOOLEAN;
 		next: Cached
 	END;
 
@@ -220,7 +221,7 @@ TYPE
 			wanted[i] := 0X;
 			found := cache;
 			WHILE found # NIL DO
-				IF found.name = wanted THEN
+				IF (found.name = wanted) & ~found.flat THEN
 					RETURN found.texture
 				END;
 				found := found.next
@@ -281,10 +282,71 @@ TYPE
 			NEW(found);
 			COPY(wanted, found.name);
 			found.texture := texture;
+			found.flat := FALSE;
 			found.next := cache;
 			cache := found;
 			RETURN texture
 		END Get;
+
+		PROCEDURE Flat*(CONST name: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): GameMaterials.Texture;
+		VAR found: Cached;
+			wanted: ARRAY 9 OF CHAR;
+			index, i, position, color, red, green, blue: SIGNED32;
+			lump: DoomWad.Lump;
+			texture: GameMaterials.Texture;
+		BEGIN
+			error[0] := 0X;
+			i := 0;
+			WHILE (i < LEN(name)) & (name[i] # 0X) DO
+				IF i = 8 THEN
+					COPY("Flat name exceeds eight characters", error);
+					RETURN NIL
+				END;
+				wanted[i] := CAP(name[i]);
+				INC(i)
+			END;
+			wanted[i] := 0X;
+			found := cache;
+			WHILE found # NIL DO
+				IF (found.name = wanted) & found.flat THEN
+					RETURN found.texture
+				END;
+				found := found.next
+			END;
+			index := archive.Find(wanted);
+			IF index < 0 THEN
+				COPY("Sector flat lump is missing", error);
+				RETURN NIL
+			END;
+			lump := archive.Entry(index);
+			IF lump.size # 4096 THEN
+				COPY("Sector flat must contain 4096 palette indices", error);
+				RETURN NIL
+			END;
+			IF (4096 > MaximumPixels - pixels) OR (4096 > MaximumWork - work) THEN
+				COPY("Flat decoding exceeds the texture resource budget", error);
+				RETURN NIL
+			END;
+			NEW(texture, 64, 64);
+			FOR i := 0 TO 4095 DO
+				position := palette.offset + ORD(archive.data[lump.offset + i]) * 3;
+				red := ORD(archive.data[position]);
+				green := ORD(archive.data[position + 1]);
+				blue := ORD(archive.data[position + 2]);
+				color := red * 65536 + green * 256 + blue;
+				texture.Set(i MOD 64, i DIV 64, color)
+			END;
+			texture.Seal;
+			INC(pixels, 4096);
+			INC(work, 4096);
+			NEW(found);
+			COPY(wanted, found.name);
+			found.texture := texture;
+			found.flat := TRUE;
+			found.next := cache;
+			cache := found;
+			RETURN texture
+		END Flat;
 	END Library;
 
 PROCEDURE Within(CONST lump: DoomWad.Lump; offset, size: SIGNED32): BOOLEAN;
