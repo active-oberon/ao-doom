@@ -1,8 +1,45 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 07:43:38 UTC
+Updated: 2026-10-10 15:11:55 UTC
 
-## Current state
+## Current continuation: original maps
+
+The user supplied local base-game IWADs in
+`/home/andrejjj/Downloads/0/BRUTAL DOOM - I AM CRONHOLIO 1.2`.
+This section supersedes the previous current state below.
+
+- Added fullbright sky panoramas to ao-game-engine, sealed material/mapping
+  validation and shared-sky boundaries with different physical ceiling heights.
+- ao-doom maps F_SKY1 ceilings to SKY1-SKY4 by episode/map number and accepts
+  explicitly absent upper/lower wall tiers (`-`); unknown names still fail.
+- Added caller-provided tier omission flags to the engine without changing
+  physical collision. Doom constants remain in ao-doom.
+- Original E1M1/MAP01 initially failed with
+  `Wall texture is not defined in TEXTURE1 or TEXTURE2`. Sky and absent-tier
+  fixes resolved both. The generic sky test initially used a camera where the
+  wall hid the sky; moving it into the lower room corrected that assertion.
+- `task check` passed: engine checks, 64 original synthetic WAD fixtures, sky
+  selection/pixels, omitted-tier pixels, invalid-resource rejection, movement
+  and the new headless map check, followed by GUI compilation.
+- `task gui-check` passed on the corridor, single-sector, multi-sector and sky
+  scenes. Original Doom E1M1 and Doom II MAP01 passed the same input/window test.
+- All 132 original maps received the short headless check: Doom 29/36,
+  Doom II 21/32, TNT 26/32, Plutonia 14/32. The final build reproduced the same
+  90 passes and 42 loader rejections; exact failures and archive hashes are in
+  `scratch/original-map-check.md`. This is not a playthrough or pixel comparison.
+- `task wad-check -- '/absolute/path/to/DOOM.WAD' E1M1` runs without a display
+  and exports `build/original-start.ppm` / `build/original-walk.ppm`. Quoted
+  absolute paths with spaces were tested. No game data/captures are committed.
+- Engine sky/material changes: `7c1d3cd`. Doom compatibility and synthetic
+  regressions: `ea3f8d3`. Local-WAD tooling/reporting form the next separate
+  Doom commit. MiniA2 is unchanged. No pushes were made.
+- Next: compatible interpretation of the 42 rejected maps, masked walls,
+  actors, weapons and moving doors. Brutal Doom PK3 behavior is unsupported.
+  No other platforms or original-map performance targets were checked.
+
+## Previous continuation: sector milestone
+
+### State at the end of the sector milestone
 
 The user resumed Doom work and requested logical commits in every changed
 repository. The multi-sector milestone is implemented; this section supersedes
@@ -21,7 +58,7 @@ all previous stop points below.
 - Staging removes only generated object/symbol files from build/ before copying
   sources, preventing incompatible imports after manual compiler invocations.
 
-## Verification in this continuation
+### Verification of the sector milestone
 
 - `task check`: engine loop/scene/sector checks, 50 WAD fixtures, texture/flat
   decoding, sector movement/pixels and native GUI compilation passed.
@@ -42,7 +79,7 @@ all previous stop points below.
   output; the authorized build outside that restriction passed.
 - Source statement layout and whitespace checks passed.
 
-## Commit organization and remaining work
+### Commits and remaining work at the sector milestone
 
 - ao-game-engine: simulation/clock (`9cf754a`), basic rendering/collision
   (`5de0899`), then sectors/portal rendering and movement as a separate commit.

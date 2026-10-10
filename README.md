@@ -13,8 +13,11 @@ The WAD loader validates classic Doom archives and loads maps with multiple
 sectors and closed contours, including holes. It reads player starts, vertices,
 linedefs, sidedefs, sector heights and light levels. Sector openings reveal the
 rooms behind them, with upper/lower wall textures and projected floor/ceiling
-flats. Movement respects blocking lines, 56-unit player clearance and a maximum
-24-unit step. This is not yet a playable reproduction of original Doom:
+flats. Fullbright sky panoramas use SKY1-SKY4 selected by episode/map number;
+adjacent sky sectors hide their upper wall even when ceiling heights differ.
+Explicitly absent upper/lower textures (`-`) are accepted and omitted. Movement
+respects blocking lines, 56-unit player clearance and a maximum 24-unit step.
+This is not yet a playable reproduction of original Doom:
 there are no sprites, weapons, monsters or moving doors. The WAD
 scene loads wall textures from PLAYPAL, PNAMES and TEXTURE1/TEXTURE2, composing
 classic column patches. The built-in scene uses original procedural brick textures.
@@ -46,15 +49,23 @@ task run -- /path/to/local.wad E1M1
 task run -- build/valid.wad E1M1
 # Three connected rooms, a step and a lower ceiling.
 task run -- build/sectors.wad E1M1
+# Local base-game archives; quote paths containing spaces.
+task run -- '/path/to/DOOM.WAD' E1M1
+task run -- '/path/to/doom2.wad' MAP01
+# Load, render, advance movement and turn without an X11 display.
+task wad-check -- '/path/to/DOOM.WAD' E1M1
 # Targeted events and frame reads in the program's own X11 window.
 task gui-check
 ```
 
-`task check` runs engine checks, generates 50 original WAD fixtures, rejects
+`task check` runs engine checks, generates 64 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. It exports `build/scene.ppm` and `build/wad-scene.ppm` for
-inspection, plus four views of the multi-sector map. `task gui-check` additionally
-verifies the corridor, single-sector and multi-sector scenes, movement,
+inspection, plus four views of the multi-sector map and `build/sky-scene.ppm`.
+`task wad-check` writes `build/original-start.ppm` and `build/original-walk.ppm`;
+it requires an absolute WAD path because the check runs in `build/`.
+`task gui-check` additionally verifies the corridor, single-sector, multi-sector
+and sky scenes, movement,
 release, focus loss, turning, and Escape shutdown. It needs Xlib and an accessible X11
 server. `task bench` measures 200 textured frames without display transfer.
 Invalid WAD startup returns failure rather than entering the loop. The texture
@@ -64,7 +75,7 @@ to 64 million samples/posts/columns. Flats require exactly 4096 palette indices
 and share these resource budgets with wall textures; their caches are separate
 even when names match. Map contour validation is capped at 64 million work units.
 It currently supports opaque wall materials and classic patches; masked middle
-textures are omitted, and it has no sky panorama or extended tall-patch support.
+textures are omitted, and extended tall-patch support is absent.
 
 ## Project boundary and next milestones
 
@@ -75,12 +86,17 @@ archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scen
 monitor; rendering captures camera state and the sealed world together before
 working without the game lock.
 
-Next: validate an original map, then masked walls, skies, actors and gameplay.
+Original E1M1 from Doom and MAP01 from Doom II passed the X11 rendering/input
+check. A short headless load/render/movement check passed 90 of 132 maps from
+the supplied Doom, Doom II, TNT and Plutonia IWADs. The other 42 maps are still
+rejected; this is partial compatibility. Exact archive hashes and per-map
+failures are in [the original-map report](scratch/original-map-check.md).
+
+Next: address the rejected map geometry, then masked walls, actors and gameplay.
 Sector heights are immutable; stepping changes eye height immediately, and drops
-snap to the floor without gravity or view smoothing. The first original-game
-milestone remains loading a real Doom
-map and walking it with correct sector behavior. Neither original maps nor
-original game compatibility have been validated yet.
+snap to the floor without gravity or view smoothing. Short checks do not prove
+whole-level traversal, original pixel accuracy or complete game compatibility.
+Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references
 
@@ -93,6 +109,8 @@ as the behavior reference. The archive and map format references are
 [doomdata.h](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/doomdata.h),
 [r_data.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_data.c),
 and [r_segs.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_segs.c).
+Sky selection/mapping follow [g_game.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/g_game.c)
+and [r_sky.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/r_sky.c).
 The current parser and engine are original implementations; no upstream source
 has been copied. Preserve applicable license notices when porting code later.
 

@@ -42,7 +42,18 @@ tasks:
       - cd build && timeout 10 ./sectors-check
       - cd build && ob build Doom.Mod -o doom-check
       - cd build && timeout 10 ./doom-check
+      - cp tests/DoomOriginalSmoke.Mod build/
+      - cd build && ob build DoomOriginalSmoke.Mod -o original-check
+      - cd build && timeout 10 ./original-check sectors.wad E1M1
       - task: build
+
+  wad-check:
+    desc: Load, render and walk a local WAD map without a display
+    cmds:
+      - task: stage
+      - cp tests/DoomOriginalSmoke.Mod build/
+      - cd build && ob build DoomOriginalSmoke.Mod -o original-check
+      - cd build && timeout 30 ./original-check {{.CLI_ARGS}}
 
   gui-check:
     desc: Check rendering, input and shutdown on X11
@@ -52,6 +63,7 @@ tasks:
       - python3 tests/wad_fixtures.py build
       - python3 tests/gui_smoke.py build/ao-doom build/valid.wad E1M1
       - python3 tests/gui_smoke.py build/ao-doom build/sectors.wad E1M1
+      - python3 tests/gui_smoke.py build/ao-doom build/sky.wad E1M1
 
   bench:
     desc: Measure 200 textured frames without display transfer
