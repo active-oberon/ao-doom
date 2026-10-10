@@ -1,6 +1,6 @@
 MODULE DoomSprites;
 
-IMPORT DoomWad, DoomTextures, DoomThings, GameBytes, GameGeometry, GameRenderer, GameSurface, MathL;
+IMPORT DoomWad, DoomTextures, DoomThings, DoomInventory, GameBytes, GameGeometry, GameRenderer, GameSurface, MathL;
 
 CONST MaximumWork = 64 * 1024 * 1024;
 
@@ -11,28 +11,67 @@ TYPE
 		next: Images
 	END;
 
-	(* shortcut: actors remain at spawn frames without collision; add simulation with weapons and pickups. *)
+	(* shortcut: actors keep spawn frames without solid collision; add movement and animation with combat. *)
 	Actor = RECORD
 		x, y, angle: FLOAT64;
-		sector, height: SIGNED32;
+		sector, height, kind: SIGNED32;
 		ceiling, fullbright: BOOLEAN;
 		images: Images
 	END;
 
 	Scene* = OBJECT
 	VAR actors: POINTER TO ARRAY OF Actor;
-		count: SIGNED32;
+		collected: POINTER TO ARRAY OF SET32;
+		count, remaining: SIGNED32;
 
 		PROCEDURE &Init(capacity: SIGNED32);
 		BEGIN
-			NEW(actors, capacity);
-			count := 0
+			IF capacity > 0 THEN
+				NEW(actors, capacity);
+				NEW(collected, (capacity + 31) DIV 32)
+			END;
+			count := 0;
+			remaining := 0
 		END Init;
 
 		PROCEDURE Count*(): SIGNED32;
 		BEGIN
-			RETURN count
+			RETURN remaining
 		END Count;
+
+		(* Touch publishes copied collection bits only after a useful reachable pickup. *)
+		PROCEDURE Touch*(world: GameGeometry.World; x, y, feet, radius, height: FLOAT64;
+			VAR player: DoomInventory.State): Scene;
+		VAR snapshot: Scene;
+			i, j: SIGNED32;
+			delta: FLOAT64;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				IF ~(i MOD 32 IN collected[i DIV 32]) & DoomInventory.Supported(actors[i].kind) &
+					(ABS(actors[i].x - x) < radius + 20.0 / 64) &
+					(ABS(actors[i].y - y) < radius + 20.0 / 64) THEN
+					delta := world.Region(actors[i].sector).floor - feet;
+					IF (delta >= -8.0 / 64) & (delta <= height) &
+						Reachable(world, x, y, actors[i].x, actors[i].y, height) &
+						DoomInventory.Give(player, actors[i].kind) THEN
+						IF snapshot = SELF THEN
+							NEW(snapshot, 0);
+							snapshot.actors := actors;
+							snapshot.count := count;
+							snapshot.remaining := remaining;
+							NEW(snapshot.collected, LEN(collected^));
+							FOR j := 0 TO SIGNED32(LEN(collected^)) - 1 DO
+								snapshot.collected[j] := collected[j]
+							END
+						END;
+						INCL(snapshot.collected[i DIV 32], i MOD 32);
+						DEC(snapshot.remaining)
+					END
+				END
+			END;
+			RETURN snapshot
+		END Touch;
 
 		PROCEDURE Render*(world: GameGeometry.World; frame: GameSurface.Frame;
 			x, y, angle, eye: FLOAT64);
@@ -42,22 +81,54 @@ TYPE
 			region: GameGeometry.Sector;
 		BEGIN
 			FOR i := 0 TO count - 1 DO
-				view := actors[i].angle - MathL.arctan2(y - actors[i].y, x - actors[i].x);
-				rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD 8;
-				sprite := actors[i].images.views[rotation];
-				sprite.x := actors[i].x;
-				sprite.y := actors[i].y;
-				region := world.Region(actors[i].sector);
-				sprite.z := region.floor;
-				IF actors[i].ceiling THEN
-					sprite.z := region.ceiling - actors[i].height / 64.0
-				END;
-				sprite.light := region.light;
-				sprite.fullbright := actors[i].fullbright;
-				GameRenderer.DrawSprite(sprite, frame, x, y, angle, eye)
+				IF ~(i MOD 32 IN collected[i DIV 32]) THEN
+					view := actors[i].angle - MathL.arctan2(y - actors[i].y, x - actors[i].x);
+					rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD 8;
+					sprite := actors[i].images.views[rotation];
+					sprite.x := actors[i].x;
+					sprite.y := actors[i].y;
+					region := world.Region(actors[i].sector);
+					sprite.z := region.floor;
+					IF actors[i].ceiling THEN
+						sprite.z := region.ceiling - actors[i].height / 64.0
+					END;
+					sprite.light := region.light;
+					sprite.fullbright := actors[i].fullbright;
+					GameRenderer.DrawSprite(sprite, frame, x, y, angle, eye)
+				END
 			END
 		END Render;
 	END Scene;
+
+PROCEDURE Reachable(world: GameGeometry.World; x, y, targetX, targetY, height: FLOAT64): BOOLEAN;
+VAR wall: GameGeometry.Wall;
+	front, back: GameGeometry.Sector;
+	i, sector: SIGNED32;
+	near, distance: FLOAT64;
+BEGIN
+	IF (x = targetX) & (y = targetY) THEN
+		RETURN TRUE
+	END;
+	sector := world.Locate(x, y);
+	near := 0;
+	FOR i := 0 TO MIN(world.Count(), 256) - 1 DO
+		IF ~world.CastSector(sector, x, y, targetX - x, targetY - y, near, distance, wall) OR
+			(distance >= 1) THEN
+			RETURN TRUE
+		END;
+		IF (wall.neighbor < 0) OR wall.blocking THEN
+			RETURN FALSE
+		END;
+		front := world.Region(sector);
+		back := world.Region(wall.neighbor);
+		IF MIN(front.ceiling, back.ceiling) - MAX(front.floor, back.floor) < height THEN
+			RETURN FALSE
+		END;
+		sector := wall.neighbor;
+		near := distance
+	END;
+	RETURN FALSE
+END Reachable;
 
 PROCEDURE Install(index, rotation: SIGNED32; flipped: BOOLEAN;
 	VAR indices: ARRAY OF SIGNED32; VAR flips: SET; VAR mode: SIGNED32;
@@ -212,6 +283,7 @@ BEGIN
 			actor.ceiling := info.ceiling;
 			actor.fullbright := info.fullbright;
 			actor.height := info.height;
+			actor.kind := kind;
 			actor.images := Frame(archive, textures, info.name, cache, work, error);
 			IF actor.images = NIL THEN
 				RETURN NIL
@@ -220,6 +292,7 @@ BEGIN
 			INC(scene.count)
 		END
 	END;
+	scene.remaining := scene.count;
 	RETURN scene
 END Read;
 

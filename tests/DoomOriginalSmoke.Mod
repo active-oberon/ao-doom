@@ -1,11 +1,11 @@
 MODULE DoomOriginalSmoke;
 
-IMPORT Doom, GameSurface, KernelLog, Unix, Commands;
+IMPORT Doom, DoomHud, GameSurface, KernelLog, Unix, Commands;
 
 PROCEDURE Visible(frame: GameSurface.Frame): BOOLEAN;
 VAR x, y, color: SIGNED32;
 BEGIN
-	FOR y := 0 TO frame.height - 1 DO
+	FOR y := 0 TO frame.height - DoomHud.Height - 1 DO
 		FOR x := 0 TO frame.width - 1 DO
 			color := frame.Pixel(x, y);
 			IF (color # 0202938H) & (color # 035302CH) THEN

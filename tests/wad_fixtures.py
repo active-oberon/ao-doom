@@ -199,6 +199,14 @@ def sprite_lumps(lumps=None, things=None, rotations=False):
     return lumps + [("S_START", b""), *patches, ("S_END", b"")]
 
 
+
+def pickup_lumps():
+    things = [(128, 0, 0, kind, 7) for kind in (2014, 2015, 5, 2007, 2001, 8, 2012, 2022)]
+    lumps = sprite_lumps(things=things)
+    return lumps + [(name + "A0", sprite_patch(6))
+                    for name in ("BKEY", "CLIP", "SHOT", "BPAK", "MEDI", "PINV")]
+
+
 def door_lumps(special=1, flags=0):
     lumps = bsp_lumps()
     vertices = bytearray(lumps[4][1])
@@ -352,6 +360,13 @@ def fixtures(directory):
     oversized = list(sprites)
     oversized[1] = ("THINGS", sprites[1][1] + struct.pack("<5h", 0, 0, 0, 1, 7) * 65536)
     files["sprites-too-many.wad"] = wad(oversized)
+    files["pickups.wad"] = wad(pickup_lumps())
+    files["pickups-many.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 2015, 7)] * 33))
+    files["pickups-blocked.wad"] = wad(sprite_lumps(masked_lumps(flags=17), [(8, 0, 0, 2015, 7)]))
+    files["pickups-passable.wad"] = wad(sprite_lumps(masked_lumps(flags=16), [(8, 0, 0, 2015, 7)]))
+    files["pickups-closed.wad"] = wad(sprite_lumps(sector_lumps(ceiling=0), [(8, 0, 0, 2015, 7)]))
+    files["pickups-solid.wad"] = wad(sprite_lumps(hidden, [(8, 0, 0, 2015, 7)]))
+
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)
     for marker in ("E2M1", "E3M1", "E4M1", "MAP01", "MAP11", "MAP12", "MAP20", "MAP21", "MAP32"):

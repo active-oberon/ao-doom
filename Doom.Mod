@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, MathL, KernelLog;
+IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
 
 CONST TicksPerSecond* = 35;
 	PlayerRadius* = 0.25;
@@ -20,6 +20,7 @@ TYPE
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
 		sprites: DoomSprites.Scene;
+		inventory: DoomInventory.State;
 		use: BOOLEAN;
 
 		PROCEDURE &Init*;
@@ -48,6 +49,7 @@ TYPE
 			turn := 0;
 			doors := NIL;
 			sprites := NIL;
+			DoomInventory.Reset(inventory);
 			use := FALSE;
 			ASSERT(world.Free(pose.x, pose.y, PlayerRadius))
 		END Init;
@@ -90,6 +92,7 @@ TYPE
 			pose.y := map.y;
 			pose.angle := map.angle;
 			pose.eye := map.eye;
+			DoomInventory.Reset(inventory);
 			RETURN TRUE
 		END Load;
 
@@ -140,6 +143,10 @@ TYPE
 				ASSERT(world.MovePlayer(pose.x, pose.y, feet, dx, dy, PlayerRadius, PlayerHeight, PlayerStep));
 				pose.eye := feet + PlayerEye
 			END;
+			IF sprites # NIL THEN
+				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - PlayerEye,
+					PlayerRadius, PlayerHeight, inventory)
+			END;
 			use := FALSE
 		END Step;
 
@@ -148,28 +155,37 @@ TYPE
 			RETURN pose
 		END State;
 
+		PROCEDURE Inventory*(): DoomInventory.State;
+		BEGIN {EXCLUSIVE}
+			RETURN inventory
+		END Inventory;
+
 		PROCEDURE Ticks*(): SIGNED64;
 		BEGIN {EXCLUSIVE}
 			RETURN ticks
 		END Ticks;
 
-		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene);
+		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene;
+			VAR status: DoomInventory.State);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
 			geometry := world;
-			actors := sprites
+			actors := sprites;
+			status := inventory
 		END Capture;
 
 		PROCEDURE Render*(frame: GameSurface.Frame);
 		VAR snapshot: Pose;
 			geometry: GameGeometry.World;
 			actors: DoomSprites.Scene;
+			status: DoomInventory.State;
 		BEGIN
-			Capture(snapshot, geometry, actors);
+			Capture(snapshot, geometry, actors, status);
 			GameRenderer.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye);
 			IF actors # NIL THEN
 				actors.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye)
-			END
+			END;
+			DoomHud.Draw(status, frame)
 		END Render;
 	END Game;
 

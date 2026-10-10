@@ -82,18 +82,19 @@ def find_window(display, parent, executable):
     return None
 
 
-def pixels(display, window):
+def pixels(display, window, hud=False):
     image = X.XGetImage(display, window, 0, 0, 640, 400, C.c_ulong(-1), 2)
     assert image, "Cannot read the game window"
     try:
         return tuple(X.XGetPixel(image, x, y)
-                     for y in range(0, 400, 8) for x in range(0, 640, 8))
+                     for y in range(360 if hud else 0, 400, 2 if hud else 8)
+                     for x in range(0, 640, 2 if hud else 8))
     finally:
         X.XDestroyImage(image)
 
 
 def visible(frame):
-    colors = set(frame)
+    colors = set(frame[:45 * 80])
     return len(colors) > 1 and bool(colors.difference((0x202938, 0x35302C)))
 
 
@@ -118,7 +119,7 @@ def focus(display, window, gained):
     X.XFlush(display)
 
 
-def check(executable, arguments, door=False):
+def check(executable, arguments, door=False, pickup=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -143,6 +144,16 @@ def check(executable, arguments, door=False):
                 break
             time.sleep(0.05)
         assert visible(initial), "Frame contains no visible scene"
+        if pickup:
+            before = pixels(display, window, hud=True)
+            key(display, window, root, ord("w"))
+            deadline = time.monotonic() + 4
+            while pixels(display, window, hud=True) == before and time.monotonic() < deadline:
+                time.sleep(0.05)
+            key(display, window, root, ord("w"), release=True)
+            time.sleep(0.2)
+            assert pixels(display, window, hud=True) != before, "Touching items did not update inventory HUD"
+            initial = pixels(display, window)
         if door:
             key(display, window, root, 0x20)
             time.sleep(0.3)
@@ -190,6 +201,8 @@ def check(executable, arguments, door=False):
         assert process.returncode == 0, output
         if door:
             print("Door GUI check passed: opening, held/released Space, closing and reopening")
+        if pickup:
+            print("Pickup GUI check passed: touching items updates the inventory HUD")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
     finally:
         if process.poll() is None:
@@ -201,12 +214,13 @@ def check(executable, arguments, door=False):
 def main():
     arguments = sys.argv[1:]
     door = arguments[0] == "--door"
-    if door:
+    pickup = arguments[0] == "--pickup"
+    if door or pickup:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
         shutil.copy2(arguments[0], executable)
-        check(executable, arguments[1:], door)
+        check(executable, arguments[1:], door, pickup)
 
 
 if __name__ == "__main__":
