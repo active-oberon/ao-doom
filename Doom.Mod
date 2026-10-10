@@ -140,7 +140,8 @@ TYPE
 					used := doors.Use(world, pose.x, pose.y, pose.angle, inventory)
 				END;
 				doors.Step(world, pose.x, pose.y, PlayerRadius, feet, PlayerHeight, PlayerStep);
-				ASSERT(world.MovePlayer(pose.x, pose.y, feet, dx, dy, PlayerRadius, PlayerHeight, PlayerStep));
+				ASSERT(world.MovePlayerChecked(pose.x, pose.y, feet, dx, dy,
+					PlayerRadius, PlayerHeight, PlayerStep, sprites.Free));
 				pose.eye := feet + PlayerEye
 			END;
 			IF sprites # NIL THEN

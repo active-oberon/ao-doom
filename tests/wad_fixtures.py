@@ -367,6 +367,21 @@ def fixtures(directory):
     files["pickups-closed.wad"] = wad(sprite_lumps(sector_lumps(ceiling=0), [(8, 0, 0, 2015, 7)]))
     files["pickups-solid.wad"] = wad(sprite_lumps(hidden, [(8, 0, 0, 2015, 7)]))
 
+    for label, kind, name in (("barrel", 2035, "BAR1A0"), ("decoration", 2028, "COLUA0"),
+                              ("corpse", 18, "POSSL0"), ("hanging", 49, "GOR1A0"),
+                              ("hanging-passable", 63, "GOR1A0")):
+        actor = sprite_lumps(things=[(128, 0, 0, kind, 7)])
+        if name not in {entry[0] for entry in actor}:
+            actor.append((name, sprite_patch(6)))
+        files[f"actors-{label}.wad"] = wad(actor)
+    files["actors-overlap.wad"] = wad(sprite_lumps(things=[(0, 0, 0, 2035, 7)]) +
+                                     [("BAR1A0", sprite_patch(6))])
+    files["actors-flags.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 2035, flag)
+                                                       for flag in (1, 18)]) +
+                                   [("BAR1A0", sprite_patch(6))])
+    files["actors-step.wad"] = wad(sprite_lumps(sector_lumps(), [(128, 0, 0, 2035, 7)]) +
+                                  [("BAR1A0", sprite_patch(6))])
+
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)
     for marker in ("E2M1", "E3M1", "E4M1", "MAP01", "MAP11", "MAP12", "MAP20", "MAP21", "MAP32"):

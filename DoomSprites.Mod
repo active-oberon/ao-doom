@@ -11,9 +11,9 @@ TYPE
 		next: Images
 	END;
 
-	(* shortcut: actors keep spawn frames without solid collision; add movement and animation with combat. *)
+	(* shortcut: actors keep fixed spawn positions and frames; add movement and animation with combat. *)
 	Actor = RECORD
-		x, y, angle: FLOAT64;
+		x, y, angle, radius: FLOAT64;
 		sector, height, kind: SIGNED32;
 		ceiling, fullbright: BOOLEAN;
 		images: Images
@@ -38,6 +38,20 @@ TYPE
 		BEGIN
 			RETURN remaining
 		END Count;
+
+		(* Free checks solid footprints on both axes regardless of height, as classic player collision does. *)
+		PROCEDURE Free*(x, y, radius: FLOAT64): BOOLEAN;
+		VAR i: SIGNED32;
+		BEGIN
+			FOR i := 0 TO count - 1 DO
+				IF (actors[i].radius > 0) &
+					(ABS(actors[i].x - x) < radius + actors[i].radius) &
+					(ABS(actors[i].y - y) < radius + actors[i].radius) THEN
+					RETURN FALSE
+				END
+			END;
+			RETURN TRUE
+		END Free;
 
 		(* Touch publishes copied collection bits only after a useful reachable pickup. *)
 		PROCEDURE Touch*(world: GameGeometry.World; x, y, feet, radius, height: FLOAT64;
@@ -283,6 +297,7 @@ BEGIN
 			actor.ceiling := info.ceiling;
 			actor.fullbright := info.fullbright;
 			actor.height := info.height;
+			actor.radius := info.radius / 64.0;
 			actor.kind := kind;
 			actor.images := Frame(archive, textures, info.name, cache, work, error);
 			IF actor.images = NIL THEN

@@ -119,7 +119,7 @@ def focus(display, window, gained):
     X.XFlush(display)
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -144,6 +144,30 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False):
                 break
             time.sleep(0.05)
         assert visible(initial), "Frame contains no visible scene"
+        if actor:
+            key(display, window, root, ord("w"))
+            time.sleep(1.2)
+            key(display, window, root, ord("w"), release=True)
+            time.sleep(0.2)
+            blocked = pixels(display, window)
+            assert blocked != initial, "Player did not approach the solid actor"
+            key(display, window, root, ord("w"))
+            time.sleep(0.4)
+            key(display, window, root, ord("w"), release=True)
+            time.sleep(0.2)
+            assert pixels(display, window) == blocked, "Player walked through the solid actor"
+            key(display, window, root, ord("w"))
+            key(display, window, root, ord("d"))
+            time.sleep(0.5)
+            key(display, window, root, ord("w"), release=True)
+            key(display, window, root, ord("d"), release=True)
+            time.sleep(0.2)
+            assert pixels(display, window) != blocked, "Player could not slide around the solid actor"
+            key(display, window, root, ord("s"))
+            time.sleep(0.5)
+            key(display, window, root, ord("s"), release=True)
+            time.sleep(0.2)
+            initial = pixels(display, window)
         if locked_door:
             key(display, window, root, 0x20)
             time.sleep(0.2)
@@ -229,6 +253,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False):
             print("Pickup GUI check passed: touching items updates the inventory HUD")
         if locked_door:
             print("Locked door GUI check passed: key denial hint, card pickup, unlocking and crossing")
+        if actor:
+            print("Actor GUI check passed: approach, blocked forward movement and diagonal sliding")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
     finally:
         if process.poll() is None:
@@ -242,12 +268,13 @@ def main():
     door = arguments[0] == "--door"
     pickup = arguments[0] == "--pickup"
     locked_door = arguments[0] == "--locked-door"
-    if door or pickup or locked_door:
+    actor = arguments[0] == "--actor"
+    if door or pickup or locked_door or actor:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
         shutil.copy2(arguments[0], executable)
-        check(executable, arguments[1:], door, pickup, locked_door)
+        check(executable, arguments[1:], door, pickup, locked_door, actor)
 
 
 if __name__ == "__main__":

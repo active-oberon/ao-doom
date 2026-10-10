@@ -3,15 +3,17 @@ MODULE DoomThings;
 TYPE Info* = RECORD
 	name*: ARRAY 6 OF CHAR;
 	fullbright*, ceiling*: BOOLEAN;
-	height*: SIGNED32
+	height*: SIGNED32;
+	radius*: SIGNED32 (* Solid footprint radius; zero leaves pickups and corpses passable. *)
 END;
 
-(* Lookup supplies classic spawn-frame facts; actor behavior remains separate. *)
+(* Lookup supplies classic spawn frames and solid footprints for compatible map objects. *)
 PROCEDURE Lookup*(kind: SIGNED32; VAR info: Info): BOOLEAN;
 BEGIN
 	info.fullbright := FALSE;
 	info.ceiling := FALSE;
 	info.height := 0;
+	info.radius := 0;
 	CASE kind OF
 	5:
 		COPY("BKEYA", info.name)
@@ -256,6 +258,31 @@ BEGIN
 	| 73, 74:
 		info.ceiling := TRUE;
 		info.height := 88
+	ELSE
+	END;
+	CASE kind OF
+	2035:
+		info.radius := 10
+	| 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 56, 57, 70, 72, 73, 74, 75, 76, 77, 78, 85, 86, 88, 2028, 3006:
+		info.radius := 16
+	| 9, 64, 65, 66, 84, 3001, 3004:
+		info.radius := 20
+	| 69, 3003:
+		info.radius := 24
+	| 58, 3002:
+		info.radius := 30
+	| 71, 3005:
+		info.radius := 31
+	| 54:
+		info.radius := 32
+	| 16:
+		info.radius := 40
+	| 67:
+		info.radius := 48
+	| 68:
+		info.radius := 64
+	| 7:
+		info.radius := 128
 	ELSE
 	END;
 	RETURN TRUE
