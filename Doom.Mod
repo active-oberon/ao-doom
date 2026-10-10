@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, MathL, KernelLog;
+IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, MathL, KernelLog;
 
 CONST TicksPerSecond* = 35;
 	PlayerRadius* = 0.25;
@@ -18,6 +18,8 @@ TYPE
 		pose: Pose;
 		ticks: SIGNED64;
 		forward, strafe, turn: SIGNED32;
+		doors: DoomDoors.Controller;
+		use: BOOLEAN;
 
 		PROCEDURE &Init*;
 		BEGIN
@@ -43,6 +45,8 @@ TYPE
 			forward := 0;
 			strafe := 0;
 			turn := 0;
+			doors := NIL;
+			use := FALSE;
 			ASSERT(world.Free(pose.x, pose.y, PlayerRadius))
 		END Init;
 
@@ -77,6 +81,8 @@ TYPE
 				RETURN FALSE
 			END;
 			world := map.world;
+			doors := map.doors;
+			use := FALSE;
 			pose.x := map.x;
 			pose.y := map.y;
 			pose.angle := map.angle;
@@ -94,8 +100,15 @@ TYPE
 			turn := rotate
 		END Controls;
 
+		(* Use queues one interaction so input is consumed on the simulation tick. *)
+		PROCEDURE Use*;
+		BEGIN {EXCLUSIVE}
+			use := TRUE
+		END Use;
+
 		PROCEDURE Step*(tick: SIGNED64);
 		VAR dx, dy, speed, feet: FLOAT64;
+			used: BOOLEAN;
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
@@ -117,9 +130,14 @@ TYPE
 				ASSERT(world.Move(pose.x, pose.y, dx, dy, PlayerRadius))
 			ELSE
 				feet := pose.eye - PlayerEye;
+				IF use THEN
+					used := doors.Use(world, pose.x, pose.y, pose.angle)
+				END;
+				doors.Step(world, pose.x, pose.y, PlayerRadius, feet, PlayerHeight, PlayerStep);
 				ASSERT(world.MovePlayer(pose.x, pose.y, feet, dx, dy, PlayerRadius, PlayerHeight, PlayerStep));
 				pose.eye := feet + PlayerEye
-			END
+			END;
+			use := FALSE
 		END Step;
 
 		PROCEDURE State*(): Pose;

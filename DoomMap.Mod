@@ -1,12 +1,13 @@
 MODULE DoomMap;
 
-IMPORT DoomWad, DoomTextures, DoomBsp, GameBytes, GameGeometry, MathL;
+IMPORT DoomWad, DoomTextures, DoomBsp, DoomDoors, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
 TYPE
 	Map* = RECORD
 		world*: GameGeometry.World;
+		doors*: DoomDoors.Controller;
 		x*, y*, angle*, eye*: FLOAT64
 	END;
 
@@ -46,9 +47,9 @@ BEGIN
 	END
 END SkyName;
 
-PROCEDURE Side(archive: DoomWad.Archive; textures: DoomTextures.Library;
+PROCEDURE Side(archive: DoomWad.Archive; textures: DoomTextures.Library; doors: DoomDoors.Controller;
 	world: GameGeometry.World; CONST regions: ARRAY OF GameGeometry.Sector;
-	CONST vertices, sides: DoomWad.Lump; v1, v2, side, neighbor, flags: SIGNED32;
+	CONST vertices, sides: DoomWad.Lump; id, v1, v2, side, neighbor, flags: SIGNED32;
 	VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR wall: GameGeometry.Wall;
 	front, back: GameGeometry.Sector;
@@ -56,12 +57,16 @@ VAR wall: GameGeometry.Wall;
 	name: ARRAY 9 OF CHAR;
 BEGIN
 	offset := sides.offset + side * 30;
+	wall.id := id;
 	wall.sector := GameBytes.U16(archive.data^, offset + 28);
 	wall.neighbor := neighbor;
 	wall.blocking := flags MOD 2 = 1;
 	wall.omitMiddle := FALSE;
 	wall.omitUpper := FALSE;
 	wall.omitLower := FALSE;
+	wall.middleFromFloor := flags DIV 16 MOD 2 = 1;
+	wall.upperFromNeighbor := flags DIV 8 MOD 2 = 0;
+	wall.lowerFromCeiling := flags DIV 16 MOD 2 = 1;
 	wall.ax := GameBytes.I16(archive.data^, vertices.offset + v1 * 4) / 64.0;
 	wall.ay := -GameBytes.I16(archive.data^, vertices.offset + v1 * 4 + 2) / 64.0;
 	wall.bx := GameBytes.I16(archive.data^, vertices.offset + v2 * 4) / 64.0;
@@ -98,7 +103,8 @@ BEGIN
 			END
 		ELSE
 			back := regions[neighbor];
-			IF (back.ceiling < front.ceiling) & ~((front.skyTexture # NIL) & (back.skyTexture # NIL)) THEN
+			IF ((back.ceiling < front.ceiling) OR doors.Moving(wall.sector) OR doors.Moving(neighbor)) &
+				~((front.skyTexture # NIL) & (back.skyTexture # NIL)) THEN
 				Name(archive.data^, offset + 4, name);
 				wall.omitUpper := name = "-";
 				IF ~wall.omitUpper THEN
@@ -141,6 +147,7 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	vertexCount, sideCount, sectorCount, lineCount, sector, frontSector, backSector, result, edges: SIGNED32;
 	things, lines, sides, vertices, sectors, markerLump: DoomWad.Lump;
 	world: GameGeometry.World;
+	doors: DoomDoors.Controller;
 	textures: DoomTextures.Library;
 	regions: POINTER TO ARRAY OF GameGeometry.Sector;
 	degree: POINTER TO ARRAY OF SIGNED32;
@@ -150,6 +157,7 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	x, y, angle, floor: FLOAT64;
 BEGIN
 	map.world := NIL;
+	map.doors := NIL;
 	error[0] := 0X;
 	marker := archive.Find(name);
 	IF (marker < 0) OR
@@ -281,6 +289,7 @@ BEGIN
 			END
 		END
 	END;
+	NEW(doors, archive, lines, sides, sectorCount);
 	NEW(world, lineCount * 2);
 	ASSERT(world.SetSectors(regions^));
 	IF leaves # NIL THEN
@@ -300,12 +309,12 @@ BEGIN
 		IF back # 65535 THEN
 			backSector := GameBytes.U16(archive.data^, sides.offset + back * 30 + 28)
 		END;
-		IF ~Side(archive, textures, world, regions^, vertices, sides, v1, v2, front, backSector, flags, error) THEN
+		IF ~Side(archive, textures, doors, world, regions^, vertices, sides, i, v1, v2, front, backSector, flags, error) THEN
 			RETURN FALSE
 		END;
 		IF back # 65535 THEN
 			frontSector := GameBytes.U16(archive.data^, sides.offset + front * 30 + 28);
-			IF ~Side(archive, textures, world, regions^, vertices, sides, v2, v1, back, frontSector, flags, error) THEN
+			IF ~Side(archive, textures, doors, world, regions^, vertices, sides, i, v2, v1, back, frontSector, flags, error) THEN
 				RETURN FALSE
 			END
 		END
@@ -340,6 +349,7 @@ BEGIN
 		angle := angle + MathL.pi * 2
 	END;
 	map.world := world;
+	map.doors := doors;
 	map.x := x;
 	map.y := y;
 	map.angle := angle;

@@ -120,6 +120,27 @@ def bsp_lumps():
     return lumps
 
 
+def door_lumps(special=1, flags=0):
+    lumps = bsp_lumps()
+    vertices = bytearray(lumps[4][1])
+    for index in (2, 6):
+        struct.pack_into("<h", vertices, index * 4, 64)
+    lumps[4] = ("VERTEXES", bytes(vertices))
+    lumps[1] = ("THINGS", struct.pack("<5h", -32, 0, 0, 1, 7))
+    lines = bytearray(lumps[2][1])
+    struct.pack_into("<7H", lines, 8 * 14, 5, 1, 4 | flags, special, 0, 8, 9)
+    for index in (1, 5):
+        struct.pack_into("<H", lines, index * 14 + 4, 1 | flags)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    nodes = bytearray(lumps[7][1])
+    struct.pack_into("<h", nodes, 28, 64)
+    lumps[7] = ("NODES", bytes(nodes))
+    sectors = bytearray(lumps[8][1])
+    struct.pack_into("<hh", sectors, 26, 0, 0)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -229,6 +250,29 @@ def fixtures(directory):
     single[5] = ("SEGS", struct.pack("<6H", 0, 1, 0, 0, 0, 0))
     single[6] = ("SSECTORS", struct.pack("<2H", 1, 0))
     files["bsp-single.wad"] = wad(single)
+    files["door.wad"] = wad(door_lumps())
+    files["door-open.wad"] = wad(door_lumps(31))
+    files["door-fast.wad"] = wad(door_lumps(117))
+    files["door-fast-open.wad"] = wad(door_lumps(118))
+    files["door-locked.wad"] = wad(door_lumps(26))
+    files["door-unsupported.wad"] = wad(door_lumps(2))
+    files["door-peg-top.wad"] = wad(door_lumps(flags=8))
+    files["door-peg-bottom.wad"] = wad(door_lumps(flags=16))
+    wall_use = door_lumps()
+    lines = bytearray(wall_use[2][1])
+    struct.pack_into("<H", lines, 8 * 14 + 4, 1)
+    struct.pack_into("<H", lines, 8 * 14 + 12, 65535)
+    wall_use[2] = ("LINEDEFS", bytes(lines))
+    files["door-no-back.wad"] = wad(wall_use)
+    occluded = door_lumps()
+    occluded[4] = ("VERTEXES", occluded[4][1] + struct.pack("<4h", -16, -256, -16, 256))
+    occluded[2] = ("LINEDEFS", occluded[2][1] + struct.pack("<7H", 8, 9, 1, 0, 0, 0, 65535))
+    files["door-occluded.wad"] = wad(occluded)
+    unknown = door_lumps()
+    sides = bytearray(unknown[3][1])
+    sides[9 * 30 + 4:9 * 30 + 12] = b"MISSING\0"
+    unknown[3] = ("SIDEDEFS", bytes(sides))
+    files["door-hidden-unknown.wad"] = wad(unknown)
     bsp_variants = {
         "bsp-bad-seg-stride.wad": (5, b"abc"),
         "bsp-bad-sub-stride.wad": (6, b"abc"),

@@ -9,16 +9,19 @@ CONST Forward = 0;
 	Right = 3;
 	StrafeLeft = 4;
 	StrafeRight = 5;
+	Use = 6;
 
 TYPE
 	Keyboard = OBJECT (Inputs.Sink)
 	VAR held: SET;
 		quit: BOOLEAN;
+		use: BOOLEAN;
 
 		PROCEDURE &Init;
 		BEGIN
 			held := {};
-			quit := FALSE
+			quit := FALSE;
+			use := FALSE
 		END Init;
 
 		PROCEDURE Handle*(VAR message: Inputs.Message);
@@ -27,7 +30,8 @@ TYPE
 			IF message IS Inputs.FocusMsg THEN
 				WITH message: Inputs.FocusMsg DO
 					IF ~message.focused THEN
-						held := {}
+						held := {};
+						use := FALSE
 					END
 				END
 			ELSIF message IS Inputs.KeyboardMsg THEN
@@ -50,12 +54,17 @@ TYPE
 							action := StrafeLeft
 						| 064H, 044H:
 							action := StrafeRight
+						| 020H:
+							action := Use
 					ELSE
 					END;
 					IF action >= 0 THEN
 						IF Inputs.Release IN message.flags THEN
 							EXCL(held, action)
 						ELSE
+							IF (action = Use) & ~(Use IN held) THEN
+								use := TRUE
+							END;
 							INCL(held, action)
 						END
 					END
@@ -63,11 +72,13 @@ TYPE
 			END
 		END Handle;
 
-		PROCEDURE Read(VAR move, strafe, turn: SIGNED32): BOOLEAN;
+		PROCEDURE Read(VAR move, strafe, turn: SIGNED32; VAR activate: BOOLEAN): BOOLEAN;
 		BEGIN {EXCLUSIVE}
 			move := 0;
 			strafe := 0;
 			turn := 0;
+			activate := use;
+			use := FALSE;
 			IF Forward IN held THEN
 				INC(move)
 			END;
@@ -102,7 +113,7 @@ VAR game: Doom.Game;
 	path: ARRAY 512 OF CHAR;
 	map: ARRAY 9 OF CHAR;
 	error: ARRAY 128 OF CHAR;
-	firstFrame: BOOLEAN;
+	firstFrame, activate: BOOLEAN;
 BEGIN
 	presenter := GameDisplay.Open();
 	IF presenter = NIL THEN
@@ -131,12 +142,12 @@ BEGIN
 	NEW(keyboard);
 	NEW(clock, Doom.TicksPerSecond);
 	Inputs.keyboard.Register(keyboard);
-	KernelLog.String("Doom scene: W/S move, A/D strafe, arrows turn, Escape exits.");
+	KernelLog.String("Doom scene: W/S move, A/D strafe, arrows turn, Space uses, Escape exits.");
 	KernelLog.Ln;
 	Kernel.SetTimer(timer, 0);
 	firstFrame := TRUE;
 	LOOP
-		IF ~keyboard.Read(move, strafe, turn) THEN
+		IF ~keyboard.Read(move, strafe, turn, activate) THEN
 			EXIT
 		END;
 		elapsed := Kernel.Elapsed(timer);
@@ -148,6 +159,9 @@ BEGIN
 		END;
 		ticks := clock.Consume(elapsed);
 		game.Controls(move, strafe, turn);
+		IF activate THEN
+			game.Use
+		END;
 		IF ticks > 0 THEN
 			ASSERT(simulation.Advance(ticks))
 		END;
