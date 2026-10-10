@@ -85,21 +85,21 @@ BEGIN
 	wall.yOffset := GameBytes.I16(archive.data^, offset + 2) / 64.0;
 	wall.texelsPerUnit := 64;
 	IF textures # NIL THEN
+		Name(archive.data^, offset + 20, name);
+		wall.omitMiddle := name = "-";
+		IF ~wall.omitMiddle THEN
+			wall.texture := textures.Get(name, error);
+			IF wall.texture = NIL THEN
+				RETURN FALSE
+			END;
+			wall.uScale := 64.0 / wall.texture.width;
+			wall.vScale := 64.0 / wall.texture.height;
+			wall.uOffset := wall.xOffset * wall.uScale;
+			wall.vOffset := wall.yOffset * wall.vScale
+		END;
 		IF neighbor < 0 THEN
-			Name(archive.data^, offset + 20, name);
-			wall.omitMiddle := name = "-";
-			IF ~wall.omitMiddle THEN
-				wall.texture := textures.Get(name, error);
-				IF wall.texture = NIL THEN
-					RETURN FALSE
-				END;
-				wall.uScale := 64.0 / wall.texture.width;
-				wall.vScale := 64.0 / wall.texture.height;
-				wall.uOffset := wall.xOffset * wall.uScale;
-				wall.vOffset := wall.yOffset * wall.vScale;
-				IF flags DIV 16 MOD 2 = 1 THEN
-					wall.vOffset := wall.vOffset + (front.ceiling - front.floor) * -wall.vScale
-				END
+			IF ~wall.omitMiddle & wall.middleFromFloor THEN
+				wall.vOffset := wall.vOffset + (front.ceiling - front.floor) * -wall.vScale
 			END
 		ELSE
 			back := regions[neighbor];
@@ -133,7 +133,6 @@ BEGIN
 			END
 		END
 	END;
-	(* shortcut: masked middle textures are omitted; add masked drawing with sprites. *)
 	IF ~world.Add(wall) THEN
 		COPY("Map contains invalid or degenerate wall geometry", error);
 		RETURN FALSE

@@ -110,6 +110,53 @@ def sky_lumps():
     return lumps
 
 
+def masked_lumps(flags=0, x_offset=0, y_offset=0, second=False, composite=False, floor=0, ceiling=128):
+    lumps = sector_lumps(floor=floor, ceiling=ceiling, blocking=bool(flags & 1))
+    sides = bytearray(lumps[3][1])
+    for index in (8, 9):
+        struct.pack_into("<hh", sides, index * 30, x_offset, y_offset)
+        sides[index * 30 + 20:index * 30 + 28] = b"GRATE\0\0\0"
+    if second:
+        for index in (10, 11):
+            sides[index * 30 + 20:index * 30 + 28] = b"BACK\0\0\0\0"
+    lumps[3] = ("SIDEDEFS", bytes(sides))
+    lines = bytearray(lumps[2][1])
+    struct.pack_into("<H", lines, 8 * 14 + 4, 4 | flags)
+    if second:
+        struct.pack_into("<H", lines, 9 * 14 + 4, 4 | (flags & 16))
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    patches = []
+    for color in (2, 4):
+        columns = []
+        for x in range(64):
+            if x % 16 < 4:
+                column = bytes((0, 64, 0)) + bytes((color,)) * 56 + bytes((0,)) * 8 + bytes((0,))
+            else:
+                column = bytes((40, 8, 0)) + bytes((3,)) * 8 + bytes((0,))
+                column += bytes((56, 8, 0)) + bytes((0,)) * 8 + bytes((0,))
+            columns.append(column + bytes((255,)))
+        offset, offsets = 8 + 64 * 4, []
+        for column in columns:
+            offsets.append(offset)
+            offset += len(column)
+        patches.append(struct.pack("<4h64i", 64, 64, 0, 0, *offsets) + b"".join(columns))
+    lumps[12] = ("PNAMES", struct.pack("<i8s8s8s", 3, b"PATCH001", b"PGRATE", b"PBACK"))
+    definitions = [lumps[14][1][8:]]
+    for name, index in ((b"GRATE", 1), (b"BACK", 2)):
+        count = 2 if composite and index == 1 else 1
+        definition = struct.pack("<8sIhhIh", name, 0, 64, 64, 0, count)
+        definition += struct.pack("<5h", 0, 0, index, 1, 0)
+        if count == 2:
+            definition += struct.pack("<5h", 4, 0, 2, 1, 0)
+        definitions.append(definition)
+    offsets, offset = [], 4 + len(definitions) * 4
+    for definition in definitions:
+        offsets.append(offset)
+        offset += len(definition)
+    lumps[14] = ("TEXTURE1", struct.pack("<i3i", 3, *offsets) + b"".join(definitions))
+    return lumps + [("PGRATE", patches[0]), ("PBACK", patches[1])]
+
+
 def bsp_lumps():
     lumps = sector_lumps()
     lumps[5] = ("SEGS", b"".join(struct.pack("<6H", i, i + 1, 0, i, 0, 0)
@@ -216,6 +263,29 @@ def fixtures(directory):
     inverted[1] = ("THINGS", struct.pack("<5h", 128, 0, 0, 1, 7))
     files["inverted-start.wad"] = wad(inverted)
     files["level-portal.wad"] = wad(sector_lumps(floor=0, ceiling=128))
+    files["masked.wad"] = wad(masked_lumps())
+    files["masked-bottom.wad"] = wad(masked_lumps(flags=16))
+    files["masked-offset.wad"] = wad(masked_lumps(x_offset=-5, y_offset=16))
+    files["masked-layered.wad"] = wad(masked_lumps(flags=16, second=True))
+    files["masked-blocked.wad"] = wad(masked_lumps(flags=1))
+    files["masked-composite.wad"] = wad(masked_lumps(composite=True))
+    files["masked-tiered.wad"] = wad(masked_lumps(floor=24, ceiling=80))
+    masked = masked_lumps()
+    sides = bytearray(masked[3][1])
+    for offset in range(0, len(sides), 30):
+        sector = struct.unpack_from("<H", sides, offset + 28)[0]
+        struct.pack_into("<H", sides, offset + 28, 1 if sector == 2 else 0)
+    masked[3] = ("SIDEDEFS", bytes(sides))
+    masked[8] = ("SECTORS", masked[8][1][:26] + masked[8][1][52:])
+    files["masked-same-sector.wad"] = wad(masked)
+    masked = masked_lumps()
+    sides = bytearray(masked[3][1])
+    sides[8 * 30 + 20:8 * 30 + 28] = b"MISSING\0"
+    masked[3] = ("SIDEDEFS", bytes(sides))
+    files["masked-unknown.wad"] = wad(masked)
+    masked = masked_lumps()
+    masked[-2] = ("PGRATE", masked[-2][1][:-1])
+    files["masked-no-end.wad"] = wad(masked)
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)
     for marker in ("E2M1", "E3M1", "E4M1", "MAP01", "MAP11", "MAP12", "MAP20", "MAP21", "MAP32"):

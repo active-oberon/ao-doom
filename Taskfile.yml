@@ -32,12 +32,14 @@ tasks:
     cmds:
       - task --dir "{{.ENGINE_DIR}}" check
       - task: stage
-      - cp tests/DoomWadSmoke.Mod tests/DoomTexturesSmoke.Mod tests/DoomSectorsSmoke.Mod tests/DoomBspSmoke.Mod tests/DoomDoorsSmoke.Mod build/
+      - cp tests/DoomWadSmoke.Mod tests/DoomTexturesSmoke.Mod tests/DoomSectorsSmoke.Mod tests/DoomBspSmoke.Mod tests/DoomDoorsSmoke.Mod tests/DoomMaskedSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
       - cd build && ob build DoomWadSmoke.Mod -o wad-check
       - cd build && timeout 10 ./wad-check
       - cd build && ob build DoomTexturesSmoke.Mod -o textures-check
       - cd build && timeout 10 ./textures-check
+      - cd build && ob build DoomMaskedSmoke.Mod -o masked-check
+      - cd build && timeout 10 ./masked-check
       - cd build && ob build DoomSectorsSmoke.Mod -o sectors-check
       - cd build && timeout 10 ./sectors-check
       - cd build && ob build DoomBspSmoke.Mod -o bsp-check
@@ -72,6 +74,7 @@ tasks:
       - python3 tests/gui_smoke.py build/ao-doom build/sectors.wad E1M1
       - python3 tests/gui_smoke.py build/ao-doom build/sky.wad E1M1
       - python3 tests/gui_smoke.py build/ao-doom build/bsp-sectors.wad E1M1
+      - python3 tests/gui_smoke.py build/ao-doom build/masked.wad E1M1
       - python3 tests/gui_smoke.py --door build/ao-doom build/door.wad E1M1
 
   door-check:
