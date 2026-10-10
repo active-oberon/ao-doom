@@ -1,8 +1,59 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 23:13:04 UTC
+Updated: 2026-10-10 23:43:56 UTC
 
-## Current continuation: locked manual doors
+## Current continuation: solid actor collision
+
+The user asked to continue. The live checkout already had locked manual doors,
+so the next completed milestone adds player collision with static solid actors.
+Doom and engine started clean on main. Logical local commits remain authorized;
+no push is authorized. The passable grille remains as agreed.
+
+- Engine `GameGeometry.PositionCheck` and `MovePlayerChecked` check game-owned
+  occupancy before each accepted axis substep. Existing `MovePlayer` callers
+  retain their interface and wall-only behavior through NIL. Position and floor
+  update only on accepted axes; sliding, bounded motion and validation remain.
+- DoomThings now supplies positive footprint radii for all 60 known visible
+  classic MF_SOLID types; zero means passable. The values were compared with
+  id Software info.c. DoomSprites.Free checks overlap on both axes, allows
+  exact tangent contact and ignores actor height for player collision as
+  p_map.c does. Solid hanging bodies block; non-solid variants, corpses and
+  pickups remain passable. Skill/single-player filters are unchanged.
+- Doom invokes occupancy under its game monitor. Immutable actor metadata is
+  shared by pickup snapshots. Success/failure map replacement and initially
+  overlapping starts have regression coverage; overlaps remain blocking.
+  Existing sprites-grate.wad flags/passability are unchanged.
+- Before implementation a 70-forward-tick probe in sprite-rotations.wad passed
+  the monster center, then returned Trap 5.8 on its stop-before-footprint
+  assertion. The new checked tests cover the correct blocked position.
+- task check passed four engine executables, 165 generated WAD fixtures, every
+  previous suite, the new DoomActorsSmoke suite and Linux64 GUI compilation.
+  Tests cover tangent/corner contact, long movement, sliding, steps, monster/
+  barrel/decoration types, passable actors/items, spawn flags, snapshot state,
+  overlapping starts and success/failure loads. Python syntax, source operation
+  layout across 38 modules and whitespace checks passed.
+- task gui-check passed all twelve scenes. The new barrel scene verifies
+  approach, unchanged view under another forward input and diagonal sliding.
+  Existing release/focus/turn/Escape, pickup, grille and key-door checks passed.
+  All 132 original maps passed load/render/short movement again, and the four
+  archive hashes match the original-map report. Inspected blocked/sliding
+  captures and the first map's start view from each IWAD.
+- A new engine test initially required x > 0.5 after diagonal sliding; the valid
+  result was about 0.4545 with the correct raised floor. It now checks x > 0.25,
+  free footprint and floor. Corrected full checks passed. A temporary probe
+  path and unsupported KernelLog.Real call were fixed before reproducing red.
+  No failing required suites remain. Details: scratch/actors-check.md.
+- Code commits: engine 6aceba1; Doom d72901f. Engine docs: 045c00e; Doom docs
+  and reporting are separate. No pushes, merges, deployments or external WAD
+  additions. MiniA2 source stays unchanged; checks use the installed Linux64 SDK.
+- Next: combat, actor movement/animation and other map actions/sound. Monsters
+  cannot be killed yet and may block routes. Door obstruction remains player-
+  only; actor crushing/reversal is absent. Unknown types, powers, inter-map
+  inventory, switches/lifts and Brutal Doom PK3 remain unsupported.
+  Full playthroughs, exact pixel/collision equivalence, every original placement,
+  worst-case 65536-thing performance and other platforms remain unverified.
+
+## Previous continuation: locked manual doors
 
 The user asked to continue after pickups/inventory. Doom and engine started
 clean on main. The next completed milestone uses collected keys for manual

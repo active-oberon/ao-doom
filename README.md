@@ -37,8 +37,15 @@ pickups, decorations and corpses. Medium-skill single-player flags select them.
 Directional frames support all eight views and paired mirrored lump names;
 patch header offsets position each image. Transparent holes, opaque black,
 sector lighting, fullbright objects and ceiling attachments are preserved.
-Walls, grilles, planes and overlapping sprites share depth checks. Actors
-remain at spawn frames without solid actor collision or animation. Unknown
+Walls, grilles, planes and overlapping sprites share depth checks. The 60 classic
+solid object types now block player movement with their original footprint radii:
+monsters, barrels and solid decorations. Both horizontal axes must overlap;
+exact tangent contact is allowed. Player collision ignores actor height, so
+solid hanging bodies block even when their images are above the player.
+Pickups, corpses and non-solid hanging variants remain passable. Each axis
+substep checks actors before updating position or floor height, preserving
+sliding and bounded movement without jumping through a footprint. Actors
+remain at fixed spawn positions and frames without animation. Unknown
 types are skipped for previewing,
 and spectres currently render without the original fuzz effect. The WAD
 scene loads wall textures from PLAYPAL, PNAMES and TEXTURE1/TEXTURE2, composing
@@ -105,6 +112,8 @@ task run -- build/masked.wad E1M1
 task run -- build/sprites-grate.wad E1M1
 # Walk into health/armor, ammo, a key, a weapon and a backpack.
 task run -- build/pickups.wad E1M1
+# Walk toward a solid barrel, then strafe or move diagonally around it.
+task run -- build/actors-barrel.wad E1M1
 # Local base-game archives; quote paths containing spaces.
 task run -- '/path/to/DOOM.WAD' E1M1
 task run -- '/path/to/doom2.wad' MAP01
@@ -118,12 +127,16 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 157 original WAD fixtures, rejects
+`task check` runs engine checks, generates 165 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
 types with cards and skulls, wrong colors, key retention, active-door toggles,
 hidden material validation and actual tick-driven pickup/unlocking.
+Actor checks cover solid monsters/barrels/decorations, tangent and corner
+contact, long movement, sliding, steps, passable corpses/hanging variants/items,
+spawn flags, overlapping starts and successful/failed replacement loads.
+They export `build/actors-blocked.ppm` and `build/actors-sliding.ppm`.
 It exports `build/locked-door-missing.ppm`, `build/locked-door-key.ppm` and
 `build/locked-door-open.ppm`, plus
 `build/pickups-before.ppm`, `build/pickups-after.ppm` and `build/pickups-hud.ppm`, plus
@@ -142,11 +155,13 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies eleven scenes: corridor, single-sector,
+`task gui-check` additionally verifies twelve scenes: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
-and a locked door with an actual key pickup.
+and a locked door with an actual key pickup, plus solid barrel collision.
 Each checks movement, release, focus loss, turning, and Escape shutdown.
 The pickup scene walks into items and checks that the inventory panel changes.
+The barrel scene approaches the actor, verifies that another forward input
+leaves the view unchanged, and checks diagonal sliding around it.
 Both windowed and headless visible-scene checks exclude the status panel so
 text alone cannot hide an empty map frame.
 The door scene also checks held/released Space, closing and reopening.
@@ -178,7 +193,7 @@ Reusable simulation, geometry, rendering, buffers, timing, display presentation,
 and bounded binary reads belong in `ao-game-engine`. Doom WAD interpretation,
 map semantics, player rules and compatibility belong here. `DoomWad` handles the
 archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene.
-`DoomThings` owns spawn-frame facts; `DoomSprites` loads immutable actors,
+`DoomThings` owns spawn frames and solid footprint radii; `DoomSprites` loads immutable actors,
 chooses directional images and publishes copied collection bits after pickups.
 `DoomInventory` owns item effects; `DoomHud` owns the status panel layout.
 Game state uses a monitor; rendering captures camera, inventory,
@@ -203,8 +218,15 @@ Pickup checks and the new original-map regression are recorded in
 8192-byte bitset per tick that accepts items; frames without pickups reuse it.
 Locked-door checks and another 132-map regression are recorded in
 [the key-door report](scratch/locked-doors-check.md).
+Solid actor checks, the twelve-scene X11 run and a fresh 132-map regression are
+recorded in [the actor report](scratch/actors-check.md). The engine accepts a
+game-owned occupancy delegate without importing Doom types or changing the
+existing `MovePlayer` interface. Actor collision currently scans the bounded
+thing array; no spatial index or per-movement allocation was added.
 
-Next: solid actor collision, combat and other map actions.
+Next: combat, actor movement/animation and other map actions. Monsters cannot
+be killed yet and must be avoided. Door obstruction remains player-only;
+actor crushing and actor-triggered door reversal are not implemented.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
