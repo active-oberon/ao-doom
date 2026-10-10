@@ -20,6 +20,7 @@ BEGIN
 	ASSERT(archive # NIL);
 	ASSERT(~DoomMap.LoadMap(archive, "E1M1", map, error));
 	ASSERT(map.world = NIL);
+	ASSERT(map.sprites = NIL);
 	ASSERT(error[0] # 0X)
 END RejectMap;
 

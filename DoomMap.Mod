@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomWad, DoomTextures, DoomBsp, DoomDoors, GameBytes, GameGeometry, MathL;
+IMPORT DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomSprites, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -8,6 +8,7 @@ TYPE
 	Map* = RECORD
 		world*: GameGeometry.World;
 		doors*: DoomDoors.Controller;
+		sprites*: DoomSprites.Scene;
 		x*, y*, angle*, eye*: FLOAT64
 	END;
 
@@ -157,6 +158,7 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 BEGIN
 	map.world := NIL;
 	map.doors := NIL;
+	map.sprites := NIL;
 	error[0] := 0X;
 	marker := archive.Find(name);
 	IF (marker < 0) OR
@@ -346,6 +348,10 @@ BEGIN
 	angle := -result * MathL.pi / 180;
 	IF angle < -MathL.pi THEN
 		angle := angle + MathL.pi * 2
+	END;
+	map.sprites := DoomSprites.Read(archive, things, textures, world, error);
+	IF map.sprites = NIL THEN
+		RETURN FALSE
 	END;
 	map.world := world;
 	map.doors := doors;

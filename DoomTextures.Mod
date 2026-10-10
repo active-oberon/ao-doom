@@ -9,7 +9,7 @@ TYPE
 	Cached = POINTER TO RECORD
 		name: ARRAY 9 OF CHAR;
 		texture: GameMaterials.Texture;
-		flat: BOOLEAN;
+		kind, lump: SIGNED32;
 		next: Cached
 	END;
 
@@ -221,7 +221,7 @@ TYPE
 			wanted[i] := 0X;
 			found := cache;
 			WHILE found # NIL DO
-				IF (found.name = wanted) & ~found.flat THEN
+				IF (found.name = wanted) & (found.kind = 0) THEN
 					RETURN found.texture
 				END;
 				found := found.next
@@ -282,7 +282,7 @@ TYPE
 			NEW(found);
 			COPY(wanted, found.name);
 			found.texture := texture;
-			found.flat := FALSE;
+			found.kind := 0;
 			found.next := cache;
 			cache := found;
 			RETURN texture
@@ -308,7 +308,7 @@ TYPE
 			wanted[i] := 0X;
 			found := cache;
 			WHILE found # NIL DO
-				IF (found.name = wanted) & found.flat THEN
+				IF (found.name = wanted) & (found.kind = 1) THEN
 					RETURN found.texture
 				END;
 				found := found.next
@@ -342,11 +342,62 @@ TYPE
 			NEW(found);
 			COPY(wanted, found.name);
 			found.texture := texture;
-			found.flat := TRUE;
+			found.kind := 1;
 			found.next := cache;
 			cache := found;
 			RETURN texture
 		END Flat;
+
+		PROCEDURE Sprite*(index: SIGNED32; VAR left, top: SIGNED32;
+			VAR error: ARRAY OF CHAR): GameMaterials.Texture;
+		VAR found: Cached;
+			lump: DoomWad.Lump;
+			width, height: SIGNED32;
+			texture: GameMaterials.Texture;
+		BEGIN
+			error[0] := 0X;
+			IF (index < 0) OR (index >= archive.Count()) THEN
+				COPY("Sprite references an invalid lump", error);
+				RETURN NIL
+			END;
+			lump := archive.Entry(index);
+			IF lump.size < 8 THEN
+				COPY("Sprite patch header is truncated", error);
+				RETURN NIL
+			END;
+			left := GameBytes.I16(archive.data^, lump.offset + 4);
+			top := GameBytes.I16(archive.data^, lump.offset + 6);
+			found := cache;
+			WHILE found # NIL DO
+				IF (found.kind = 2) & (found.lump = index) THEN
+					RETURN found.texture
+				END;
+				found := found.next
+			END;
+			width := GameBytes.U16(archive.data^, lump.offset);
+			height := GameBytes.U16(archive.data^, lump.offset + 2);
+			IF (width < 1) OR (width > 1024) OR (height < 1) OR (height > 1024) THEN
+				COPY("Sprite dimensions are invalid or exceed 1024", error);
+				RETURN NIL
+			END;
+			IF width * height > MaximumPixels - pixels THEN
+				COPY("Sprite cache exceeds the texture resource budget", error);
+				RETURN NIL
+			END;
+			NEW(texture, width, height);
+			IF ~Patch(texture, lump, 0, 0, error) THEN
+				RETURN NIL
+			END;
+			texture.Seal;
+			INC(pixels, width * height);
+			NEW(found);
+			found.kind := 2;
+			found.lump := index;
+			found.texture := texture;
+			found.next := cache;
+			cache := found;
+			RETURN texture
+		END Sprite;
 	END Library;
 
 PROCEDURE Within(CONST lump: DoomWad.Lump; offset, size: SIGNED32): BOOLEAN;

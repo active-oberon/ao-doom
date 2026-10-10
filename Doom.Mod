@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, MathL, KernelLog;
+IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, MathL, KernelLog;
 
 CONST TicksPerSecond* = 35;
 	PlayerRadius* = 0.25;
@@ -19,6 +19,7 @@ TYPE
 		ticks: SIGNED64;
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
+		sprites: DoomSprites.Scene;
 		use: BOOLEAN;
 
 		PROCEDURE &Init*;
@@ -46,6 +47,7 @@ TYPE
 			strafe := 0;
 			turn := 0;
 			doors := NIL;
+			sprites := NIL;
 			use := FALSE;
 			ASSERT(world.Free(pose.x, pose.y, PlayerRadius))
 		END Init;
@@ -82,6 +84,7 @@ TYPE
 			END;
 			world := map.world;
 			doors := map.doors;
+			sprites := map.sprites;
 			use := FALSE;
 			pose.x := map.x;
 			pose.y := map.y;
@@ -150,18 +153,23 @@ TYPE
 			RETURN ticks
 		END Ticks;
 
-		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World);
+		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
-			geometry := world
+			geometry := world;
+			actors := sprites
 		END Capture;
 
 		PROCEDURE Render*(frame: GameSurface.Frame);
 		VAR snapshot: Pose;
 			geometry: GameGeometry.World;
+			actors: DoomSprites.Scene;
 		BEGIN
-			Capture(snapshot, geometry);
-			GameRenderer.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye)
+			Capture(snapshot, geometry, actors);
+			GameRenderer.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye);
+			IF actors # NIL THEN
+				actors.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye)
+			END
 		END Render;
 	END Game;
 

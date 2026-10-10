@@ -167,6 +167,38 @@ def bsp_lumps():
     return lumps
 
 
+def sprite_patch(color=5, left=16, top=64):
+    columns = []
+    for x in range(32):
+        if 4 <= x < 28:
+            first = bytes((8, 16, 0)) + bytes((0 if x < 12 else color,)) * 16 + bytes((0,))
+            second = bytes((40, 16, 0)) + bytes((color,)) * 16 + bytes((0,))
+            columns.append(first + second + bytes((255,)))
+        else:
+            columns.append(bytes((255,)))
+    offsets, offset = [], 8 + 32 * 4
+    for column in columns:
+        offsets.append(offset)
+        offset += len(column)
+    return struct.pack("<4h32i", 32, 64, left, top, *offsets) + b"".join(columns)
+
+
+def sprite_lumps(lumps=None, things=None, rotations=False):
+    lumps = list(map_lumps() if lumps is None else lumps)
+    palette = bytearray(lumps[11][1])
+    palette[15:24] = bytes((255, 64, 192, 48, 192, 240, 224, 224, 32))
+    lumps[11] = ("PLAYPAL", bytes(palette))
+    if things is None:
+        things = [(128, 0, 0, 3004 if rotations else 2015, 7)]
+    lumps[1] = ("THINGS", lumps[1][1] + b"".join(struct.pack("<5h", *thing) for thing in things))
+    patches = [("BON2A0", sprite_patch()), ("BON1A0", sprite_patch(6)),
+               ("GOR1A0", sprite_patch()), ("TLMPA0", sprite_patch())]
+    if rotations:
+        patches += [(name, sprite_patch(color, left=12)) for name, color in
+                    [("POSSA1", 5), ("POSSA2A8", 6), ("POSSA3A7", 7), ("POSSA4A6", 3), ("POSSA5", 4)]]
+    return lumps + [("S_START", b""), *patches, ("S_END", b"")]
+
+
 def door_lumps(special=1, flags=0):
     lumps = bsp_lumps()
     vertices = bytearray(lumps[4][1])
@@ -286,6 +318,40 @@ def fixtures(directory):
     masked = masked_lumps()
     masked[-2] = ("PGRATE", masked[-2][1][:-1])
     files["masked-no-end.wad"] = wad(masked)
+    sprites = sprite_lumps()
+    files["sprites.wad"] = wad(sprites)
+    files["sprite-rotations.wad"] = wad(sprite_lumps(sector_lumps(floor=0, ceiling=128), rotations=True))
+    files["sprites-layered.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 2015, 7), (192, 0, 0, 2014, 7)]))
+    files["sprites-reordered.wad"] = wad(sprite_lumps(things=[(192, 0, 0, 2014, 7), (128, 0, 0, 2015, 7)]))
+    files["sprites-grate.wad"] = wad(sprite_lumps(masked_lumps(flags=16)))
+    files["sprites-front-grate.wad"] = wad(sprite_lumps(masked_lumps(flags=16), [(-64, 0, 0, 2015, 7)]))
+    files["sprites-closed.wad"] = wad(sprite_lumps(sector_lumps(ceiling=24)))
+    files["sprites-flags.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 2015, flag) for flag in (1, 18, 2)] +
+                                                [(128, 0, 0, kind, 7) for kind in (14, 87, 9999)]))
+    files["sprites-ceiling.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 49, 7)]))
+    files["sprites-fullbright.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 85, 7)]))
+    files["sprite-missing.wad"] = wad([lump for lump in sprites if lump[0] != "BON2A0"])
+    files["sprite-short.wad"] = wad([(name, b"abc" if name == "BON2A0" else data) for name, data in sprites])
+    files["sprite-no-end.wad"] = wad([(name, data[:-1] if name == "BON2A0" else data) for name, data in sprites])
+    files["sprite-dimensions.wad"] = wad([(name, struct.pack("<h", 0) + data[2:] if name == "BON2A0" else data)
+                                         for name, data in sprites])
+    files["sprite-outside.wad"] = wad(sprite_lumps(things=[(2000, 0, 0, 2015, 7)]))
+    rotated = sprite_lumps(rotations=True)
+    files["sprite-missing-rotation.wad"] = wad([lump for lump in rotated if lump[0] != "POSSA5"])
+    files["sprite-mixed-rotations.wad"] = wad(rotated + [("POSSA0", sprite_patch())])
+    files["sprite-duplicate-rotation.wad"] = wad(rotated + [("POSSA1A2", sprite_patch())])
+    files["sprite-invalid-rotation.wad"] = wad(sprites + [("BON2A9", sprite_patch())])
+    files["sprite-last-lump.wad"] = wad(sprites + [("BON2A0", sprite_patch(6))])
+    hidden = bsp_lumps()
+    lines = bytearray(hidden[2][1])
+    struct.pack_into("<H", lines, 8 * 14 + 4, 1)
+    struct.pack_into("<H", lines, 8 * 14 + 12, 65535)
+    hidden[2] = ("LINEDEFS", bytes(lines))
+    files["sprites-hidden-wall.wad"] = wad(sprite_lumps(hidden))
+    files["sprites-no-resources.wad"] = wad(sprites[:11] + [("BON2A0", sprite_patch())])
+    oversized = list(sprites)
+    oversized[1] = ("THINGS", sprites[1][1] + struct.pack("<5h", 0, 0, 0, 1, 7) * 65536)
+    files["sprites-too-many.wad"] = wad(oversized)
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)
     for marker in ("E2M1", "E3M1", "E4M1", "MAP01", "MAP11", "MAP12", "MAP20", "MAP21", "MAP32"):
