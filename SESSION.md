@@ -1,8 +1,48 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 17:14:00 UTC
+Updated: 2026-10-10 21:02:00 UTC
 
-## Current continuation: manual doors
+## Current continuation: masked middle walls
+
+This section supersedes the manual-door stop point below. The user resumed
+the interrupted Doom session; both Doom and engine started clean on main.
+Reusable mechanisms remain in ao-game-engine, with Doom interpretation here.
+
+- Engine textures retain binary coverage in the existing pixel array:
+  `SampleMasked` returns -1 for untouched texels, while ordinary `Sample`
+  retains black fallback. Explicit black is covered; ordered patches preserve
+  earlier coverage through later holes.
+- Engine portal rendering records the nearest covered grille pixel in a local
+  4096-row buffer and applies it after drawing the rooms behind. It handles
+  layered grilles without per-frame allocation or a list of every crossed wall.
+  Physical openings, current ceilings, offsets and top/bottom anchoring clip
+  one texture height; horizontal sampling repeats.
+- DoomMap loads validated middle textures on both sides of two-sided lines.
+  The existing blocking and clearance rules still determine crossing. No
+  game-specific flags or resource parsing moved into the engine.
+- `task check` passed engine checks and 113 generated WAD fixtures, including
+  coverage/black, patch composition, layering, pegging, offsets, vertical
+  clipping, same-sector lines, immutable ceiling snapshots, blocking and
+  malformed-resource cases. Linux64 window compilation also passed.
+- `task gui-check` passed all seven scenes, including the new grille scene
+  and the existing door/input checks. All 132 supplied original maps passed
+  load/render/short-movement again; all four archive hashes still match.
+  Captures were inspected. See `scratch/masked-check.md` for evidence.
+- Sandbox writes to neighboring engine output and sandbox X11 access failed;
+  authorized native checks passed. Two assertions initially sampled invisible
+  fixture posts, and the first layout helper falsely matched declarations;
+  correcting those checks restored passing results. No product failures
+  remained in the final stated suites.
+- Source operation layout and whitespace checks passed. MiniA2 is unchanged;
+  this uses the installed Linux64 SDK. Game data/captures remain external or
+  ignored. Commits: engine coverage/rendering `7daa43b`, Doom integration/tests
+  `825559f`, engine documentation `754b2d6`; Doom reporting is separate. No pushes.
+- Next: sprites/actors, inventory/keys and other map actions, then weapons,
+  monsters, sound and gravity. Extended tall patches and translucency are
+  absent. Whole routes, original grille pixel comparisons, performance targets,
+  other platforms and Brutal Doom PK3 behavior remain unverified/unsupported.
+
+## Previous continuation: manual doors
 
 This section supersedes the static-sector state below. The user asked to
 continue and retains the instruction to make separate logical local commits.

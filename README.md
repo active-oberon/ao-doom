@@ -20,6 +20,11 @@ Explicitly absent wall textures (`-`) are accepted and omitted. Movement
 respects blocking lines, 56-unit player clearance and a maximum 24-unit step.
 Exact tangent contact with a wall is valid; inverted sector heights describe
 closed regions and remain impassable.
+Two-sided middle textures now draw fences and grilles with transparent patch
+holes. Opaque black pixels remain visible. Layered grilles retain the nearest
+covered pixel, repeat horizontally, and draw their height once inside the
+sector opening. Sidedef offsets and top/bottom pegging remain active while
+ceilings move. Blocking flags still decide whether the player can cross.
 Space activates unlocked manual doors (types 1, 31, 117 and 118) from their front
 side within 64 Doom units. Their ceilings animate, open the passage, and either
 stay open or wait 150 ticks before closing. Closing reverses if the player would
@@ -59,6 +64,8 @@ task run -- build/valid.wad E1M1
 task run -- build/sectors.wad E1M1
 # A closed manual door; press Space, then walk through.
 task run -- build/door.wad E1M1
+# A grille with transparent holes; the line permits crossing.
+task run -- build/masked.wad E1M1
 # Local base-game archives; quote paths containing spaces.
 task run -- '/path/to/DOOM.WAD' E1M1
 task run -- '/path/to/doom2.wad' MAP01
@@ -70,10 +77,12 @@ task door-check -- '/path/to/DOOM.WAD' E1M1
 task gui-check
 ```
 
-`task check` runs engine checks, generates 103 original WAD fixtures, rejects
+`task check` runs engine checks, generates 113 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. It exports
+`build/masked-scene.ppm`, `build/masked-reverse.ppm` and
+`build/masked-layered.ppm` for grille inspection, plus
 `build/scene.ppm` and `build/wad-scene.ppm` for
 inspection, plus four views of the multi-sector map and `build/sky-scene.ppm`.
 `task wad-check` rejects completely empty start/walk frames and writes
@@ -84,7 +93,7 @@ it requires an absolute WAD path because the check runs in `build/`.
 there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start.
 `task gui-check` additionally verifies the corridor, single-sector, multi-sector,
-sky, BSP and door scenes, movement, release, focus loss, turning, and Escape shutdown.
+sky, BSP, grille and door scenes, movement, release, focus loss, turning, and Escape shutdown.
 The door scene also checks held/released Space, closing and reopening.
 It needs Xlib and an accessible X11 server. Each check launches a temporary
 copy of the executable so it identifies
@@ -99,8 +108,8 @@ even when names match. Map contour validation is capped at 64 million work units
 BSP decoding caps SEGS at 65536 and SSECTORS/NODES at 32768 each, validates
 indices/ranges and requires child nodes to precede parents, preventing cycles.
 Subsector membership follows its first seg; unused sectors are retained.
-It currently supports opaque wall materials and classic patches; masked middle
-textures are omitted, and extended tall-patch support is absent.
+It supports opaque wall materials, masked middle textures and classic patches;
+extended tall-patch support is absent.
 
 ## Project boundary and next milestones
 
@@ -119,7 +128,10 @@ to avoid a blank view at a zero-distance boundary.
 Manual doors from Doom E1M1 and Doom II/TNT/Plutonia MAP01 passed the opening
 and crossing probe. Details and limits are in [the door report](scratch/doors-check.md).
 
-Next: masked walls, actors, inventory, other map actions and gameplay.
+The masked-wall checks and a fresh 132-map regression are recorded in
+[the grille report](scratch/masked-check.md).
+
+Next: sprites/actors, inventory, other map actions and gameplay.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
