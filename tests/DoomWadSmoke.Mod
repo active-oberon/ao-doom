@@ -76,7 +76,9 @@ BEGIN
 	RejectMap("open-sector.wad");
 	RejectMap("bad-two-sided.wad");
 	RejectMap("bad-flat.wad");
-	RejectMap("missing-flat.wad")
+	RejectMap("missing-flat.wad");
+	RejectMap("missing-sky.wad");
+	RejectMap("unknown-tier.wad")
 END Do;
 
 END DoomWadSmoke.

@@ -90,6 +90,26 @@ def sector_lumps(floor=24, ceiling=112, blocking=False):
     return lumps + resources()
 
 
+def sky_lumps():
+    lumps = sector_lumps()
+    sectors = bytearray(lumps[8][1])
+    for offset in range(0, len(sectors), 26):
+        sectors[offset + 12:offset + 20] = b"F_SKY1\0\0"
+    lumps[8] = ("SECTORS", bytes(sectors))
+    sides = bytearray(lumps[3][1])
+    for offset in range(8 * 30, len(sides), 30):
+        sides[offset + 4:offset + 12] = b"-\0\0\0\0\0\0\0"
+    lumps[3] = ("SIDEDEFS", bytes(sides))
+    definitions = [lumps[14][1][8:]]
+    for index in range(1, 5):
+        definition = struct.pack("<8sIhhIh", f"SKY{index}".encode(), 0, 64, 64, 0, 1)
+        definition += struct.pack("<hhhhh", index - 1, 0, 0, 1, 0)
+        definitions.append(definition)
+    lumps[14] = ("TEXTURE1", struct.pack("<i5i", 5, *range(24, 184, 32)) +
+                 b"".join(definitions))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -160,6 +180,20 @@ def fixtures(directory):
     files["low-portal.wad"] = wad(sector_lumps(ceiling=79))
     files["closed-portal.wad"] = wad(sector_lumps(ceiling=24))
     files["level-portal.wad"] = wad(sector_lumps(floor=0, ceiling=128))
+    sky = sky_lumps()
+    files["sky.wad"] = wad(sky)
+    for marker in ("E2M1", "E3M1", "E4M1", "MAP01", "MAP11", "MAP12", "MAP20", "MAP21", "MAP32"):
+        files[f"sky-{marker}.wad"] = wad([(marker, b"")] + sky[1:])
+    files["missing-sky.wad"] = wad(sky[:14] + [lumps[14]] + sky[15:])
+    missing = sector_lumps(ceiling=80)
+    files["tiered-portal.wad"] = wad(missing)
+    sides = bytearray(missing[3][1])
+    sides[8 * 30 + 4:8 * 30 + 20] = b"-\0\0\0\0\0\0\0" * 2
+    missing[3] = ("SIDEDEFS", bytes(sides))
+    files["absent-tiers.wad"] = wad(missing)
+    sides[8 * 30 + 12:8 * 30 + 20] = b"MISSING\0"
+    missing[3] = ("SIDEDEFS", bytes(sides))
+    files["unknown-tier.wad"] = wad(missing)
     files["bad-flat.wad"] = wad([(name, data[:-1] if name == "FLOOR" else data)
                                   for name, data in lumps])
     files["missing-flat.wad"] = wad([(name, data) for name, data in lumps if name != "FLOOR"])

@@ -1,6 +1,6 @@
 MODULE DoomSectorsSmoke;
 
-IMPORT Doom, DoomWad, DoomMap, GameGeometry, GameSurface, GameRenderer, MathL;
+IMPORT Doom, DoomWad, DoomMap, DoomTextures, GameGeometry, GameSurface, GameRenderer, GameMaterials, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -36,16 +36,70 @@ BEGIN
 	END
 END Covered;
 
+PROCEDURE Sky(CONST path, marker, expected: ARRAY OF CHAR);
+VAR archive: DoomWad.Archive;
+	map: DoomMap.Map;
+	textures: DoomTextures.Library;
+	expectedTexture: GameMaterials.Texture;
+	region: GameGeometry.Sector;
+	wall: GameGeometry.Wall;
+	frame: GameSurface.Frame;
+	distance: FLOAT64;
+	i: SIGNED32;
+	error: ARRAY 128 OF CHAR;
+BEGIN
+	archive := DoomWad.Open(path, error);
+	ASSERT(archive # NIL);
+	ASSERT(DoomMap.LoadMap(archive, marker, map, error));
+	region := map.world.Region(0);
+	ASSERT(region.ceilingTexture = NIL);
+	ASSERT(region.skyTexture # NIL);
+	textures := DoomTextures.Open(archive, error);
+	ASSERT(textures # NIL);
+	expectedTexture := textures.Get(expected, error);
+	ASSERT(expectedTexture # NIL);
+	FOR i := 0 TO 63 DO
+		ASSERT(region.skyTexture.Sample(i / 64.0, 0.1) = expectedTexture.Sample(i / 64.0, 0.1))
+	END;
+	ASSERT(map.world.CastSector(0, -2, 0, 1, 0, 0, distance, wall));
+	ASSERT(wall.upper = NIL);
+	NEW(frame, 320, 200);
+	GameRenderer.Render(map.world, frame, map.x, map.y, 0, map.eye);
+	Covered(frame);
+	ASSERT(frame.Pixel(160, 0) = region.skyTexture.Sample(-MathL.arctan(0.66 / 320) / (2 * MathL.pi) * 16, 0.5 / 64));
+	ASSERT(frame.Save("sky-scene.ppm"))
+END Sky;
+
 PROCEDURE Do*;
 VAR map: DoomMap.Map;
 	game: Doom.Game;
 	pose: Doom.Pose;
 	wall: GameGeometry.Wall;
-	frame: GameSurface.Frame;
+	frame, absentFrame: GameSurface.Frame;
 	x, y, feet, distance: FLOAT64;
 	error: ARRAY 128 OF CHAR;
 	i, farColor, lowerColor, upperColor: SIGNED32;
 BEGIN
+	Sky("sky.wad", "e1m1", "SKY1");
+	Sky("sky-E2M1.wad", "E2M1", "SKY2");
+	Sky("sky-E3M1.wad", "E3M1", "SKY3");
+	Sky("sky-E4M1.wad", "E4M1", "SKY4");
+	Sky("sky-MAP01.wad", "MAP01", "SKY1");
+	Sky("sky-MAP11.wad", "MAP11", "SKY1");
+	Sky("sky-MAP12.wad", "MAP12", "SKY2");
+	Sky("sky-MAP20.wad", "MAP20", "SKY2");
+	Sky("sky-MAP21.wad", "MAP21", "SKY3");
+	Sky("sky-MAP32.wad", "MAP32", "SKY3");
+	Load("absent-tiers.wad", map);
+	ASSERT(map.world.CastSector(0, -2, 0, 1, 0, 0, distance, wall));
+	ASSERT(wall.omitUpper & wall.omitLower);
+	NEW(absentFrame, 320, 200);
+	GameRenderer.Render(map.world, absentFrame, map.x, map.y, map.angle, map.eye);
+	Load("tiered-portal.wad", map);
+	NEW(frame, 320, 200);
+	GameRenderer.Render(map.world, frame, map.x, map.y, map.angle, map.eye);
+	ASSERT(absentFrame.Pixel(160, 10) # frame.Pixel(160, 10));
+	ASSERT(absentFrame.Pixel(160, 150) # frame.Pixel(160, 150));
 	Load("sectors.wad", map);
 	ASSERT(map.world.SectorCount() = 3);
 	ASSERT(map.world.Count() = 12);
@@ -59,7 +113,6 @@ BEGIN
 	ASSERT((distance = 6) & (wall.neighbor = 2));
 	ASSERT(map.world.CastSector(2, -2, 0, 1, 0, distance, distance, wall));
 	ASSERT((distance = 10) & (wall.neighbor = -1));
-	NEW(frame, 320, 200);
 	GameRenderer.Render(map.world, frame, map.x, map.y, map.angle, map.eye);
 	ASSERT(frame.Save("sectors-scene.ppm"));
 	Covered(frame);

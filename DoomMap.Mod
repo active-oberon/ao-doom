@@ -29,6 +29,23 @@ BEGIN
 	name[8] := 0X
 END Name;
 
+PROCEDURE SkyName(CONST map: ARRAY OF CHAR; VAR sky: ARRAY OF CHAR);
+VAR level: SIGNED32;
+BEGIN
+	COPY("SKY1", sky);
+	IF (map[0] = "E") & (map[1] >= "1") & (map[1] <= "4") & (map[2] = "M") THEN
+		sky[3] := map[1]
+	ELSIF (map[0] = "M") & (map[1] = "A") & (map[2] = "P") &
+		(map[3] >= "0") & (map[3] <= "9") & (map[4] >= "0") & (map[4] <= "9") THEN
+		level := (ORD(map[3]) - ORD("0")) * 10 + ORD(map[4]) - ORD("0");
+		IF level >= 21 THEN
+			COPY("SKY3", sky)
+		ELSIF level >= 12 THEN
+			COPY("SKY2", sky)
+		END
+	END
+END SkyName;
+
 PROCEDURE Side(archive: DoomWad.Archive; textures: DoomTextures.Library;
 	world: GameGeometry.World; CONST regions: ARRAY OF GameGeometry.Sector;
 	CONST vertices, sides: DoomWad.Lump; v1, v2, side, neighbor, flags: SIGNED32;
@@ -42,6 +59,8 @@ BEGIN
 	wall.sector := GameBytes.U16(archive.data^, offset + 28);
 	wall.neighbor := neighbor;
 	wall.blocking := flags MOD 2 = 1;
+	wall.omitUpper := FALSE;
+	wall.omitLower := FALSE;
 	wall.ax := GameBytes.I16(archive.data^, vertices.offset + v1 * 4) / 64.0;
 	wall.ay := -GameBytes.I16(archive.data^, vertices.offset + v1 * 4 + 2) / 64.0;
 	wall.bx := GameBytes.I16(archive.data^, vertices.offset + v2 * 4) / 64.0;
@@ -75,25 +94,31 @@ BEGIN
 			END
 		ELSE
 			back := regions[neighbor];
-			IF back.ceiling < front.ceiling THEN
+			IF (back.ceiling < front.ceiling) & ~((front.skyTexture # NIL) & (back.skyTexture # NIL)) THEN
 				Name(archive.data^, offset + 4, name);
-				wall.upper := textures.Get(name, error);
-				IF wall.upper = NIL THEN
-					RETURN FALSE
-				END;
-				IF flags DIV 8 MOD 2 = 0 THEN
-					wall.upperAnchor := back.ceiling + wall.upper.height / 64.0
+				wall.omitUpper := name = "-";
+				IF ~wall.omitUpper THEN
+					wall.upper := textures.Get(name, error);
+					IF wall.upper = NIL THEN
+						RETURN FALSE
+					END;
+					IF flags DIV 8 MOD 2 = 0 THEN
+						wall.upperAnchor := back.ceiling + wall.upper.height / 64.0
+					END
 				END
 			END;
 			IF back.floor > front.floor THEN
 				Name(archive.data^, offset + 12, name);
-				wall.lower := textures.Get(name, error);
-				IF wall.lower = NIL THEN
-					RETURN FALSE
-				END;
-				wall.lowerAnchor := back.floor;
-				IF flags DIV 16 MOD 2 = 1 THEN
-					wall.lowerAnchor := front.ceiling
+				wall.omitLower := name = "-";
+				IF ~wall.omitLower THEN
+					wall.lower := textures.Get(name, error);
+					IF wall.lower = NIL THEN
+						RETURN FALSE
+					END;
+					wall.lowerAnchor := back.floor;
+					IF flags DIV 16 MOD 2 = 1 THEN
+						wall.lowerAnchor := front.ceiling
+					END
 				END
 			END
 		END
@@ -110,12 +135,12 @@ PROCEDURE LoadMap*(archive: DoomWad.Archive; CONST name: ARRAY OF CHAR;
 	VAR map: Map; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	vertexCount, sideCount, sectorCount, lineCount, sector, frontSector, backSector, result, edges: SIGNED32;
-	things, lines, sides, vertices, sectors: DoomWad.Lump;
+	things, lines, sides, vertices, sectors, markerLump: DoomWad.Lump;
 	world: GameGeometry.World;
 	textures: DoomTextures.Library;
 	regions: POINTER TO ARRAY OF GameGeometry.Sector;
 	degree: POINTER TO ARRAY OF SIGNED32;
-	textureName: ARRAY 9 OF CHAR;
+	textureName, skyName: ARRAY 9 OF CHAR;
 	x, y, angle, floor: FLOAT64;
 BEGIN
 	map.world := NIL;
@@ -211,6 +236,8 @@ BEGIN
 		END
 	END;
 	NEW(regions, sectorCount);
+	markerLump := archive.Entry(marker);
+	SkyName(markerLump.name, skyName);
 	FOR sector := 0 TO sectorCount - 1 DO
 		offset := sectors.offset + sector * 26;
 		regions[sector].floor := GameBytes.I16(archive.data^, offset) / 64.0;
@@ -228,9 +255,19 @@ BEGIN
 				RETURN FALSE
 			END;
 			Name(archive.data^, offset + 12, textureName);
-			regions[sector].ceilingTexture := textures.Flat(textureName, error);
-			IF regions[sector].ceilingTexture = NIL THEN
-				RETURN FALSE
+			IF textureName = "F_SKY1" THEN
+				regions[sector].skyTexture := textures.Get(skyName, error);
+				IF regions[sector].skyTexture = NIL THEN
+					RETURN FALSE
+				END;
+				regions[sector].skyUScale := 1024.0 / regions[sector].skyTexture.width;
+				regions[sector].skyVScale := 200.0 / regions[sector].skyTexture.height;
+				regions[sector].skyVOffset := 100.0 / regions[sector].skyTexture.height
+			ELSE
+				regions[sector].ceilingTexture := textures.Flat(textureName, error);
+				IF regions[sector].ceilingTexture = NIL THEN
+					RETURN FALSE
+				END
 			END
 		END
 	END;
