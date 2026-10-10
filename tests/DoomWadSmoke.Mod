@@ -62,6 +62,10 @@ BEGIN
 	ASSERT(DoomMap.LoadMap(archive, "E1M1", map, error));
 	ASSERT(map.world.Cast(0, 0, 1, 0, distance, wall));
 	ASSERT(wall.texture = NIL);
+	archive := DoomWad.Open("tangent-start.wad", error);
+	ASSERT(archive # NIL);
+	ASSERT(DoomMap.LoadMap(archive, "E1M1", map, error));
+	ASSERT(map.x = 3.75);
 	RejectMap("bad-vertex.wad");
 	RejectMap("bad-side.wad");
 	RejectMap("bad-sector.wad");
@@ -78,7 +82,9 @@ BEGIN
 	RejectMap("bad-flat.wad");
 	RejectMap("missing-flat.wad");
 	RejectMap("missing-sky.wad");
-	RejectMap("unknown-tier.wad")
+	RejectMap("unknown-tier.wad");
+	RejectMap("unknown-middle.wad");
+	RejectMap("inverted-start.wad")
 END Do;
 
 END DoomWadSmoke.

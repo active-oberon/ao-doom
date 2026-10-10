@@ -110,6 +110,16 @@ def sky_lumps():
     return lumps
 
 
+def bsp_lumps():
+    lumps = sector_lumps()
+    lumps[5] = ("SEGS", b"".join(struct.pack("<6H", i, i + 1, 0, i, 0, 0)
+                               for i in range(3)))
+    lumps[6] = ("SSECTORS", b"".join(struct.pack("<2H", 1, i) for i in range(3)))
+    lumps[7] = ("NODES", struct.pack("<12h2H", 0, 0, 0, 256, *([0] * 8), 32769, 32768) +
+               struct.pack("<12h2H", 256, 0, 0, 256, *([0] * 8), 32770, 0))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -130,6 +140,7 @@ def fixtures(directory):
         "bad-sector.wad": (3, struct.pack("<hh8s8s8sH", 0, 0, b"-", b"-", b"WALL", 1)),
         "no-start.wad": (1, struct.pack("<hhhhh", 0, 0, 0, 2, 7)),
         "wall-start.wad": (1, struct.pack("<hhhhh", 256, 0, 0, 1, 7)),
+        "tangent-start.wad": (1, struct.pack("<hhhhh", 240, 0, 90, 1, 7)),
         "outside-start.wad": (1, struct.pack("<hhhhh", 1000, 1000, 0, 1, 7)),
         "hole-start.wad": (1, struct.pack("<hhhhh", 96, 96, 0, 1, 7)),
         "bad-stride.wad": (4, b"abc"),
@@ -179,6 +190,10 @@ def fixtures(directory):
     files["high-step.wad"] = wad(sector_lumps(floor=25))
     files["low-portal.wad"] = wad(sector_lumps(ceiling=79))
     files["closed-portal.wad"] = wad(sector_lumps(ceiling=24))
+    files["inverted-portal.wad"] = wad(sector_lumps(ceiling=23))
+    inverted = sector_lumps(ceiling=23)
+    inverted[1] = ("THINGS", struct.pack("<5h", 128, 0, 0, 1, 7))
+    files["inverted-start.wad"] = wad(inverted)
     files["level-portal.wad"] = wad(sector_lumps(floor=0, ceiling=128))
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)
@@ -194,6 +209,50 @@ def fixtures(directory):
     sides[8 * 30 + 12:8 * 30 + 20] = b"MISSING\0"
     missing[3] = ("SIDEDEFS", bytes(sides))
     files["unknown-tier.wad"] = wad(missing)
+    absent = list(lumps)
+    absent[3] = ("SIDEDEFS", struct.pack("<hh8s8s8sH", 0, 0, b"-", b"-", b"-", 0))
+    files["absent-middle.wad"] = wad(absent)
+    absent[3] = ("SIDEDEFS", struct.pack("<hh8s8s8sH", 0, 0, b"-", b"-", b"MISSING", 0))
+    files["unknown-middle.wad"] = wad(absent)
+    bsp = bsp_lumps()
+    files["bsp-sectors.wad"] = wad(bsp)
+    modified = list(bsp)
+    modified[8] = ("SECTORS", bsp[8][1] + bsp[8][1][:26])
+    files["bsp-unused-sector.wad"] = wad(modified)
+    modified = list(bsp)
+    modified[2] = ("LINEDEFS", bsp[2][1][:-14])
+    files["bsp-open-sector.wad"] = wad(modified)
+    modified = list(bsp)
+    modified[6] = ("SSECTORS", struct.pack("<2H", 2, 0) + bsp[6][1][4:])
+    files["bsp-mixed-subsector.wad"] = wad(modified)
+    single = list(lumps)
+    single[5] = ("SEGS", struct.pack("<6H", 0, 1, 0, 0, 0, 0))
+    single[6] = ("SSECTORS", struct.pack("<2H", 1, 0))
+    files["bsp-single.wad"] = wad(single)
+    bsp_variants = {
+        "bsp-bad-seg-stride.wad": (5, b"abc"),
+        "bsp-bad-sub-stride.wad": (6, b"abc"),
+        "bsp-bad-node-stride.wad": (7, b"abc"),
+        "bsp-no-segs.wad": (5, b""),
+        "bsp-no-subsectors.wad": (6, b""),
+        "bsp-no-nodes.wad": (7, b""),
+        "bsp-bad-seg-vertex.wad": (5, struct.pack("<6H", 65535, 1, 0, 0, 0, 0)),
+        "bsp-bad-seg-line.wad": (5, struct.pack("<6H", 0, 1, 0, 65535, 0, 0)),
+        "bsp-bad-seg-side.wad": (5, struct.pack("<6H", 0, 1, 0, 0, 2, 0)),
+        "bsp-missing-seg-side.wad": (5, struct.pack("<6H", 0, 1, 0, 0, 1, 0)),
+        "bsp-empty-subsector.wad": (6, struct.pack("<2H", 0, 0)),
+        "bsp-bad-sub-range.wad": (6, struct.pack("<2H", 2, 2)),
+        "bsp-bad-leaf.wad": (7, struct.pack("<12h2H", 0, 0, 0, 256, *([0] * 8), 32771, 32768)),
+        "bsp-self-cycle.wad": (7, struct.pack("<12h2H", 0, 0, 0, 256, *([0] * 8), 0, 32768)),
+        "bsp-forward-child.wad": (7, struct.pack("<12h2H", 0, 0, 0, 256, *([0] * 8), 1, 32768) + bsp[7][1][28:]),
+        "bsp-zero-direction.wad": (7, struct.pack("<12h2H", *([0] * 12), 32769, 32768)),
+        "bsp-large-tree.wad": (7, bytes(28 * 32769)),
+        "bsp-outside-start.wad": (1, struct.pack("<5h", 2000, 2000, 0, 1, 7)),
+    }
+    for name, (index, data) in bsp_variants.items():
+        modified = list(bsp)
+        modified[index] = (modified[index][0], data)
+        files[name] = wad(modified)
     files["bad-flat.wad"] = wad([(name, data[:-1] if name == "FLOOR" else data)
                                   for name, data in lumps])
     files["missing-flat.wad"] = wad([(name, data) for name, data in lumps if name != "FLOOR"])

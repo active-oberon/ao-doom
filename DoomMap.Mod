@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomWad, DoomTextures, GameBytes, GameGeometry, MathL;
+IMPORT DoomWad, DoomTextures, DoomBsp, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -59,6 +59,7 @@ BEGIN
 	wall.sector := GameBytes.U16(archive.data^, offset + 28);
 	wall.neighbor := neighbor;
 	wall.blocking := flags MOD 2 = 1;
+	wall.omitMiddle := FALSE;
 	wall.omitUpper := FALSE;
 	wall.omitLower := FALSE;
 	wall.ax := GameBytes.I16(archive.data^, vertices.offset + v1 * 4) / 64.0;
@@ -81,16 +82,19 @@ BEGIN
 	IF textures # NIL THEN
 		IF neighbor < 0 THEN
 			Name(archive.data^, offset + 20, name);
-			wall.texture := textures.Get(name, error);
-			IF wall.texture = NIL THEN
-				RETURN FALSE
-			END;
-			wall.uScale := 64.0 / wall.texture.width;
-			wall.vScale := 64.0 / wall.texture.height;
-			wall.uOffset := wall.xOffset * wall.uScale;
-			wall.vOffset := wall.yOffset * wall.vScale;
-			IF flags DIV 16 MOD 2 = 1 THEN
-				wall.vOffset := wall.vOffset + (front.ceiling - front.floor) * -wall.vScale
+			wall.omitMiddle := name = "-";
+			IF ~wall.omitMiddle THEN
+				wall.texture := textures.Get(name, error);
+				IF wall.texture = NIL THEN
+					RETURN FALSE
+				END;
+				wall.uScale := 64.0 / wall.texture.width;
+				wall.vScale := 64.0 / wall.texture.height;
+				wall.uOffset := wall.xOffset * wall.uScale;
+				wall.vOffset := wall.yOffset * wall.vScale;
+				IF flags DIV 16 MOD 2 = 1 THEN
+					wall.vOffset := wall.vOffset + (front.ceiling - front.floor) * -wall.vScale
+				END
 			END
 		ELSE
 			back := regions[neighbor];
@@ -140,6 +144,8 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	textures: DoomTextures.Library;
 	regions: POINTER TO ARRAY OF GameGeometry.Sector;
 	degree: POINTER TO ARRAY OF SIGNED32;
+	partitions: DoomBsp.Nodes;
+	leaves: DoomBsp.Leaves;
 	textureName, skyName: ARRAY 9 OF CHAR;
 	x, y, angle, floor: FLOAT64;
 BEGIN
@@ -161,10 +167,6 @@ BEGIN
 	lineCount := lines.size DIV 14;
 	IF (lineCount > 65536) OR (sideCount > 65536) OR (vertexCount > 65536) OR (sectorCount > 65536) THEN
 		COPY("Map record count exceeds 65536", error);
-		RETURN FALSE
-	END;
-	IF sectorCount > MaximumValidationWork DIV (vertexCount + lineCount) THEN
-		COPY("Sector contour validation exceeds the map work budget", error);
 		RETURN FALSE
 	END;
 	FOR i := 0 TO sideCount - 1 DO
@@ -196,37 +198,46 @@ BEGIN
 			RETURN FALSE
 		END
 	END;
-	NEW(degree, vertexCount);
-	FOR sector := 0 TO sectorCount - 1 DO
-		FOR j := 0 TO vertexCount - 1 DO
-			degree[j] := 0
-		END;
-		edges := 0;
-		FOR i := 0 TO lineCount - 1 DO
-			offset := lines.offset + i * 14;
-			front := GameBytes.U16(archive.data^, offset + 10);
-			back := GameBytes.U16(archive.data^, offset + 12);
-			frontSector := GameBytes.U16(archive.data^, sides.offset + front * 30 + 28);
-			backSector := -1;
-			IF back # 65535 THEN
-				backSector := GameBytes.U16(archive.data^, sides.offset + back * 30 + 28)
-			END;
-			IF (frontSector # backSector) & ((frontSector = sector) OR (backSector = sector)) THEN
-				INC(degree[GameBytes.U16(archive.data^, offset)]);
-				INC(degree[GameBytes.U16(archive.data^, offset + 2)]);
-				INC(edges)
-			END
-		END;
-		IF edges = 0 THEN
-			COPY("Sector has no closed boundary", error);
+	IF ~DoomBsp.Read(archive, marker, vertices, lines, sides, partitions, leaves, error) THEN
+		RETURN FALSE
+	END;
+	IF leaves = NIL THEN
+		IF sectorCount > MaximumValidationWork DIV (vertexCount + lineCount) THEN
+			COPY("Sector contour validation exceeds the map work budget", error);
 			RETURN FALSE
 		END;
-		FOR j := 0 TO vertexCount - 1 DO
-			IF degree[j] MOD 2 # 0 THEN
-				COPY("Sector boundary must form closed contours", error);
+		NEW(degree, vertexCount);
+		FOR sector := 0 TO sectorCount - 1 DO
+			FOR j := 0 TO vertexCount - 1 DO
+				degree[j] := 0
+			END;
+			edges := 0;
+			FOR i := 0 TO lineCount - 1 DO
+				offset := lines.offset + i * 14;
+				front := GameBytes.U16(archive.data^, offset + 10);
+				back := GameBytes.U16(archive.data^, offset + 12);
+				frontSector := GameBytes.U16(archive.data^, sides.offset + front * 30 + 28);
+				backSector := -1;
+				IF back # 65535 THEN
+					backSector := GameBytes.U16(archive.data^, sides.offset + back * 30 + 28)
+				END;
+				IF (frontSector # backSector) & ((frontSector = sector) OR (backSector = sector)) THEN
+					INC(degree[GameBytes.U16(archive.data^, offset)]);
+					INC(degree[GameBytes.U16(archive.data^, offset + 2)]);
+					INC(edges)
+				END
+			END;
+			IF edges = 0 THEN
+				COPY("Sector has no closed boundary", error);
 				RETURN FALSE
+			END;
+			FOR j := 0 TO vertexCount - 1 DO
+				IF degree[j] MOD 2 # 0 THEN
+					COPY("Sector boundary must form closed contours", error);
+					RETURN FALSE
+				END
 			END
-		END
+		END;
 	END;
 	textures := NIL;
 	IF archive.Find("TEXTURE1") >= 0 THEN
@@ -243,9 +254,8 @@ BEGIN
 		regions[sector].floor := GameBytes.I16(archive.data^, offset) / 64.0;
 		regions[sector].ceiling := GameBytes.I16(archive.data^, offset + 2) / 64.0;
 		regions[sector].light := GameBytes.I16(archive.data^, offset + 20);
-		IF (regions[sector].ceiling < regions[sector].floor) OR
-			(regions[sector].light < 0) OR (regions[sector].light > 255) THEN
-			COPY("Sector has invalid heights or light level", error);
+		IF (regions[sector].light < 0) OR (regions[sector].light > 255) THEN
+			COPY("Sector has invalid light level", error);
 			RETURN FALSE
 		END;
 		IF textures # NIL THEN
@@ -273,6 +283,12 @@ BEGIN
 	END;
 	NEW(world, lineCount * 2);
 	ASSERT(world.SetSectors(regions^));
+	IF leaves # NIL THEN
+		IF ~world.SetPartition(partitions^, leaves^) THEN
+			COPY("Map contains an invalid partition tree", error);
+			RETURN FALSE
+		END
+	END;
 	FOR i := 0 TO lineCount - 1 DO
 		offset := lines.offset + i * 14;
 		v1 := GameBytes.U16(archive.data^, offset);
