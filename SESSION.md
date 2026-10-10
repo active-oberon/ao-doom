@@ -1,6 +1,22 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 23:43:56 UTC
+Updated: 2026-10-10 23:54:06 UTC
+
+## Exit checkpoint
+
+The user asked to save state and is leaving. Stop feature work after this
+checkpoint. Resume from combat when the user next asks to continue.
+
+- Both repositories are on main and were clean before this checkpoint edit.
+- Doom implementation: d72901f; completed milestone documentation: c96bd69.
+  Engine implementation: 6aceba1; documentation: 045c00e. All are local.
+- Previous validation passed task check, all twelve X11 scenarios and the
+  short 132-map regression. Exact evidence and limits: scratch/actors-check.md.
+  This checkpoint changes documentation only; tests were not rerun.
+- No agent build/test commands remain running. No pushes were made.
+- Keep sprites-grate.wad passable. Next implement firing/damage/death before
+  expanding monster movement or animation; solid monsters currently block
+  routes and cannot be killed. Door obstruction remains player-only.
 
 ## Current continuation: solid actor collision
 
@@ -44,7 +60,7 @@ no push is authorized. The passable grille remains as agreed.
   path and unsupported KernelLog.Real call were fixed before reproducing red.
   No failing required suites remain. Details: scratch/actors-check.md.
 - Code commits: engine 6aceba1; Doom d72901f. Engine docs: 045c00e; Doom docs
-  and reporting are separate. No pushes, merges, deployments or external WAD
+  and reporting: c96bd69. No pushes, merges, deployments or external WAD
   additions. MiniA2 source stays unchanged; checks use the installed Linux64 SDK.
 - Next: combat, actor movement/animation and other map actions/sound. Monsters
   cannot be killed yet and may block routes. Door obstruction remains player-
