@@ -24,6 +24,7 @@ CONST HudCharacterAdvance* = 4;
 	InputActions* = 9;
 	MaximumBindings = 8;
 	MaximumActorRules = 128;
+	MaximumThingRules = 128;
 	MaximumHudStat = 999;
 	MaximumPickupMultiplier = 8;
 	MaximumActorHealth = 65535;
@@ -96,6 +97,7 @@ Settings* = RECORD
 	demoBricks*: BrickSettings;
 	inventory*: InventorySettings;
 	combat*: CombatSettings;
+	things*: DoomThings.Definitions;
 	controls*: ARRAY InputActions OF KeyBindings
 END;
 
@@ -180,6 +182,20 @@ BEGIN
 	destination := ENTIER(number);
 	RETURN TRUE
 END Integer;
+
+PROCEDURE Boolean(object: JSON.Object; CONST key: ARRAY OF CHAR;
+	VAR destination: BOOLEAN; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+BEGIN
+	value := object.Get(key);
+	IF (value = NIL) OR ~(value IS JSON.Bool) THEN
+		COPY("Expected a boolean for ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	destination := value(JSON.Bool).value;
+	RETURN TRUE
+END Boolean;
 
 PROCEDURE FieldFits(CONST settings: Settings; x: SIGNED32; CONST label: ARRAY OF CHAR; digits: SIGNED32): BOOLEAN;
 BEGIN
@@ -354,6 +370,54 @@ BEGIN
 	RETURN TRUE
 END FrameList;
 
+PROCEDURE ThingRules(root: JSON.Object; VAR definitions: DoomThings.Definitions;
+	VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+	list: JSON.Array;
+	rule: JSON.Object;
+	i, j: SIGNED32;
+BEGIN
+	value := root.Get("things");
+	IF (value = NIL) OR ~(value IS JSON.Array) THEN
+		COPY("Expected things sequence", error);
+		RETURN FALSE
+	END;
+	list := value(JSON.Array);
+	IF (list.length < 1) OR (list.length > MaximumThingRules) THEN
+		COPY("Invalid things rule count", error);
+		RETURN FALSE
+	END;
+	NEW(definitions, list.length);
+	FOR i := 0 TO SIGNED32(list.length) - 1 DO
+		value := list.At(i);
+		IF (value = NIL) OR ~(value IS JSON.Object) THEN
+			COPY("Expected thing rule mapping", error);
+			RETURN FALSE
+		END;
+		rule := value(JSON.Object);
+		IF ~Keys(rule, "|kind|spawn_frame|fullbright|ceiling|height|radius|", error) OR
+			~Integer(rule, "kind", 1, DoomFormat.MaximumRecords - 1, definitions[i].kind, error) OR
+			~FrameName(rule.Get("spawn_frame"), "spawn_frame", definitions[i].name, error) OR
+			~Boolean(rule, "fullbright", definitions[i].fullbright, error) OR
+			~Boolean(rule, "ceiling", definitions[i].ceiling, error) OR
+			~Real(rule, "height", 0, MaximumTargetHeight, 1, definitions[i].height, error) OR
+			~Real(rule, "radius", 0, MaximumTargetHeight, 1, definitions[i].radius, error) THEN
+			RETURN FALSE
+		END;
+		IF definitions[i].ceiling & (definitions[i].height = 0) THEN
+			COPY("Ceiling thing height must be positive", error);
+			RETURN FALSE
+		END;
+		FOR j := 0 TO i - 1 DO
+			IF definitions[j].kind = definitions[i].kind THEN
+				COPY("Duplicate thing kind", error);
+				RETURN FALSE
+			END
+		END
+	END;
+	RETURN TRUE
+END ThingRules;
+
 PROCEDURE Behavior(rule: JSON.Object; VAR actor: ActorSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR value: JSON.Value;
 	object: JSON.Object;
@@ -414,7 +478,8 @@ BEGIN
 	RETURN TRUE
 END Behavior;
 
-PROCEDURE ActorRules(object: JSON.Object; VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE ActorRules(object: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR value: JSON.Value;
 	list: JSON.Array;
 	rule: JSON.Object;
@@ -439,17 +504,17 @@ BEGIN
 			RETURN FALSE
 		END;
 		rule := value(JSON.Object);
-		IF ~Keys(rule, "|kind|health|height|radius|death_frame|behavior|melee|hitscan|", error) OR
+		IF ~Keys(rule, "|kind|health|death_frame|behavior|melee|hitscan|", error) OR
 			~Integer(rule, "kind", 1, DoomFormat.MaximumRecords - 1, settings.actors[i].kind, error) OR
-			~Integer(rule, "health", 1, MaximumActorHealth, settings.actors[i].health, error) OR
-			~Real(rule, "height", 1, MaximumTargetHeight, DoomFormat.UnitsPerWorld, settings.actors[i].height, error) OR
-			~Real(rule, "radius", 1, MaximumTargetHeight, DoomFormat.UnitsPerWorld, settings.actors[i].radius, error) THEN
+			~Integer(rule, "health", 1, MaximumActorHealth, settings.actors[i].health, error) THEN
 			RETURN FALSE
 		END;
-		IF ~DoomThings.Lookup(settings.actors[i].kind, info) OR (info.radius = 0) THEN
-			COPY("Actor kind must identify a supported solid sprite", error);
+		IF ~DoomThings.Lookup(definitions, settings.actors[i].kind, info) OR (info.radius < 1) OR (info.height < 1) THEN
+			COPY("Actor thing radius and height must be at least one map unit", error);
 			RETURN FALSE
 		END;
+		settings.actors[i].height := info.height / DoomFormat.UnitsPerWorld;
+		settings.actors[i].radius := info.radius / DoomFormat.UnitsPerWorld;
 		FOR j := 0 TO i - 1 DO
 			IF settings.actors[j].kind = settings.actors[i].kind THEN
 				COPY("Duplicate actor kind", error);
@@ -468,7 +533,8 @@ BEGIN
 	RETURN TRUE
 END ActorRules;
 
-PROCEDURE Combat(root: JSON.Object; VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE Combat(root: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR object, group: JSON.Object;
 BEGIN
 	IF ~Section(root, "combat", "|pistol|aim|actors|", object, error) OR
@@ -483,7 +549,7 @@ BEGIN
 		~Integer(group, "gap", 0, MaximumAimRadius, settings.aimGap, error) OR
 		~Integer(group, "color", 0, 0FFFFFFH, settings.aimColor, error) OR
 		~Integer(group, "fire_color", 0, 0FFFFFFH, settings.fireColor, error) OR
-		~ActorRules(object, settings, error) THEN
+		~ActorRules(object, definitions, settings, error) THEN
 		RETURN FALSE
 	END;
 	IF (settings.aimGap > settings.aimRadius) OR (settings.flashTicks > settings.cooldown) THEN
@@ -504,7 +570,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|combat|controls|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|things|combat|controls|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -601,8 +667,9 @@ BEGIN
 		COPY("Player eye and step must not exceed player height", error);
 		RETURN FALSE
 	END;
-	IF ~Inventory(root, candidate.inventory, error) OR
-		~Combat(root, candidate.combat, error) OR ~Controls(root, candidate, error) THEN
+	IF ~ThingRules(root, candidate.things, error) OR
+		~Inventory(root, candidate.inventory, error) OR
+		~Combat(root, candidate.things^, candidate.combat, error) OR ~Controls(root, candidate, error) THEN
 		RETURN FALSE
 	END;
 	IF (candidate.height DIV 2 + candidate.combat.aimRadius >= candidate.height - candidate.hud.height) OR
@@ -691,6 +758,81 @@ BEGIN
 	ASSERT(settings.width = 640);
 	object.Set(key, original)
 END RejectField;
+
+PROCEDURE {TEST} ThingBounds*;
+VAR value: JSON.Value;
+	root, rule, combat, actor: JSON.Object;
+	things, actors, oversized: JSON.Array;
+	settings: Settings;
+	preserved: DoomThings.Definitions;
+	info: DoomThings.Info;
+	i: SIGNED32;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	preserved := settings.things;
+	settings.width := 640;
+	value := root.Get("things");
+	things := value(JSON.Array);
+	value := things.At(0);
+	rule := value(JSON.Object);
+	RejectField(root, root, "things", JSON.NewArray(), settings);
+	RejectField(root, root, "things", JSON.NewObject(), settings);
+	oversized := JSON.NewArray();
+	oversized.Add(JSON.NewNull());
+	RejectField(root, root, "things", oversized, settings);
+	oversized := JSON.NewArray();
+	FOR i := 0 TO MaximumThingRules DO
+		oversized.Add(rule)
+	END;
+	RejectField(root, root, "things", oversized, settings);
+	RejectField(root, rule, "kind", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "kind", JSON.NewNumber(65536), settings);
+	RejectField(root, rule, "kind", JSON.NewNumber(1.5), settings);
+	value := things.At(1);
+	RejectField(root, rule, "kind", value(JSON.Object).Get("kind"), settings);
+	RejectField(root, rule, "spawn_frame", JSON.NewString("possa"), settings);
+	RejectField(root, rule, "spawn_frame", JSON.NewString("POSSA0"), settings);
+	RejectField(root, rule, "fullbright", JSON.NewNumber(1), settings);
+	RejectField(root, rule, "ceiling", JSON.NewString("false"), settings);
+	RejectField(root, rule, "ceiling", JSON.NewBool(TRUE), settings);
+	RejectField(root, rule, "height", JSON.NewNumber(-1), settings);
+	RejectField(root, rule, "height", JSON.NewNumber(MaximumTargetHeight + 1), settings);
+	RejectField(root, rule, "radius", JSON.NewNumber(-1), settings);
+	RejectField(root, rule, "radius", JSON.NewNumber(MaximumTargetHeight + 1), settings);
+	FOR i := 0 TO SIGNED32(things.length) - 1 DO
+		value := things.At(i);
+		IF value(JSON.Object).Get("kind")(JSON.Number).value = 3004 THEN
+			rule := value(JSON.Object)
+		END
+	END;
+	RejectField(root, rule, "kind", JSON.NewNumber(9999), settings);
+	RejectField(root, rule, "radius", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "radius", JSON.NewNumber(0.5), settings);
+	RejectField(root, rule, "height", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "height", JSON.NewNumber(0.5), settings);
+	RejectField(root, rule, "ceiling", JSON.NewBool(TRUE), settings);
+	ASSERT(settings.things = preserved);
+	value := root.Get("combat");
+	combat := value(JSON.Object);
+	value := combat.Get("actors");
+	actors := value(JSON.Array);
+	value := actors.At(0);
+	actor := value(JSON.Object);
+	rule.Set("kind", JSON.NewNumber(9999));
+	rule.Set("radius", JSON.NewNumber(20.5));
+	rule.Set("height", JSON.NewNumber(56.5));
+	actor.Set("kind", JSON.NewNumber(9999));
+	ASSERT(Decode(root, settings, error));
+	ASSERT(DoomThings.Lookup(settings.things^, 9999, info));
+	ASSERT((info.radius = 20.5) & (info.height = 56.5));
+	ASSERT(settings.combat.actors[0].radius = info.radius / DoomFormat.UnitsPerWorld);
+	ASSERT(settings.combat.actors[0].height = info.height / DoomFormat.UnitsPerWorld);
+	settings.width := 640;
+	RejectField(root, actor, "radius", JSON.NewNumber(20.5), settings)
+END ThingBounds;
 
 PROCEDURE {TEST} PaletteBounds*;
 VAR value: JSON.Value;
@@ -828,7 +970,6 @@ BEGIN
 	RejectField(root, rule, "kind", JSON.NewNumber(9999), settings);
 	RejectField(root, rule, "kind", JSON.NewNumber(9), settings);
 	RejectField(root, rule, "health", JSON.NewNumber(0), settings);
-	RejectField(root, rule, "height", JSON.NewNumber(0), settings);
 	RejectField(root, rule, "death_frame", JSON.NewString("POSSL0"), settings);
 	RejectField(root, rule, "death_frame", JSON.NewString("possl"), settings);
 	RejectField(root, combat, "actors", JSON.NewArray(), settings);
@@ -874,7 +1015,6 @@ BEGIN
 	actors := value(JSON.Array);
 	value := actors.At(0);
 	rule := value(JSON.Object);
-	RejectField(root, rule, "radius", JSON.NewNumber(0), settings);
 	RejectField(root, rule, "behavior", JSON.NewString("unknown"), settings);
 	RejectField(root, rule, "behavior", JSON.NewNumber(0), settings);
 	RejectField(root, rule, "melee", JSON.NewObject(), settings);

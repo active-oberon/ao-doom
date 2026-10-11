@@ -1,6 +1,6 @@
 MODULE DoomConfigSmoke;
 
-IMPORT DoomConfig, Doom, DoomHud, DoomInventory, DoomWad, DoomMap, GameSurface, GameGeometry, KernelLog;
+IMPORT DoomConfig, Doom, DoomHud, DoomInventory, DoomWad, DoomMap, DoomThings, GameSurface, GameGeometry, GameRenderer, KernelLog;
 
 PROCEDURE {TEST} RequiredFile*;
 VAR settings: DoomConfig.Settings;
@@ -137,6 +137,53 @@ BEGIN
 	ASSERT(DoomConfig.Load("doom.yaml", error))
 END DoorParameters;
 
+PROCEDURE {TEST} ThingProfile*;
+VAR archive: DoomWad.Archive;
+	map: DoomMap.Map;
+	game: Doom.Game;
+	info: DoomThings.Info;
+	first, second: GameSurface.Frame;
+	x, y, changes: SIGNED32;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(DoomConfig.Load("doom.yaml", error));
+	archive := DoomWad.Open("actors-decoration.wad", error);
+	ASSERT(archive # NIL);
+	ASSERT(DoomMap.LoadMap(archive, "E1M1", map, error));
+	ASSERT(map.sprites.Free(1.4, 0, DoomConfig.values.playerRadius));
+	archive := DoomWad.Open("sprites.wad", error);
+	ASSERT(archive # NIL);
+	ASSERT(DoomMap.LoadMap(archive, "E1M1", map, error));
+	NEW(first, 320, 200);
+	NEW(second, 320, 200);
+	GameRenderer.Render(map.world, first, map.x, map.y, map.angle, 41.0 / 64);
+	map.sprites.Render(map.world, first, map.x, map.y, map.angle, 41.0 / 64);
+	ASSERT(DoomConfig.Load("doom-custom.yaml", error));
+	ASSERT(DoomThings.Lookup(DoomConfig.values.things^, 49, info));
+	ASSERT(info.fullbright & ~info.ceiling & (info.height = 80.5));
+	ASSERT(DoomMap.LoadMap(archive, "E1M1", map, error));
+	GameRenderer.Render(map.world, second, map.x, map.y, map.angle, 41.0 / 64);
+	map.sprites.Render(map.world, second, map.x, map.y, map.angle, 41.0 / 64);
+	changes := 0;
+	FOR y := 0 TO first.height - 1 DO
+		FOR x := 0 TO first.width - 1 DO
+			IF first.Pixel(x, y) # second.Pixel(x, y) THEN
+				INC(changes)
+			END
+		END
+	END;
+	ASSERT(changes > 1000);
+	archive := DoomWad.Open("actors-decoration.wad", error);
+	ASSERT(archive # NIL);
+	ASSERT(DoomMap.LoadMap(archive, "E1M1", map, error));
+	ASSERT(~map.sprites.Free(1.4, 0, DoomConfig.values.playerRadius));
+	NEW(game);
+	ASSERT(game.Load("sprites.wad", "E1M1", error));
+	ASSERT(~game.Load("sprite-missing-configured.wad", "E1M1", error));
+	ASSERT(error[0] # 0X);
+	ASSERT(DoomConfig.Load("doom.yaml", error))
+END ThingProfile;
+
 PROCEDURE Do*;
 BEGIN
 	RequiredFile;
@@ -147,10 +194,12 @@ BEGIN
 	DoomConfig.CombatAndInputBounds;
 	DoomConfig.MeleeBounds;
 	DoomConfig.HitscanBounds;
+	DoomConfig.ThingBounds;
 	DemoColors;
 	DemoAppearance;
 	MovementAndPanel;
 	DoorParameters;
+	ThingProfile;
 	DoomHud.Panel;
 	KernelLog.String("DoomConfigSmoke: configuration and HUD {TEST} checks passed.");
 	KernelLog.Ln

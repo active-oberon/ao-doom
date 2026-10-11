@@ -87,6 +87,123 @@ inventory:
     shells: 4
     cells: 20
     rockets: 1
+things:
+  - {kind: 5, spawn_frame: BKEYA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 6, spawn_frame: YKEYA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 7, spawn_frame: SPIDA, fullbright: false, ceiling: false, height: 100, radius: 128}
+  - {kind: 8, spawn_frame: BPAKA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 9, spawn_frame: SPOSA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 10, spawn_frame: PLAYW, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 12, spawn_frame: PLAYW, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 13, spawn_frame: RKEYA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 15, spawn_frame: PLAYN, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 16, spawn_frame: CYBRA, fullbright: false, ceiling: false, height: 110, radius: 40}
+  - {kind: 17, spawn_frame: CELPA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 18, spawn_frame: POSSL, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 19, spawn_frame: SPOSL, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 20, spawn_frame: TROOM, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 21, spawn_frame: SARGN, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 22, spawn_frame: HEADL, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 23, spawn_frame: SKULK, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 24, spawn_frame: POL5A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 25, spawn_frame: POL1A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 26, spawn_frame: POL6A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 27, spawn_frame: POL4A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 28, spawn_frame: POL2A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 29, spawn_frame: POL3A, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 30, spawn_frame: COL1A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 31, spawn_frame: COL2A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 32, spawn_frame: COL3A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 33, spawn_frame: COL4A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 34, spawn_frame: CANDA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 35, spawn_frame: CBRAA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 36, spawn_frame: COL5A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 37, spawn_frame: COL6A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 38, spawn_frame: RSKUA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 39, spawn_frame: YSKUA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 40, spawn_frame: BSKUA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 41, spawn_frame: CEYEA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 42, spawn_frame: FSKUA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 43, spawn_frame: TRE1A, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 44, spawn_frame: TBLUA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 45, spawn_frame: TGRNA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 46, spawn_frame: TREDA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 47, spawn_frame: SMITA, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 48, spawn_frame: ELECA, fullbright: false, ceiling: false, height: 0, radius: 16}
+  - {kind: 49, spawn_frame: GOR1A, fullbright: false, ceiling: true, height: 68, radius: 16}
+  - {kind: 63, spawn_frame: GOR1A, fullbright: false, ceiling: true, height: 68, radius: 0}
+  - {kind: 50, spawn_frame: GOR2A, fullbright: false, ceiling: true, height: 84, radius: 16}
+  - {kind: 59, spawn_frame: GOR2A, fullbright: false, ceiling: true, height: 84, radius: 0}
+  - {kind: 51, spawn_frame: GOR3A, fullbright: false, ceiling: true, height: 84, radius: 16}
+  - {kind: 61, spawn_frame: GOR3A, fullbright: false, ceiling: true, height: 52, radius: 0}
+  - {kind: 52, spawn_frame: GOR4A, fullbright: false, ceiling: true, height: 68, radius: 16}
+  - {kind: 60, spawn_frame: GOR4A, fullbright: false, ceiling: true, height: 68, radius: 0}
+  - {kind: 53, spawn_frame: GOR5A, fullbright: false, ceiling: true, height: 52, radius: 16}
+  - {kind: 62, spawn_frame: GOR5A, fullbright: false, ceiling: true, height: 52, radius: 0}
+  - {kind: 54, spawn_frame: TRE2A, fullbright: false, ceiling: false, height: 0, radius: 32}
+  - {kind: 55, spawn_frame: SMBTA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 56, spawn_frame: SMGTA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 57, spawn_frame: SMRTA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 58, spawn_frame: SARGA, fullbright: false, ceiling: false, height: 56, radius: 30}
+  - {kind: 3002, spawn_frame: SARGA, fullbright: false, ceiling: false, height: 56, radius: 30}
+  - {kind: 64, spawn_frame: VILEA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 65, spawn_frame: CPOSA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 66, spawn_frame: SKELA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 67, spawn_frame: FATTA, fullbright: false, ceiling: false, height: 64, radius: 48}
+  - {kind: 68, spawn_frame: BSPIA, fullbright: false, ceiling: false, height: 64, radius: 64}
+  - {kind: 69, spawn_frame: BOS2A, fullbright: false, ceiling: false, height: 64, radius: 24}
+  - {kind: 70, spawn_frame: FCANA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 71, spawn_frame: PAINA, fullbright: false, ceiling: false, height: 56, radius: 31}
+  - {kind: 72, spawn_frame: KEENA, fullbright: false, ceiling: true, height: 72, radius: 16}
+  - {kind: 73, spawn_frame: HDB1A, fullbright: false, ceiling: true, height: 88, radius: 16}
+  - {kind: 74, spawn_frame: HDB2A, fullbright: false, ceiling: true, height: 88, radius: 16}
+  - {kind: 75, spawn_frame: HDB3A, fullbright: false, ceiling: true, height: 64, radius: 16}
+  - {kind: 76, spawn_frame: HDB4A, fullbright: false, ceiling: true, height: 64, radius: 16}
+  - {kind: 77, spawn_frame: HDB5A, fullbright: false, ceiling: true, height: 64, radius: 16}
+  - {kind: 78, spawn_frame: HDB6A, fullbright: false, ceiling: true, height: 64, radius: 16}
+  - {kind: 79, spawn_frame: POB1A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 80, spawn_frame: POB2A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 81, spawn_frame: BRS1A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 82, spawn_frame: SGN2A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 83, spawn_frame: MEGAA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 84, spawn_frame: SSWVA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 89, spawn_frame: SSWVA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 85, spawn_frame: TLMPA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 86, spawn_frame: TLP2A, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 88, spawn_frame: BBRNA, fullbright: false, ceiling: false, height: 16, radius: 16}
+  - {kind: 2001, spawn_frame: SHOTA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2002, spawn_frame: MGUNA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2003, spawn_frame: LAUNA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2004, spawn_frame: PLASA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2005, spawn_frame: CSAWA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2006, spawn_frame: BFUGA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2007, spawn_frame: CLIPA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2008, spawn_frame: SHELA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2010, spawn_frame: ROCKA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2011, spawn_frame: STIMA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2012, spawn_frame: MEDIA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2013, spawn_frame: SOULA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2014, spawn_frame: BON1A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2015, spawn_frame: BON2A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2018, spawn_frame: ARM1A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2019, spawn_frame: ARM2A, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2022, spawn_frame: PINVA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2023, spawn_frame: PSTRA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2024, spawn_frame: PINSA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2025, spawn_frame: SUITA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2026, spawn_frame: PMAPA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2028, spawn_frame: COLUA, fullbright: true, ceiling: false, height: 0, radius: 16}
+  - {kind: 2035, spawn_frame: BAR1A, fullbright: false, ceiling: false, height: 42, radius: 10}
+  - {kind: 2045, spawn_frame: PVISA, fullbright: true, ceiling: false, height: 0, radius: 0}
+  - {kind: 2046, spawn_frame: BROKA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2047, spawn_frame: CELLA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2048, spawn_frame: AMMOA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 2049, spawn_frame: SBOXA, fullbright: false, ceiling: false, height: 0, radius: 0}
+  - {kind: 3001, spawn_frame: TROOA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 3003, spawn_frame: BOSSA, fullbright: false, ceiling: false, height: 64, radius: 24}
+  - {kind: 3004, spawn_frame: POSSA, fullbright: false, ceiling: false, height: 56, radius: 20}
+  - {kind: 3005, spawn_frame: HEADA, fullbright: false, ceiling: false, height: 56, radius: 31}
+  - {kind: 3006, spawn_frame: SKULA, fullbright: true, ceiling: false, height: 56, radius: 16}
 combat:
   pistol:
     damage: 10
@@ -102,9 +219,7 @@ combat:
   actors:
     - kind: 3004
       health: 20
-      height: 56
       death_frame: POSSL
-      radius: 20
       behavior: hitscan
       hitscan:
         speed_per_tick: 4
@@ -121,9 +236,7 @@ combat:
         spread_radians: 0
     - kind: 9
       health: 30
-      height: 56
       death_frame: SPOSL
-      radius: 20
       behavior: hitscan
       hitscan:
         speed_per_tick: 4
@@ -138,16 +251,14 @@ combat:
         attack_frames: [SPOSE, SPOSF, SPOSE]
         pellets: 3
         spread_radians: 0.08
-    - {kind: 64, health: 700, height: 56, death_frame: VILEZ, radius: 20, behavior: static}
-    - {kind: 66, health: 300, height: 56, death_frame: SKELQ, radius: 20, behavior: static}
-    - {kind: 67, health: 600, height: 64, death_frame: FATTT, radius: 48, behavior: static}
-    - {kind: 65, health: 70, height: 56, death_frame: CPOSN, radius: 20, behavior: static}
-    - {kind: 3001, health: 60, height: 56, death_frame: TROOM, radius: 20, behavior: static}
+    - {kind: 64, health: 700, death_frame: VILEZ, behavior: static}
+    - {kind: 66, health: 300, death_frame: SKELQ, behavior: static}
+    - {kind: 67, health: 600, death_frame: FATTT, behavior: static}
+    - {kind: 65, health: 70, death_frame: CPOSN, behavior: static}
+    - {kind: 3001, health: 60, death_frame: TROOM, behavior: static}
     - kind: 3002
       health: 150
-      height: 56
       death_frame: SARGN
-      radius: 30
       behavior: melee
       melee:
         speed_per_tick: 4
@@ -162,9 +273,7 @@ combat:
         attack_frames: [SARGE, SARGF, SARGG]
     - kind: 58
       health: 150
-      height: 56
       death_frame: SARGN
-      radius: 30
       behavior: melee
       melee:
         speed_per_tick: 4
@@ -177,18 +286,18 @@ combat:
         frame_ticks: 4
         walk_frames: [SARGA, SARGB, SARGC, SARGD]
         attack_frames: [SARGE, SARGF, SARGG]
-    - {kind: 3005, health: 400, height: 56, death_frame: HEADL, radius: 31, behavior: static}
-    - {kind: 3003, health: 1000, height: 64, death_frame: BOSSO, radius: 24, behavior: static}
-    - {kind: 69, health: 500, height: 64, death_frame: BOS2O, radius: 24, behavior: static}
-    - {kind: 3006, health: 100, height: 56, death_frame: SKULK, radius: 16, behavior: static}
-    - {kind: 7, health: 3000, height: 100, death_frame: SPIDS, radius: 128, behavior: static}
-    - {kind: 68, health: 500, height: 64, death_frame: BSPIP, radius: 64, behavior: static}
-    - {kind: 16, health: 4000, height: 110, death_frame: CYBRP, radius: 40, behavior: static}
-    - {kind: 71, health: 400, height: 56, death_frame: PAINM, radius: 31, behavior: static}
-    - {kind: 84, health: 50, height: 56, death_frame: SSWVM, radius: 20, behavior: static}
-    - {kind: 72, health: 100, height: 72, death_frame: KEENL, radius: 16, behavior: static}
-    - {kind: 88, health: 250, height: 16, death_frame: BBRNA, radius: 16, behavior: static}
-    - {kind: 2035, health: 20, height: 42, death_frame: BEXPE, radius: 10, behavior: static}
+    - {kind: 3005, health: 400, death_frame: HEADL, behavior: static}
+    - {kind: 3003, health: 1000, death_frame: BOSSO, behavior: static}
+    - {kind: 69, health: 500, death_frame: BOS2O, behavior: static}
+    - {kind: 3006, health: 100, death_frame: SKULK, behavior: static}
+    - {kind: 7, health: 3000, death_frame: SPIDS, behavior: static}
+    - {kind: 68, health: 500, death_frame: BSPIP, behavior: static}
+    - {kind: 16, health: 4000, death_frame: CYBRP, behavior: static}
+    - {kind: 71, health: 400, death_frame: PAINM, behavior: static}
+    - {kind: 84, health: 50, death_frame: SSWVM, behavior: static}
+    - {kind: 72, health: 100, death_frame: KEENL, behavior: static}
+    - {kind: 88, health: 250, death_frame: BBRNA, behavior: static}
+    - {kind: 2035, health: 20, death_frame: BEXPE, behavior: static}
 controls:
   forward: [0x77, 0x57, 0xff52]
   backward: [0x73, 0x53, 0xff54]

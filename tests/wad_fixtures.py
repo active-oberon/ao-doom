@@ -350,6 +350,7 @@ def fixtures(directory):
     files["sprites-ceiling.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 49, 7)]))
     files["sprites-fullbright.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 85, 7)]))
     files["sprite-missing.wad"] = wad([lump for lump in sprites if lump[0] != "BON2A0"])
+    files["sprite-missing-configured.wad"] = wad([lump for lump in sprites if lump[0] != "BON1A0"])
     files["sprite-short.wad"] = wad([(name, b"abc" if name == "BON2A0" else data) for name, data in sprites])
     files["sprite-no-end.wad"] = wad([(name, data[:-1] if name == "BON2A0" else data) for name, data in sprites])
     files["sprite-dimensions.wad"] = wad([(name, struct.pack("<h", 0) + data[2:] if name == "BON2A0" else data)

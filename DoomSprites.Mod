@@ -13,8 +13,8 @@ TYPE
 
 	(* shortcut: unsupported monster kinds retain spawn behavior until their attacks are implemented. *)
 	Actor = RECORD
-		radius, targetHeight: FLOAT64;
-		height, kind, initialHealth: SIGNED32;
+		radius, targetHeight, height: FLOAT64;
+		kind, initialHealth: SIGNED32;
 		ceiling, fullbright: BOOLEAN;
 		images, deadImages: Images;
 		walkImages, attackImages: POINTER TO ARRAY OF Images;
@@ -501,7 +501,8 @@ BEGIN
 		flags := GameBytes.U16(archive.data^, offset + 8);
 		kind := GameBytes.U16(archive.data^, offset + 6);
 		(* shortcut: unknown thing types are skipped in previews; reject them when full gameplay is supported. *)
-		IF (flags DIV 2 MOD 2 = 1) & (flags DIV 16 MOD 2 = 0) & DoomThings.Lookup(kind, info) THEN
+		IF (flags DIV 2 MOD 2 = 1) & (flags DIV 16 MOD 2 = 0) &
+			DoomThings.Lookup(DoomConfig.values.things^, kind, info) THEN
 			IF textures = NIL THEN
 				COPY("Map sprites require palette and texture resources", error);
 				RETURN NIL

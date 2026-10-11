@@ -6,8 +6,9 @@ A Doom clone in Active Oberon built on the separate
 ## Current state
 
 A runnable Linux64 scene renders at 320 x 200 and scales to a 640 x 400 window.
-It has fixed 35 Hz simulation, keyboard movement, turning, wall collision and
-sliding. The built-in corridor scene runs without any game assets.
+It uses fixed simulation steps at 35 Hz in the standard YAML profile. It supports
+keyboard movement, turning, wall collision and sliding. The built-in corridor
+scene runs without any game assets.
 
 The WAD loader validates classic Doom archives and loads maps with multiple
 sectors. Classic SEGS/SSECTORS/NODES provide validated BSP sector lookup;
@@ -250,9 +251,20 @@ pickup amounts, box/weapon/backpack multipliers and green/blue armor damage
 divisors; values must fit HUD digits.
 `combat.pistol` supplies fixed damage, cooldown/flash ticks, ammo cost and range.
 `combat.aim` supplies crosshair radius/gap in pixels and normal/shot RGB colors.
-`combat.actors` lists unique supported kinds with starting health, target height,
-footprint radius in Doom units, five-character death frames (sprite prefix plus
-frame letter) and `behavior: static`, `melee` or `hitscan`. Active rules require
+`things` defines the visible object types. Every entry requires `kind`,
+`spawn_frame`, `fullbright`, `ceiling`, `height` and `radius`. The standard profile
+contains all 116 previously supported classic types. Frame names have five
+characters: the sprite prefix plus a frame letter. Heights and radii use Doom map
+units and can be fractional; zero radius leaves an object passable. Height sets
+the ceiling offset for hanging objects and the target volume for combat actors.
+Ceiling objects require positive height. The table accepts at most 128 unique
+IDs from 1 to 65535; dimensions must lie between 0 and 1024. Spawn resources for
+objects used by a map are validated before replacing the live scene.
+`combat.actors` references `things` by `kind` and supplies starting health,
+five-character death frames and `behavior: static`, `melee` or `hitscan`.
+Its height and radius come exclusively from `things` and must be at least one
+map unit;
+the old `combat.actors.height` and `radius` fields are rejected. Active rules require
 `speed_per_tick`, `step`, `sight_range`, `range`, `damage`, `windup_ticks`,
 `cycle_ticks`, `frame_ticks`, `walk_frames` and `attack_frames` under the matching
 `melee` or `hitscan` section. Hitscan rules also require `pellets` (1-32) and
@@ -304,9 +316,15 @@ keys and multiple documents are outside this parser's supported subset.
 See MiniA2 `docs/YAML.md` for its API and exact limits.
 
 `DoomFormat` holds file-format constants such as WAD record sizes and coordinate
-scaling. Classic object IDs, item categories, sprite rotation rules and authored spawn
-metadata remain code/data. Bounds, numeric precision and resource budgets remain
-validation invariants; startup gameplay and appearance values come from YAML.
+scaling. Classic object IDs, item categories, internal states and sprite rotation
+rules remain constants in code. Bounds, numeric precision and resource budgets
+remain validation invariants. Gameplay, appearance and entity properties come
+from YAML; `DoomThings` keeps identifiers and a lookup over the validated table.
+`simulation.ticks_per_second` remains a startup setting, with 35 in the standard
+profile. Speeds and durations are expressed per tick, so changing this frequency
+changes game tempo. Code implements behavior algorithms; YAML selects their
+parameters. Existing custom profiles must add `things` and move combat actor
+heights/radii into it. There is no compiled entity table or fallback profile.
 The procedural demo's wall coordinates and start position remain its authored
 scene data.
 
@@ -331,8 +349,8 @@ Reusable simulation, geometry, rendering, buffers, timing, display presentation,
 and bounded binary reads belong in `ao-game-engine`. Doom WAD interpretation,
 map semantics, player rules and compatibility belong here. `DoomWad` handles the
 archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene.
-`DoomThings` owns authored spawn metadata and decoration footprints;
-damageable actor radii come from YAML. `DoomActors` owns sight traces, chase
+`DoomThings` owns object identifiers and searches the YAML entity definitions.
+All spawn metadata and footprints come from `things`. `DoomActors` owns sight traces, chase
 and attack timing. `DoomSprites` resolves melee/hitscan impacts, loads immutable metadata and images, chooses
 directional/animated/death frames and publishes collection/health/motion snapshots.
 `DoomCombat` owns pistol timing, ammunition use and the crosshair.

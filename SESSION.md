@@ -1,6 +1,35 @@
 # ao-doom session handoff
 
-Updated: 2026-10-11 19:59:49 UTC
+Updated: 2026-10-11 22:58 UTC
+
+## Delivery checkpoint: YAML entity definitions
+
+The user approved the constants/YAML boundary, asked to implement it and save
+the result in memory, then explicitly requested a commit and push to ao-doom/main.
+Implementation started clean on main at `57ef125`. The pre-delivery local and
+remote main both point there, so publication can use a normal fast-forward.
+This checkpoint accompanies `refactor(config): load entity definitions from YAML`.
+The task reply records the resulting commit and verified remote state.
+Push approval is single-use; later publication requires a new user request.
+
+- `things` now owns all 116 existing entity definitions: spawn frame,
+  fullbright/ceiling flags, height and radius. `combat.actors` references kind
+  and keeps health/death/behavior rules; duplicate height/radius keys are removed.
+- `DoomThings` keeps IDs, typed data and table lookup. No compiled fallback or
+  new module/dependency. All callers and complete YAML test profiles are updated.
+- Format, internal states/indices, precision and validation/resource bounds stay
+  constants. Simulation frequency remains YAML with 35 in the standard profile.
+  Durable rules are in local AGENTS.md and the tracked README.
+- Final task check passed 206 fixtures and 34 file-based {TEST} procedures.
+  Configuration/sprite/actor A64 suites passed under QEMU. All 132 original-map
+  probes passed; four standard sprite PPMs match the baseline byte-for-byte.
+- Final GUI check passed all 16 scenarios. The first run's pickup-HUD assertion
+  failed; isolated/full repeats passed without code changes. Cause unconfirmed.
+  Exact evidence and limits: scratch/things-data-check.md.
+- External custom profiles need the new table and relocated combat dimensions.
+  No live reload. CI, Windows, ARMhf, hardware, maximum-entity stress and full
+  playthroughs remain unchecked. Next engine work remains route finding,
+  projectile attacks, weapon view/selection and additional map actions.
 
 ## Delivery checkpoint: configurable combat
 
