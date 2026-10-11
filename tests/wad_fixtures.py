@@ -183,6 +183,12 @@ def sprite_patch(color=5, left=16, top=64):
     return struct.pack("<4h32i", 32, 64, left, top, *offsets) + b"".join(columns)
 
 
+def corpse_patch(color=7):
+    column = bytes((0, 16, 0)) + bytes([color] * 16) + bytes((0, 255))
+    return struct.pack("<4h32i", 32, 16, 16, 16,
+                       *(136 + x * len(column) for x in range(32))) + column * 32
+
+
 def sprite_lumps(lumps=None, things=None, rotations=False):
     lumps = list(map_lumps() if lumps is None else lumps)
     palette = bytearray(lumps[11][1])
@@ -192,10 +198,15 @@ def sprite_lumps(lumps=None, things=None, rotations=False):
         things = [(128, 0, 0, 3004 if rotations else 2015, 7)]
     lumps[1] = ("THINGS", lumps[1][1] + b"".join(struct.pack("<5h", *thing) for thing in things))
     patches = [("BON2A0", sprite_patch()), ("BON1A0", sprite_patch(6)),
-               ("GOR1A0", sprite_patch()), ("TLMPA0", sprite_patch())]
+               ("GOR1A0", sprite_patch()), ("TLMPA0", sprite_patch()),
+               ("POSSL0", corpse_patch()), ("BEXPE0", corpse_patch())]
     if rotations:
         patches += [(name, sprite_patch(color, left=12)) for name, color in
                     [("POSSA1", 5), ("POSSA2A8", 6), ("POSSA3A7", 7), ("POSSA4A6", 3), ("POSSA5", 4)]]
+    for prefix in ("POSS", "SPOS"):
+        patches += [(prefix + frame + "0", sprite_patch(color))
+                    for frame, color in zip("BCDEF", (6, 7, 4, 6, 7))]
+    patches += [("SPOSA0", sprite_patch(5)), ("SPOSL0", corpse_patch())]
     return lumps + [("S_START", b""), *patches, ("S_END", b"")]
 
 
@@ -381,6 +392,65 @@ def fixtures(directory):
                                    [("BAR1A0", sprite_patch(6))])
     files["actors-step.wad"] = wad(sprite_lumps(sector_lumps(), [(128, 0, 0, 2035, 7)]) +
                                   [("BAR1A0", sprite_patch(6))])
+
+    def combat_lumps(lumps=None, things=None):
+        return sprite_lumps(lumps, things or [(128, 0, 0, 3004, 7)]) + [("POSSA0", sprite_patch(5))]
+
+    combat = combat_lumps()
+    files["combat.wad"] = wad(combat)
+    files["combat-nearest.wad"] = wad(combat_lumps(things=[(192, 0, 0, 3004, 7),
+                                                          (128, 0, 0, 3004, 7)]))
+    files["combat-off-axis.wad"] = wad(combat_lumps(things=[(128, 64, 0, 3004, 7)]))
+    files["combat-closed.wad"] = wad(combat_lumps(sector_lumps(ceiling=0)))
+    files["combat-step.wad"] = wad(combat_lumps(sector_lumps(floor=48)))
+    files["combat-blocked.wad"] = wad(combat_lumps(hidden))
+    files["combat-grate.wad"] = wad(combat_lumps(masked_lumps(flags=17)))
+    files["combat-door.wad"] = wad(combat_lumps(door_lumps(), [(384, 0, 0, 3004, 7)]))
+    files["combat-pickup.wad"] = wad(combat_lumps(things=[(128, 0, 0, 3004, 7),
+                                                         (0, 0, 0, 2015, 7)]))
+    files["combat-missing-death.wad"] = wad([entry for entry in combat if entry[0] != "POSSL0"])
+    files["combat-bad-death.wad"] = wad([(name, b"abc" if name == "POSSL0" else data)
+                                        for name, data in combat])
+
+    def ai_lumps(lumps=None, things=None):
+        frames = [(f"SARG{frame}0", sprite_patch(color))
+                  for frame, color in zip("ABCDEFG", (5, 6, 7, 4, 6, 7, 5))]
+        return sprite_lumps(lumps, [(128, 0, 0, 3002, 7)] if things is None else things) + frames + [("SARGN0", corpse_patch())]
+
+    ai = ai_lumps()
+    files["ai.wad"] = wad(ai)
+    files["ai-spectre.wad"] = wad(ai_lumps(things=[(128, 0, 0, 58, 7)]))
+    files["ai-hidden.wad"] = wad(ai_lumps(hidden))
+    files["ai-hidden-near.wad"] = wad(ai_lumps(hidden, [(32, 0, 0, 3002, 7)]))
+    files["ai-grate.wad"] = wad(ai_lumps(masked_lumps(flags=17)))
+    files["ai-door.wad"] = wad(ai_lumps(door_lumps(), [(384, 0, 0, 3002, 7)]))
+    files["ai-step.wad"] = wad(ai_lumps(sector_lumps()))
+    files["ai-high-step.wad"] = wad(ai_lumps(sector_lumps(floor=48)))
+    files["ai-low-ceiling.wad"] = wad(ai_lumps(sector_lumps(ceiling=32)))
+    files["ai-climb.wad"] = wad(ai_lumps(sector_lumps(), [(-128, 0, 0, 3002, 7)]))
+    files["ai-climb-high.wad"] = wad(ai_lumps(sector_lumps(floor=48), [(-128, 0, 0, 3002, 7)]))
+    files["ai-pickup.wad"] = wad(ai_lumps(things=[(128, 0, 0, 3002, 7), (0, 0, 0, 2015, 7)]))
+    files["ai-pair.wad"] = wad(ai_lumps(things=[(128, 0, 0, 3002, 7), (192, 0, 0, 3002, 7)]))
+    files["ai-prop.wad"] = wad(ai_lumps(things=[(128, 0, 0, 3002, 7), (64, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
+    files["ai-missing-walk.wad"] = wad([entry for entry in ai if entry[0] != "SARGB0"])
+    files["ai-bad-attack.wad"] = wad([(name, b"abc" if name == "SARGF0" else data) for name, data in ai])
+
+    ranged = combat_lumps()
+    files["hitscan.wad"] = wad(ranged)
+    files["hitscan-shotgun.wad"] = wad(combat_lumps(things=[(128, 0, 0, 9, 7)]))
+    files["hitscan-hidden.wad"] = wad(combat_lumps(hidden))
+    files["hitscan-door.wad"] = wad(combat_lumps(door_lumps(), [(384, 0, 0, 3004, 7)]))
+    files["hitscan-grate.wad"] = wad(combat_lumps(masked_lumps(flags=17)))
+    files["hitscan-high.wad"] = wad(combat_lumps(sector_lumps(floor=64, ceiling=128)))
+    files["hitscan-low-ceiling.wad"] = wad(combat_lumps(sector_lumps(ceiling=32)))
+    files["hitscan-barrel.wad"] = wad(combat_lumps(things=[(192, 0, 0, 3004, 7),
+                                                          (128, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
+    files["hitscan-shotgun-barrel.wad"] = wad(combat_lumps(things=[(192, 0, 0, 9, 7),
+                                                                  (128, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
+    files["hitscan-friendly.wad"] = wad(combat_lumps(things=[(-128, 0, 0, 3004, 7), (-64, 0, 0, 3004, 7)]))
+    files["hitscan-pickup.wad"] = wad(combat_lumps(things=[(128, 0, 0, 3004, 7), (0, 0, 0, 2015, 7)]))
+    files["hitscan-missing-walk.wad"] = wad([entry for entry in ranged if entry[0] != "POSSB0"])
+    files["hitscan-bad-attack.wad"] = wad([(name, b"abc" if name == "POSSF0" else data) for name, data in ranged])
 
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)

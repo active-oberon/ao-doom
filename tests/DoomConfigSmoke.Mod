@@ -144,6 +144,9 @@ BEGIN
 	DoomConfig.PaletteBounds;
 	DoomConfig.DemoAppearanceBounds;
 	DoomConfig.RejectInvalidAndPreserve;
+	DoomConfig.CombatAndInputBounds;
+	DoomConfig.MeleeBounds;
+	DoomConfig.HitscanBounds;
 	DemoColors;
 	DemoAppearance;
 	MovementAndPanel;

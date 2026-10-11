@@ -32,9 +32,12 @@ CONST UnitsPerWorld* = 64.0;
 	DegreesPerCircle* = 360;
 	DegreesPerHalfCircle* = 180;
 	PlayerOne* = 1;
-	PickupRadius* = 20.0 / UnitsPerWorld;
-	PickupBelowFeet* = 8.0 / UnitsPerWorld;
 	MaximumTraceHits* = 256;
 	CollectionWordBits* = 32;
+	AmmoKinds* = 4;
+	WeaponKinds* = 9;
+	KeyColors* = 3;
+	KeyKinds* = KeyColors * 2;
+	TraceTolerance* = 0.000001;
 
 END DoomFormat.

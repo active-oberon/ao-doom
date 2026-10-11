@@ -1,6 +1,6 @@
 MODULE DoomInventory;
 
-IMPORT DoomThings;
+IMPORT DoomConfig, DoomFormat, DoomThings;
 
 CONST Bullets* = 0;
 	Shells* = 1;
@@ -21,31 +21,12 @@ CONST Bullets* = 0;
 	BlueSkull* = 3;
 	YellowSkull* = 4;
 	RedSkull* = 5;
-	AmmoKinds* = 4;
-	WeaponKinds* = 9;
-	KeyColors* = 3;
-	KeyKinds* = KeyColors * 2;
-	HealthMaximum = 100;
-	BonusHealthMaximum = 200;
-	ArmorUnit = 100;
+	AmmoKinds* = DoomFormat.AmmoKinds;
+	WeaponKinds* = DoomFormat.WeaponKinds;
+	KeyColors* = DoomFormat.KeyColors;
+	KeyKinds* = DoomFormat.KeyKinds;
 	GreenArmorClass = 1;
 	BlueArmorClass = 2;
-	BonusArmorMaximum = 200;
-	InitialBullets = 50;
-	MaximumBullets = 200;
-	MaximumShells = 50;
-	MaximumCells = 300;
-	MaximumRockets = 50;
-	ClipBullets = 10;
-	ShellPickup = 4;
-	CellPickup = 20;
-	RocketPickup = 1;
-	BoxMultiplier = 5;
-	WeaponAmmoMultiplier = 2;
-	BackpackCapacityMultiplier = 2;
-	StimpackHealth = 10;
-	MedikitHealth = 25;
-	SoulSphereHealth = 100;
 
 TYPE State* = RECORD
 	health*, armor*, armorType*, pickups*: SIGNED32;
@@ -59,7 +40,8 @@ END;
 PROCEDURE Reset*(VAR player: State);
 VAR i: SIGNED32;
 BEGIN
-	player.health := HealthMaximum;
+	ASSERT(DoomConfig.loaded);
+	player.health := DoomConfig.values.inventory.initialHealth;
 	player.armor := 0;
 	player.armorType := 0;
 	player.pickups := 0;
@@ -70,12 +52,34 @@ BEGIN
 	FOR i := 0 TO AmmoKinds - 1 DO
 		player.ammo[i] := 0
 	END;
-	player.ammo[Bullets] := InitialBullets;
-	player.maximum[Bullets] := MaximumBullets;
-	player.maximum[Shells] := MaximumShells;
-	player.maximum[Cells] := MaximumCells;
-	player.maximum[Rockets] := MaximumRockets
+	player.ammo[Bullets] := DoomConfig.values.inventory.initialBullets;
+	player.maximum[Bullets] := DoomConfig.values.inventory.maximum[Bullets];
+	player.maximum[Shells] := DoomConfig.values.inventory.maximum[Shells];
+	player.maximum[Cells] := DoomConfig.values.inventory.maximum[Cells];
+	player.maximum[Rockets] := DoomConfig.values.inventory.maximum[Rockets]
 END Reset;
+
+(* Hurt spends configured armor protection before reducing live-player health. *)
+PROCEDURE Hurt*(VAR player: State; damage: SIGNED32);
+VAR saved: SIGNED32;
+BEGIN
+	ASSERT(damage >= 0);
+	IF player.health <= 0 THEN
+		RETURN
+	END;
+	saved := 0;
+	IF player.armorType = GreenArmorClass THEN
+		saved := damage DIV DoomConfig.values.inventory.greenArmorDivisor
+	ELSIF player.armorType = BlueArmorClass THEN
+		saved := damage DIV DoomConfig.values.inventory.blueArmorDivisor
+	END;
+	saved := MIN(player.armor, saved);
+	DEC(player.armor, saved);
+	IF player.armor = 0 THEN
+		player.armorType := 0
+	END;
+	player.health := MAX(0, player.health - damage + saved)
+END Hurt;
 
 PROCEDURE Supported*(kind: SIGNED32): BOOLEAN;
 BEGIN
@@ -103,19 +107,19 @@ END Ammo;
 
 PROCEDURE Health(VAR player: State; amount: SIGNED32): BOOLEAN;
 BEGIN
-	IF player.health >= HealthMaximum THEN
+	IF player.health >= DoomConfig.values.inventory.healthMaximum THEN
 		RETURN FALSE
 	END;
-	player.health := MIN(HealthMaximum, player.health + amount);
+	player.health := MIN(DoomConfig.values.inventory.healthMaximum, player.health + amount);
 	RETURN TRUE
 END Health;
 
 PROCEDURE Armor(VAR player: State; kind: SIGNED32): BOOLEAN;
 BEGIN
-	IF player.armor >= kind * ArmorUnit THEN
+	IF player.armor >= kind * DoomConfig.values.inventory.armorUnit THEN
 		RETURN FALSE
 	END;
-	player.armor := kind * ArmorUnit;
+	player.armor := kind * DoomConfig.values.inventory.armorUnit;
 	player.armorType := kind;
 	RETURN TRUE
 END Armor;
@@ -144,21 +148,21 @@ BEGIN
 	END;
 	CASE kind OF
 	DoomThings.HealthBonus:
-		player.health := MIN(BonusHealthMaximum, player.health + 1)
+		player.health := MIN(DoomConfig.values.inventory.bonusHealthMaximum, player.health + DoomConfig.values.inventory.healthBonus)
 	| DoomThings.ArmorBonus:
-		player.armor := MIN(BonusArmorMaximum, player.armor + 1);
+		player.armor := MIN(DoomConfig.values.inventory.bonusArmorMaximum, player.armor + DoomConfig.values.inventory.armorBonus);
 		IF player.armorType = 0 THEN
 			player.armorType := GreenArmorClass
 		END
 	| DoomThings.SoulSphere:
-		player.health := MIN(BonusHealthMaximum, player.health + SoulSphereHealth)
+		player.health := MIN(DoomConfig.values.inventory.bonusHealthMaximum, player.health + DoomConfig.values.inventory.soulSphere)
 	| DoomThings.Megasphere:
-		player.health := BonusHealthMaximum;
+		player.health := DoomConfig.values.inventory.bonusHealthMaximum;
 		taken := Armor(player, BlueArmorClass)
 	| DoomThings.Stimpack, DoomThings.Medikit:
-		i := StimpackHealth;
+		i := DoomConfig.values.inventory.stimpack;
 		IF kind = DoomThings.Medikit THEN
-			i := MedikitHealth
+			i := DoomConfig.values.inventory.medikit
 		END;
 		IF ~Health(player, i) THEN
 			RETURN FALSE
@@ -172,33 +176,33 @@ BEGIN
 			RETURN FALSE
 		END
 	| DoomThings.Clip, DoomThings.BulletBox:
-		i := ClipBullets;
+		i := DoomConfig.values.inventory.pickup[Bullets];
 		IF kind = DoomThings.BulletBox THEN
-			i := ClipBullets * BoxMultiplier
+			i := DoomConfig.values.inventory.pickup[Bullets] * DoomConfig.values.inventory.boxMultiplier
 		END;
 		IF ~Ammo(player, Bullets, i) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Shells, DoomThings.ShellBox:
-		i := ShellPickup;
+		i := DoomConfig.values.inventory.pickup[Shells];
 		IF kind = DoomThings.ShellBox THEN
-			i := ShellPickup * BoxMultiplier
+			i := DoomConfig.values.inventory.pickup[Shells] * DoomConfig.values.inventory.boxMultiplier
 		END;
 		IF ~Ammo(player, Shells, i) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Cells, DoomThings.CellPack:
-		i := CellPickup;
+		i := DoomConfig.values.inventory.pickup[Cells];
 		IF kind = DoomThings.CellPack THEN
-			i := CellPickup * BoxMultiplier
+			i := DoomConfig.values.inventory.pickup[Cells] * DoomConfig.values.inventory.boxMultiplier
 		END;
 		IF ~Ammo(player, Cells, i) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Rocket, DoomThings.RocketBox:
-		i := RocketPickup;
+		i := DoomConfig.values.inventory.pickup[Rockets];
 		IF kind = DoomThings.RocketBox THEN
-			i := RocketPickup * BoxMultiplier
+			i := DoomConfig.values.inventory.pickup[Rockets] * DoomConfig.values.inventory.boxMultiplier
 		END;
 		IF ~Ammo(player, Rockets, i) THEN
 			RETURN FALSE
@@ -218,28 +222,28 @@ BEGIN
 	| DoomThings.Backpack:
 		IF ~player.backpack THEN
 			FOR i := 0 TO AmmoKinds - 1 DO
-				player.maximum[i] := player.maximum[i] * BackpackCapacityMultiplier
+				player.maximum[i] := player.maximum[i] * DoomConfig.values.inventory.backpackMultiplier
 			END;
 			player.backpack := TRUE
 		END;
-		taken := Ammo(player, Bullets, ClipBullets);
-		taken := Ammo(player, Shells, ShellPickup);
-		taken := Ammo(player, Cells, CellPickup);
-		taken := Ammo(player, Rockets, RocketPickup)
+		taken := Ammo(player, Bullets, DoomConfig.values.inventory.pickup[Bullets]);
+		taken := Ammo(player, Shells, DoomConfig.values.inventory.pickup[Shells]);
+		taken := Ammo(player, Cells, DoomConfig.values.inventory.pickup[Cells]);
+		taken := Ammo(player, Rockets, DoomConfig.values.inventory.pickup[Rockets])
 	| DoomThings.Shotgun, DoomThings.SuperShotgun:
 		i := Shotgun;
 		IF kind = DoomThings.SuperShotgun THEN
 			i := SuperShotgun
 		END;
-		IF ~Weapon(player, i, Shells, ShellPickup * WeaponAmmoMultiplier) THEN
+		IF ~Weapon(player, i, Shells, DoomConfig.values.inventory.pickup[Shells] * DoomConfig.values.inventory.weaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Chaingun:
-		IF ~Weapon(player, Chaingun, Bullets, ClipBullets * WeaponAmmoMultiplier) THEN
+		IF ~Weapon(player, Chaingun, Bullets, DoomConfig.values.inventory.pickup[Bullets] * DoomConfig.values.inventory.weaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Launcher:
-		IF ~Weapon(player, Launcher, Rockets, RocketPickup * WeaponAmmoMultiplier) THEN
+		IF ~Weapon(player, Launcher, Rockets, DoomConfig.values.inventory.pickup[Rockets] * DoomConfig.values.inventory.weaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Plasma, DoomThings.Bfg:
@@ -247,7 +251,7 @@ BEGIN
 		IF kind = DoomThings.Bfg THEN
 			i := Bfg
 		END;
-		IF ~Weapon(player, i, Cells, CellPickup * WeaponAmmoMultiplier) THEN
+		IF ~Weapon(player, i, Cells, DoomConfig.values.inventory.pickup[Cells] * DoomConfig.values.inventory.weaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
 	| DoomThings.Chainsaw:

@@ -3,6 +3,7 @@
 
 import ctypes as C
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -94,7 +95,9 @@ def pixels(display, window, hud=False):
 
 
 def visible(frame):
-    colors = set(frame[:45 * 80])
+    # Exclude the maximum configured crosshair area as well as the status panel.
+    colors = {color for index, color in enumerate(frame[:45 * 80])
+              if abs(index % 80 - 40) > 4 or abs(index // 80 - 25) > 4}
     return len(colors) > 1 and bool(colors.difference((0x202938, 0x35302C)))
 
 
@@ -119,7 +122,7 @@ def focus(display, window, gained):
     X.XFlush(display)
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -144,22 +147,91 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
                 break
             time.sleep(0.05)
         assert visible(initial), "Frame contains no visible scene"
+        # Synchronize the driver's physical modifier snapshot before synthetic Ctrl.
+        key(display, window, root, ord("0"))
+        key(display, window, root, ord("0"), release=True)
+        time.sleep(0.05)
+        if hitscan:
+            before = pixels(display, window, hud=True)
+            deadline = time.monotonic() + 3
+            while pixels(display, window, hud=True) == before and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert pixels(display, window, hud=True) != before, "Distant soldier did not damage the stationary player"
+            key(display, window, root, 0xFFE3)
+            time.sleep(0.2)
+            key(display, window, root, 0xFFE3, release=True)
+            time.sleep(0.2)
+            dead = pixels(display, window)
+            panel = pixels(display, window, hud=True)
+            time.sleep(1.5)
+            assert pixels(display, window, hud=True) == panel, "Killed soldier continued firing"
+            assert pixels(display, window) == dead, "Killed soldier continued animating"
+            initial = dead
+        if ai:
+            before = pixels(display, window, hud=True)
+            time.sleep(0.3)
+            assert pixels(display, window)[:45 * 80] != initial[:45 * 80], "Demon did not approach the stationary player"
+            deadline = time.monotonic() + 3
+            while pixels(display, window, hud=True) == before and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert pixels(display, window, hud=True) != before, "Demon bite did not update health"
+            key(display, window, root, 0xFFE3)
+            time.sleep(0.2)
+            key(display, window, root, 0xFFE3, release=True)
+            time.sleep(0.2)
+            dead = pixels(display, window)
+            panel = pixels(display, window, hud=True)
+            time.sleep(1)
+            assert pixels(display, window, hud=True) == panel, "Killed demon continued to bite"
+            assert pixels(display, window) == dead, "Killed demon continued moving or animating"
+            assert visible(dead), "Killing the demon removed the visible scene"
+            initial = dead
+        if combat:
+            before = pixels(display, window, hud=True)
+            if remapped:
+                key(display, window, root, 0xFFE3)
+                key(display, window, root, ord("w"))
+                time.sleep(0.7)
+                key(display, window, root, 0xFFE3, release=True)
+                key(display, window, root, ord("w"), release=True)
+                assert pixels(display, window) == initial, "Old bindings stayed active after YAML remapping"
+            fire_key = ord("f") if remapped else 0xFFE3
+            key(display, window, root, fire_key)
+            time.sleep(0.9)
+            key(display, window, root, fire_key, release=True)
+            time.sleep(0.25)
+            after = pixels(display, window, hud=True)
+            assert after != before, "Pistol did not consume ammunition"
+            dead = pixels(display, window)
+            assert dead[:45 * 80] != initial[:45 * 80], "Target did not change to its corpse frame"
+            time.sleep(0.7)
+            assert pixels(display, window, hud=True) == after, "Firing continued after key release"
+            key(display, window, root, fire_key)
+            time.sleep(0.2)
+            focus(display, window, False)
+            time.sleep(0.25)
+            unfocused_panel = pixels(display, window, hud=True)
+            time.sleep(0.7)
+            assert pixels(display, window, hud=True) == unfocused_panel, "Firing continued after focus loss"
+            key(display, window, root, fire_key, release=True)
+            focus(display, window, True)
+            initial = pixels(display, window)
         if actor:
-            key(display, window, root, ord("w"))
+            key(display, window, root, ord("i" if remapped else "w"))
             time.sleep(1.2)
-            key(display, window, root, ord("w"), release=True)
+            key(display, window, root, ord("i" if remapped else "w"), release=True)
             time.sleep(0.2)
             blocked = pixels(display, window)
             assert blocked != initial, "Player did not approach the solid actor"
-            key(display, window, root, ord("w"))
+            key(display, window, root, ord("i" if remapped else "w"))
             time.sleep(0.4)
-            key(display, window, root, ord("w"), release=True)
+            key(display, window, root, ord("i" if remapped else "w"), release=True)
             time.sleep(0.2)
             assert pixels(display, window) == blocked, "Player walked through the solid actor"
-            key(display, window, root, ord("w"))
+            key(display, window, root, ord("i" if remapped else "w"))
             key(display, window, root, ord("d"))
             time.sleep(0.5)
-            key(display, window, root, ord("w"), release=True)
+            key(display, window, root, ord("i" if remapped else "w"), release=True)
             key(display, window, root, ord("d"), release=True)
             time.sleep(0.2)
             assert pixels(display, window) != blocked, "Player could not slide around the solid actor"
@@ -194,11 +266,11 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             assert pixels(display, window) == initial, "Locked open-only door did not stop moving"
         if pickup:
             before = pixels(display, window, hud=True)
-            key(display, window, root, ord("w"))
+            key(display, window, root, ord("i" if remapped else "w"))
             deadline = time.monotonic() + 4
             while pixels(display, window, hud=True) == before and time.monotonic() < deadline:
                 time.sleep(0.05)
-            key(display, window, root, ord("w"), release=True)
+            key(display, window, root, ord("i" if remapped else "w"), release=True)
             time.sleep(0.2)
             assert pixels(display, window, hud=True) != before, "Touching items did not update inventory HUD"
             initial = pixels(display, window)
@@ -222,9 +294,9 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             time.sleep(2)
             initial = pixels(display, window)
             assert initial == opened, "Door did not reopen"
-        key(display, window, root, ord("w"))
+        key(display, window, root, ord("i" if remapped else "w"))
         time.sleep(0.3)
-        key(display, window, root, ord("w"), release=True)
+        key(display, window, root, ord("i" if remapped else "w"), release=True)
         time.sleep(0.2)
         moved = pixels(display, window)
         assert moved != initial, "Forward input did not change the frame"
@@ -253,9 +325,21 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             print("Pickup GUI check passed: touching items updates the inventory HUD")
         if locked_door:
             print("Locked door GUI check passed: key denial hint, card pickup, unlocking and crossing")
+        if combat:
+            print("Combat GUI check passed: ammo, corpse, release, focus loss and YAML bindings")
         if actor:
             print("Actor GUI check passed: approach, blocked forward movement and diagonal sliding")
+        if ai:
+            print("AI GUI check passed: stationary-player chase, bite HUD, YAML damage, kill and stopped attacks")
+        if hitscan:
+            print("Hitscan GUI check passed: ranged damage HUD, YAML damage, kill and stopped enemy fire")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
+    except Exception:
+        if process.poll() is None:
+            process.kill()
+        output, _ = process.communicate()
+        print(output, file=sys.stderr)
+        raise
     finally:
         if process.poll() is None:
             process.kill()
@@ -264,17 +348,40 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
 
 
 def main():
+    blank = [0x202938 if i < 25 * 80 else 0x35302C for i in range(50 * 80)]
+    blank[25 * 80 + 40] = 0xFFFFFF
+    assert not visible(blank), "Crosshair alone must not qualify as a visible scene"
+    blank[0] = 0xFFFFFF
+    assert visible(blank)
     arguments = sys.argv[1:]
     door = arguments[0] == "--door"
     pickup = arguments[0] == "--pickup"
     locked_door = arguments[0] == "--locked-door"
     actor = arguments[0] == "--actor"
-    if door or pickup or locked_door or actor:
+    combat = arguments[0] in ("--combat", "--remapped-combat")
+    remapped = arguments[0] == "--remapped-combat"
+    ai = arguments[0] == "--ai"
+    hitscan = arguments[0] == "--hitscan"
+    if door or pickup or locked_door or actor or combat or ai or hitscan:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
         shutil.copy2(arguments[0], executable)
-        check(executable, arguments[1:], door, pickup, locked_door, actor)
+        if combat or ai or hitscan:
+            config = pathlib.Path(directory) / "doom-test.yaml"
+            profile = pathlib.Path("doom.yaml").read_text()
+            if combat:
+                # Isolate weapon/input checks from autonomous target attacks and animation.
+                profile = re.sub(r"      behavior: hitscan\n      hitscan:\n(?:        .*\n)+",
+                                 "      behavior: static\n", profile)
+            if remapped:
+                profile = (profile.replace("forward: [0x77, 0x57, 0xff52]", "forward: [0x69, 0x49, 0xff52]")
+                           .replace("fire: [0xffe3, 0xffe4]", "fire: [0x66, 0x46]"))
+            if ai or hitscan:
+                profile = profile.replace("    damage: 10\n", "    damage: 200\n")
+            config.write_text(profile)
+            arguments[1:1] = ["--config", str(config)]
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan)
 
 
 if __name__ == "__main__":

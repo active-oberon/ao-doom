@@ -32,7 +32,7 @@ Types 26-28 raise, wait and close; 32-34 stay open and consume their line action
 Their ceilings animate, open the passage, and either
 stay open or wait 150 ticks before closing. Closing reverses if the player would
 lose clearance. Normal doors move two units per tick; fast doors move eight.
-Sprites for 116 classic visible object types render at their spawn frames: monsters,
+Sprites for 116 classic visible object types load their spawn frames: monsters,
 pickups, decorations and corpses. Medium-skill single-player flags select them.
 Directional frames support all eight views and paired mirrored lump names;
 patch header offsets position each image. Transparent holes, opaque black,
@@ -45,7 +45,21 @@ solid hanging bodies block even when their images are above the player.
 Pickups, corpses and non-solid hanging variants remain passable. Each axis
 substep checks actors before updating position or floor height, preserving
 sliding and bounded movement without jumping through a footprint. Actors
-remain at fixed spawn positions and frames without animation. Unknown
+switch to configured corpse frames when killed. Demons and spectres wake on
+sight, chase the player with wall/step/actor collision, animate walking and
+wind up before each bite. An impact rechecks sight and range, so moving away
+or killing the attacker prevents damage. Green and blue armor absorb configured
+fractions of damage; health clamps at zero and death stops movement, turning,
+firing, door actions and further monster updates. Restart or load a map to reset.
+Zombiemen and shotgun soldiers also wake on sight and chase into attack range.
+Their delayed hitscan attacks aim at the player's current height and stop at
+solid walls or closed openings. Grilles pass bullets independently of their
+movement flags. Each pellet hits the nearest damageable target: enemies and barrels
+can intercept shots meant for the player. Killed enemies cannot attack later in
+the same tick. Soldier attacks use fixed damage and symmetric pellet spread;
+retaliation against another monster and original randomized AI are absent.
+Other unsupported actors retain their spawn positions. Movement, health and pickup snapshots
+preserve each other's state and keep previous render snapshots unchanged. Unknown
 types are skipped for previewing,
 and spectres currently render without the original fuzz effect. The WAD
 scene loads wall textures from PLAYPAL, PNAMES and TEXTURE1/TEXTURE2, composing
@@ -57,7 +71,11 @@ and skull keys. Health and armor bonuses can reach 200; ordinary medicine stops
 at 100. Ammo and armor remain in the map when they cannot improve the current
 stock. Bonuses, duplicate keys and backpacks retain their classic consumption
 rules. The backpack doubles ammo capacity once. Placed weapons grant ownership
-and ammunition; weapon selection and firing are not implemented.
+and ammunition; weapon selection is not implemented. The owned pistol fires
+while its configured key is held, spends bullets and hits the nearest live target
+in range. Solid walls and closed openings stop shots; two-sided windows and
+grilles pass them when the shot fits the open height, even if movement is blocked.
+Dead targets remain visible and no longer block movement.
 The bottom 20 pixels show health, armor, four ammo stocks, total pickups,
 weapon count and colored key indicators (`C` card, `S` skull; blue/yellow/red).
 Trying a locked manual door without its key shows the required color in the panel.
@@ -78,7 +96,8 @@ task check
 task run
 ```
 
-Controls: W/S or Up/Down move, A/D strafe, Left/Right turn, Space uses, Escape exits.
+Default controls: W/S or Up/Down move, A/D strafe, Left/Right turn, Space uses,
+Ctrl fires the pistol, Escape exits. Every action and its aliases come from YAML.
 Holding Space issues one action until release; losing focus clears held input.
 Linux execution needs an X11 display. The installed SDK must contain the
 key release and focus notification fixes in MiniA2 `source/Unix.KbdMouse.Mod`; older drivers
@@ -113,6 +132,14 @@ task run -- build/masked.wad E1M1
 task run -- build/sprites-grate.wad E1M1
 # Walk into health/armor, ammo, a key, a weapon and a backpack.
 task run -- build/pickups.wad E1M1
+# Shoot a target twice with Ctrl, then walk over its corpse.
+task run -- build/combat.wad E1M1
+# A demon approaches and bites; Ctrl shoots, S retreats.
+task run -- build/ai.wad E1M1
+# A zombieman fires at range; Ctrl fires back.
+task run -- build/hitscan.wad E1M1
+# A shotgun soldier fires three pellets with configured spread.
+task run -- build/hitscan-shotgun.wad E1M1
 # Walk toward a solid barrel, then strafe or move diagonally around it.
 task run -- build/actors-barrel.wad E1M1
 # Local base-game archives; quote paths containing spaces.
@@ -128,7 +155,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 165 original WAD fixtures, rejects
+`task check` runs engine checks, generates 205 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -156,10 +183,19 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies twelve scenes: corridor, single-sector,
+`task gui-check` additionally verifies sixteen scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
-and a locked door with an actual key pickup, plus solid barrel collision.
+and a locked door with an actual key pickup, plus solid barrel collision, two
+pistol scenarios with default/remapped keys, a chasing demon and a ranged soldier.
+Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
+Remapping runs the same executable with another complete YAML file.
 Each checks movement, release, focus loss, turning, and Escape shutdown.
+The demon scenario waits for chase and bite without player input, then uses
+a complete startup YAML with higher pistol damage to kill it and verifies
+that its movement, animation and attacks stop.
+The soldier scenario verifies health loss at range and stopped attacks after a
+kill. Weapon/input scenarios use a complete YAML with static target behavior to
+isolate keyboard effects from autonomous attacks and animated frames.
 The pickup scene walks into items and checks that the inventory panel changes.
 The barrel scene approaches the actor, verifies that another forward input
 leaves the view unchanged, and checks diagonal sliding around it.
@@ -208,6 +244,41 @@ fallback values. Failed reads preserve previously loaded settings.
 Distances use Doom map units. Player and door speeds are per simulation tick;
 turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
 timing, collision dimensions, motion, door interaction and panel layout/colors.
+`player.pickup_radius` and `pickup_below_feet` control item reach.
+`inventory` supplies initial health/bullets, health/armor limits, ammo capacities,
+pickup amounts, box/weapon/backpack multipliers and green/blue armor damage
+divisors; values must fit HUD digits.
+`combat.pistol` supplies fixed damage, cooldown/flash ticks, ammo cost and range.
+`combat.aim` supplies crosshair radius/gap in pixels and normal/shot RGB colors.
+`combat.actors` lists unique supported kinds with starting health, target height,
+footprint radius in Doom units, five-character death frames (sprite prefix plus
+frame letter) and `behavior: static`, `melee` or `hitscan`. Active rules require
+`speed_per_tick`, `step`, `sight_range`, `range`, `damage`, `windup_ticks`,
+`cycle_ticks`, `frame_ticks`, `walk_frames` and `attack_frames` under the matching
+`melee` or `hitscan` section. Hitscan rules also require `pellets` (1-32) and
+`spread_radians` (0-1). Pellets spread symmetrically from negative to positive
+spread; a single pellet uses the center direction. Damage applies per pellet.
+Range measures Euclidean horizontal center distance; melee range must cover
+the configured footprints. Ranged actors aim vertically at the player's center.
+Speeds and steps use Doom units; attack and animation intervals use simulation
+ticks. Each frame list contains 1-16 sprite prefixes with frame letters.
+Windup must be shorter than the attack cycle; step must fit actor height and
+attack range must fit sight range. Static rules reject attack settings; active
+rules reject a mismatched or additional attack section.
+Actor health/height and terminal frame names follow
+[id Software's actor/state table](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/info.c).
+Each map validates its used corpse and animation resources before replacing
+the live scene. The standard profile enables melee for demons/spectres and
+hitscan for zombiemen/shotgun soldiers. Settings can enable other configured
+ground actors with suitable sprite resources.
+`controls` lists integer X11-compatible key symbols for all nine actions; aliases
+must be unique across actions. Letters ignore Shift case so releasing Shift
+cannot leave a key held. Releasing one physical alias preserves another held alias.
+The pistol currently uses a horizontal shot with fixed damage. Chase moves
+directly toward the player and slides along obstacles; route finding, sound
+wake, original randomized attacks, projectile attacks, death animations, drops,
+barrel splash, boss actions, spread/autoaim, other weapons
+and sound remain later milestones.
 `demo.colors` controls the procedural scene's outer walls, partitions and pillar,
 including their brick textures. `demo.eye` and `demo.wall_height` use Doom map
 units; the eye must not exceed the wall height. `demo.light` ranges from 0 to 255.
@@ -233,16 +304,24 @@ keys and multiple documents are outside this parser's supported subset.
 See MiniA2 `docs/YAML.md` for its API and exact limits.
 
 `DoomFormat` holds file-format constants such as WAD record sizes and coordinate
-scaling. Classic object IDs, item rules and spawn metadata remain code/data;
-changing those is a gameplay or format change rather than a startup preference.
+scaling. Classic object IDs, item categories, sprite rotation rules and authored spawn
+metadata remain code/data. Bounds, numeric precision and resource budgets remain
+validation invariants; startup gameplay and appearance values come from YAML.
 The procedural demo's wall coordinates and start position remain its authored
 scene data.
 
-`task check` runs ten `{TEST}` procedures from `DoomConfig`, `DoomHud` and
-`DoomConfigSmoke` in a fixture-based executable. They verify complete YAML
+`task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
+`DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
+`DoomHitscanSmoke` and `DoomInput`
+in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
-door timing/range and failure preservation. The executable runs in `build/`:
+door timing/range and failure preservation, plus target selection, ray height/range,
+closed/open doors, blocking grilles, corpses, ammo/cooldown, custom tuning and
+input aliases, wake/occlusion, chase collision, steps, animated frames,
+windup/dodge, armor damage, death freeze and map replacement. Ranged checks cover
+pellet spread/damage, sloped floor/ceiling occlusion, friendly interception,
+same-tick death, complete custom tuning and resource failures. These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
 
@@ -252,8 +331,11 @@ Reusable simulation, geometry, rendering, buffers, timing, display presentation,
 and bounded binary reads belong in `ao-game-engine`. Doom WAD interpretation,
 map semantics, player rules and compatibility belong here. `DoomWad` handles the
 archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene.
-`DoomThings` owns spawn frames and solid footprint radii; `DoomSprites` loads immutable actors,
-chooses directional images and publishes copied collection bits after pickups.
+`DoomThings` owns authored spawn metadata and decoration footprints;
+damageable actor radii come from YAML. `DoomActors` owns sight traces, chase
+and attack timing. `DoomSprites` resolves melee/hitscan impacts, loads immutable metadata and images, chooses
+directional/animated/death frames and publishes collection/health/motion snapshots.
+`DoomCombat` owns pistol timing, ammunition use and the crosshair.
 `DoomInventory` owns item effects; `DoomHud` owns the status panel layout.
 Game state uses a monitor; rendering captures camera, inventory,
 the sprite scene and the sealed world together before
@@ -283,8 +365,20 @@ game-owned occupancy delegate without importing Doom types or changing the
 existing `MovePlayer` interface. Actor collision currently scans the bounded
 thing array; no spatial index or per-movement allocation was added.
 
-Next: combat, actor movement/animation and other map actions. Monsters cannot
-be killed yet and must be avoided. Door obstruction remains player-only;
+Pistol, configuration, fourteen-window checks and the preceding 132-map regression
+are recorded in [the combat report](scratch/combat-check.md). Shot hits copy at
+most a bounded actor-health array; frames without hits reuse the previous scene.
+
+Melee AI, armor damage, fifteen-window checks and the preceding 132-map regression
+are recorded in [the AI report](scratch/ai-check.md). Active monster ticks copy
+the bounded motion array; static or sleeping scenes reuse the previous snapshot.
+
+Ranged soldiers, configurable pellet spread, sixteen-window checks and the latest
+132-map regression are recorded in [the ranged-attack report](scratch/hitscan-check.md).
+Player and enemy shots share the same nearest-volume clipping; per-attack enemy
+health copies are bounded, and multiple pellets reuse the private health snapshot.
+
+Next: route finding, projectile attacks, other weapons and map actions. Door obstruction remains player-only;
 actor crushing and actor-triggered door reversal are not implemented.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
@@ -321,6 +415,10 @@ Sprite metadata, directional naming and spawn flags are referenced from
 and [p_mobj.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_mobj.c).
 Pickup quantities and limits follow
 [p_inter.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_inter.c).
+Ranged soldier attack and target interception references are
+[p_enemy.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_enemy.c)
+and [p_map.c](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_map.c).
+Current damage and symmetric pellet spread are simplified, configurable rules.
 The current parser and engine are original implementations; no upstream source
 has been copied. Preserve applicable license notices when porting code later.
 

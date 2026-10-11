@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT DoomConfig, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
+IMPORT DoomConfig, DoomCombat, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
 
 TYPE
 	Pose* = RECORD
@@ -15,7 +15,8 @@ TYPE
 		doors: DoomDoors.Controller;
 		sprites: DoomSprites.Scene;
 		inventory: DoomInventory.State;
-		use: BOOLEAN;
+		use, firing: BOOLEAN;
+		weapon: DoomCombat.Weapon;
 
 		PROCEDURE &Init*;
 		VAR colors: DoomConfig.DemoPalette;
@@ -48,6 +49,9 @@ TYPE
 			sprites := NIL;
 			DoomInventory.Reset(inventory);
 			use := FALSE;
+			firing := FALSE;
+			weapon.nextShot := 0;
+			weapon.flashUntil := 0;
 			ASSERT(world.Free(pose.x, pose.y, DoomConfig.values.playerRadius))
 		END Init;
 
@@ -85,6 +89,9 @@ TYPE
 			doors := map.doors;
 			sprites := map.sprites;
 			use := FALSE;
+			firing := FALSE;
+			weapon.nextShot := 0;
+			weapon.flashUntil := 0;
 			pose.x := map.x;
 			pose.y := map.y;
 			pose.angle := map.angle;
@@ -109,39 +116,49 @@ TYPE
 			use := TRUE
 		END Use;
 
+		PROCEDURE Fire*(held: BOOLEAN);
+		BEGIN {EXCLUSIVE}
+			firing := held
+		END Fire;
+
 		PROCEDURE Step*(tick: SIGNED64);
 		VAR dx, dy, speed, feet: FLOAT64;
 			used: BOOLEAN;
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
-			pose.angle := pose.angle + turn * DoomConfig.values.turnSpeed;
-			IF pose.angle > MathL.pi THEN
-				pose.angle := pose.angle - 2 * MathL.pi
-			ELSIF pose.angle < -MathL.pi THEN
-				pose.angle := pose.angle + 2 * MathL.pi
-			END;
-			speed := DoomConfig.values.moveSpeed;
-			IF (forward # 0) & (strafe # 0) THEN
-				speed := speed / MathL.sqrt(2)
-			END;
-			dx := (forward * MathL.cos(pose.angle) -
-				strafe * MathL.sin(pose.angle)) * speed;
-			dy := (forward * MathL.sin(pose.angle) +
-				strafe * MathL.cos(pose.angle)) * speed;
-			IF world.SectorCount() = 0 THEN
-				ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius))
-			ELSE
-				feet := pose.eye - DoomConfig.values.playerEye;
-				IF use THEN
-					used := doors.Use(world, pose.x, pose.y, pose.angle, inventory)
+			IF inventory.health > 0 THEN
+				pose.angle := pose.angle + turn * DoomConfig.values.turnSpeed;
+				IF pose.angle > MathL.pi THEN
+					pose.angle := pose.angle - 2 * MathL.pi
+				ELSIF pose.angle < -MathL.pi THEN
+					pose.angle := pose.angle + 2 * MathL.pi
 				END;
-				doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
-				ASSERT(world.MovePlayerChecked(pose.x, pose.y, feet, dx, dy,
-					DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free));
-				pose.eye := feet + DoomConfig.values.playerEye
+				speed := DoomConfig.values.moveSpeed;
+				IF (forward # 0) & (strafe # 0) THEN
+					speed := speed / MathL.sqrt(2)
+				END;
+				dx := (forward * MathL.cos(pose.angle) -
+					strafe * MathL.sin(pose.angle)) * speed;
+				dy := (forward * MathL.sin(pose.angle) +
+					strafe * MathL.cos(pose.angle)) * speed;
+				IF world.SectorCount() = 0 THEN
+					ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius))
+				ELSE
+					feet := pose.eye - DoomConfig.values.playerEye;
+					IF use THEN
+						used := doors.Use(world, pose.x, pose.y, pose.angle, inventory)
+					END;
+					doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
+					ASSERT(world.MovePlayerChecked(pose.x, pose.y, feet, dx, dy,
+						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free));
+					pose.eye := feet + DoomConfig.values.playerEye
+				END;
 			END;
+			sprites := DoomCombat.Step(ticks, firing, weapon, world, sprites,
+				pose.x, pose.y, pose.angle, pose.eye, inventory);
 			IF sprites # NIL THEN
+				sprites := sprites.Step(world, ticks, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye, inventory);
 				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye,
 					DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, inventory)
 			END;
@@ -164,12 +181,13 @@ TYPE
 		END Ticks;
 
 		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene;
-			VAR status: DoomInventory.State);
+			VAR status: DoomInventory.State; VAR flashed: BOOLEAN);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
 			geometry := world;
 			actors := sprites;
-			status := inventory
+			status := inventory;
+			flashed := ticks < weapon.flashUntil
 		END Capture;
 
 		PROCEDURE Render*(frame: GameSurface.Frame);
@@ -177,13 +195,15 @@ TYPE
 			geometry: GameGeometry.World;
 			actors: DoomSprites.Scene;
 			status: DoomInventory.State;
+			flashed: BOOLEAN;
 		BEGIN
-			Capture(snapshot, geometry, actors, status);
+			Capture(snapshot, geometry, actors, status, flashed);
 			GameRenderer.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye);
 			IF actors # NIL THEN
 				actors.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye)
 			END;
-			DoomHud.Draw(status, frame)
+			DoomHud.Draw(status, frame);
+			DoomCombat.DrawAim(frame, flashed)
 		END Render;
 	END Game;
 

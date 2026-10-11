@@ -1,104 +1,29 @@
 MODULE DoomWindow;
 
-IMPORT DoomConfig, Doom, GameLoop, GameSurface, GameDisplay, GameClock,
+IMPORT DoomConfig, DoomInput, Doom, GameLoop, GameSurface, GameDisplay, GameClock,
 	Inputs, Objects, Kernel, KernelLog, Unix, Commands;
-
-CONST Forward = 0;
-	Backward = 1;
-	Left = 2;
-	Right = 3;
-	StrafeLeft = 4;
-	StrafeRight = 5;
-	Use = 6;
 
 TYPE
 	Keyboard = OBJECT (Inputs.Sink)
-	VAR held: SET;
-		quit: BOOLEAN;
-		use: BOOLEAN;
+	VAR controls: DoomInput.Controller;
 
-		PROCEDURE &Init;
+		PROCEDURE &Init(input: DoomInput.Controller);
 		BEGIN
-			held := {};
-			quit := FALSE;
-			use := FALSE
+			controls := input
 		END Init;
 
 		PROCEDURE Handle*(VAR message: Inputs.Message);
-		VAR action: SIGNED32;
-		BEGIN {EXCLUSIVE}
+		BEGIN
 			IF message IS Inputs.FocusMsg THEN
 				WITH message: Inputs.FocusMsg DO
-					IF ~message.focused THEN
-						held := {};
-						use := FALSE
-					END
+					controls.Focus(message.focused)
 				END
 			ELSIF message IS Inputs.KeyboardMsg THEN
 				WITH message: Inputs.KeyboardMsg DO
-					IF (message.keysym = Inputs.KsEscape) &
-						~(Inputs.Release IN message.flags) THEN
-						quit := TRUE
-					END;
-					action := -1;
-					CASE message.keysym OF
-						Inputs.KsUp, 077H, 057H:
-							action := Forward
-						| Inputs.KsDown, 073H, 053H:
-							action := Backward
-						| Inputs.KsLeft:
-							action := Left
-						| Inputs.KsRight:
-							action := Right
-						| 061H, 041H:
-							action := StrafeLeft
-						| 064H, 044H:
-							action := StrafeRight
-						| 020H:
-							action := Use
-					ELSE
-					END;
-					IF action >= 0 THEN
-						IF Inputs.Release IN message.flags THEN
-							EXCL(held, action)
-						ELSE
-							IF (action = Use) & ~(Use IN held) THEN
-								use := TRUE
-							END;
-							INCL(held, action)
-						END
-					END
+					controls.Key(message.keysym, Inputs.Release IN message.flags)
 				END
 			END
 		END Handle;
-
-		PROCEDURE Read(VAR move, strafe, turn: SIGNED32; VAR activate: BOOLEAN): BOOLEAN;
-		BEGIN {EXCLUSIVE}
-			move := 0;
-			strafe := 0;
-			turn := 0;
-			activate := use;
-			use := FALSE;
-			IF Forward IN held THEN
-				INC(move)
-			END;
-			IF Backward IN held THEN
-				DEC(move)
-			END;
-			IF StrafeRight IN held THEN
-				INC(strafe)
-			END;
-			IF StrafeLeft IN held THEN
-				DEC(strafe)
-			END;
-			IF Right IN held THEN
-				INC(turn)
-			END;
-			IF Left IN held THEN
-				DEC(turn)
-			END;
-			RETURN ~quit
-		END Read;
 	END Keyboard;
 
 PROCEDURE Do*(context: Commands.Context);
@@ -107,13 +32,14 @@ VAR game: Doom.Game;
 	frame: GameSurface.Frame;
 	presenter: GameDisplay.Presenter;
 	keyboard: Keyboard;
+	controls: DoomInput.Controller;
 	clock: GameClock.Clock;
 	timer: Kernel.MilliTimer;
 	move, strafe, turn, elapsed, ticks, argument: SIGNED32;
 	path: ARRAY 512 OF CHAR;
 	map: ARRAY 9 OF CHAR;
 	error: ARRAY 256 OF CHAR;
-	firstFrame, activate: BOOLEAN;
+	firstFrame, activate, firing: BOOLEAN;
 BEGIN
 	argument := 1;
 	COPY(DoomConfig.DefaultFile, path);
@@ -163,15 +89,16 @@ BEGIN
 	END;
 	NEW(simulation, game.Step);
 	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
-	NEW(keyboard);
+	NEW(controls);
+	NEW(keyboard, controls);
 	NEW(clock, DoomConfig.values.ticksPerSecond);
 	Inputs.keyboard.Register(keyboard);
-	KernelLog.String("Doom scene: W/S move, A/D strafe, arrows turn, Space uses, Escape exits.");
+	KernelLog.String("Doom scene: movement, use, fire and quit keys are configured in YAML.");
 	KernelLog.Ln;
 	Kernel.SetTimer(timer, 0);
 	firstFrame := TRUE;
 	LOOP
-		IF ~keyboard.Read(move, strafe, turn, activate) THEN
+		IF ~controls.Read(move, strafe, turn, activate, firing) THEN
 			EXIT
 		END;
 		elapsed := Kernel.Elapsed(timer);
@@ -183,6 +110,7 @@ BEGIN
 		END;
 		ticks := clock.Consume(elapsed);
 		game.Controls(move, strafe, turn);
+		game.Fire(firing);
 		IF activate THEN
 			game.Use
 		END;

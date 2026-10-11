@@ -1,11 +1,79 @@
 MODULE DoomInventorySmoke;
 
-IMPORT DoomInventory;
+IMPORT DoomConfig, DoomInventory;
+
+PROCEDURE {TEST} ArmorDamage*;
+VAR player: DoomInventory.State;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	DoomInventory.Reset(player);
+	DoomInventory.Hurt(player, 20);
+	ASSERT(player.health = 80);
+	DoomInventory.Reset(player);
+	ASSERT(DoomInventory.Give(player, 2018));
+	DoomInventory.Hurt(player, 20);
+	ASSERT((player.health = 86) & (player.armor = 94));
+	ASSERT(DoomInventory.Give(player, 2019));
+	DoomInventory.Hurt(player, 20);
+	ASSERT((player.health = 76) & (player.armor = 190));
+	player.armor := 3;
+	DoomInventory.Hurt(player, 20);
+	ASSERT((player.health = 59) & (player.armor = 0) & (player.armorType = 0));
+	DoomInventory.Hurt(player, 100);
+	ASSERT(player.health = 0);
+	DoomInventory.Hurt(player, 0);
+	ASSERT(player.health = 0);
+	ASSERT(DoomConfig.Load("doom-custom.yaml", error));
+	DoomInventory.Reset(player);
+	ASSERT(DoomInventory.Give(player, 2018));
+	DoomInventory.Hurt(player, 20);
+	ASSERT((player.health = 65) & (player.armor = 70));
+	ASSERT(DoomInventory.Give(player, 2019));
+	DoomInventory.Hurt(player, 20);
+	ASSERT((player.health = 51) & (player.armor = 144));
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error))
+END ArmorDamage;
+
+PROCEDURE {TEST} ConfiguredPickups*;
+VAR player: DoomInventory.State;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(DoomConfig.Load("doom-custom.yaml", error));
+	DoomInventory.Reset(player);
+	ASSERT((player.health = 80) & (player.ammo[DoomInventory.Bullets] = 24));
+	ASSERT(DoomInventory.Give(player, 2011));
+	ASSERT(player.health = 87);
+	ASSERT(DoomInventory.Give(player, 2012));
+	ASSERT(player.health = 90);
+	ASSERT(DoomInventory.Give(player, 2014));
+	ASSERT(player.health = 93);
+	ASSERT(DoomInventory.Give(player, 2013));
+	ASSERT(player.health = 180);
+	ASSERT(DoomInventory.Give(player, 2015));
+	ASSERT(player.armor = 4);
+	ASSERT(DoomInventory.Give(player, 2018));
+	ASSERT(player.armor = 75);
+	ASSERT(DoomInventory.Give(player, 2019));
+	ASSERT(player.armor = 150);
+	ASSERT(DoomInventory.Give(player, 2007));
+	ASSERT(player.ammo[DoomInventory.Bullets] = 27);
+	ASSERT(DoomInventory.Give(player, 2048));
+	ASSERT(player.ammo[DoomInventory.Bullets] = 36);
+	ASSERT(DoomInventory.Give(player, 2001));
+	ASSERT(player.ammo[DoomInventory.Shells] = 6);
+	ASSERT(DoomInventory.Give(player, 8));
+	ASSERT(player.maximum[DoomInventory.Bullets] = 300);
+	ASSERT(player.maximum[DoomInventory.Cells] = 360);
+	ASSERT(player.ammo[DoomInventory.Bullets] = 39);
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error))
+END ConfiguredPickups;
 
 PROCEDURE Do*;
 VAR player: DoomInventory.State;
 	i, count: SIGNED32;
+	error: ARRAY 256 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	DoomInventory.Reset(player);
 	ASSERT((player.health = 100) & (player.armor = 0));
 	ASSERT(player.ammo[DoomInventory.Bullets] = 50);
@@ -111,7 +179,9 @@ BEGIN
 			INC(count)
 		END
 	END;
-	ASSERT(count = 30)
+	ASSERT(count = 30);
+	ConfiguredPickups;
+	ArmorDamage
 END Do;
 
 END DoomInventorySmoke.

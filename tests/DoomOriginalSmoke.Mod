@@ -1,6 +1,6 @@
 MODULE DoomOriginalSmoke;
 
-IMPORT DoomConfig, Doom, GameSurface, KernelLog, Unix, Commands;
+IMPORT DoomConfig, DoomCombat, Doom, GameSurface, KernelLog, Unix, Commands;
 
 PROCEDURE Visible(frame: GameSurface.Frame): BOOLEAN;
 VAR x, y, color: SIGNED32;
@@ -8,13 +8,26 @@ BEGIN
 	FOR y := 0 TO frame.height - DoomConfig.values.hud.height - 1 DO
 		FOR x := 0 TO frame.width - 1 DO
 			color := frame.Pixel(x, y);
-			IF (color # 0202938H) & (color # 035302CH) THEN
+			IF ((ABS(x - frame.width DIV 2) > DoomConfig.values.combat.aimRadius) OR
+				(ABS(y - frame.height DIV 2) > DoomConfig.values.combat.aimRadius)) &
+				(color # 0202938H) & (color # 035302CH) THEN
 				RETURN TRUE
 			END
 		END
 	END;
 	RETURN FALSE
 END Visible;
+
+PROCEDURE {TEST} SceneVisibility*;
+VAR frame: GameSurface.Frame;
+BEGIN
+	NEW(frame, 320, 200);
+	frame.Background(0202938H, 035302CH);
+	DoomCombat.DrawAim(frame, FALSE);
+	ASSERT(~Visible(frame));
+	frame.Span(0, 0, 0, 0FFFFFFH);
+	ASSERT(Visible(frame))
+END SceneVisibility;
 
 PROCEDURE Do*(context: Commands.Context);
 VAR game: Doom.Game;
@@ -27,6 +40,7 @@ VAR game: Doom.Game;
 	floor: FLOAT64;
 BEGIN
 	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
+	SceneVisibility;
 	IF Unix.argc < 3 THEN
 		KernelLog.String("Usage: original-check WAD MAP");
 		KernelLog.Ln;
@@ -56,19 +70,21 @@ BEGIN
 	ASSERT(Visible(frame));
 	ASSERT(frame.Save("original-walk.ppm"));
 	game.Controls(0, 0, 1);
+	game.Fire(TRUE);
 	FOR i := 36 TO 132 DO
 		game.Step(i);
 		IF i MOD 12 = 0 THEN
 			game.Render(frame)
 		END
 	END;
+	game.Fire(FALSE);
 	pose := game.State();
 	ASSERT(game.world.Locate(pose.x, pose.y) >= 0);
 	ASSERT(game.world.Stand(pose.x, pose.y, DoomConfig.values.playerRadius, pose.eye - DoomConfig.values.playerEye,
 		DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor));
 	ASSERT(ABS(floor - pose.eye + DoomConfig.values.playerEye) < 0.000001);
 	KernelLog.String(marker);
-	KernelLog.String(": loaded, rendered, walked and turned");
+	KernelLog.String(": loaded, rendered, walked, turned and fired");
 	KernelLog.Ln
 END Do;
 

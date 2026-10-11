@@ -1,6 +1,6 @@
 MODULE DoomConfig;
 
-IMPORT YAML, JSON, Strings, DoomFormat, DoomInventory;
+IMPORT YAML, JSON, Strings, DoomFormat, DoomThings;
 
 CONST HudCharacterAdvance* = 4;
 	HudGlyphHeight = 5;
@@ -12,6 +12,25 @@ CONST HudCharacterAdvance* = 4;
 	MaximumDimension = 4096;
 	MaximumTextureDimension = 1024;
 	MaximumClockValue = 1000;
+	Forward* = 0;
+	Backward* = 1;
+	Left* = 2;
+	Right* = 3;
+	StrafeLeft* = 4;
+	StrafeRight* = 5;
+	Use* = 6;
+	Fire* = 7;
+	Quit* = 8;
+	InputActions* = 9;
+	MaximumBindings = 8;
+	MaximumActorRules = 128;
+	MaximumHudStat = 999;
+	MaximumPickupMultiplier = 8;
+	MaximumActorHealth = 65535;
+	MaximumTargetHeight = 1024;
+	MaximumAimRadius = 16;
+	MaximumAnimationFrames = 16;
+	MaximumPellets = 32;
 
 TYPE HudSettings* = RECORD
 	height*, margin*, topRow*, bottomRow*, labelGap*: SIGNED32;
@@ -27,19 +46,63 @@ BrickSettings* = RECORD
 	textureSize*, courseHeight*, brickWidth*, mortarWidth*, mortarShade*: SIGNED32
 END;
 
+KeyBindings* = RECORD
+	count*: SIGNED32;
+	keys*: ARRAY MaximumBindings OF SIGNED32
+END;
+
+InventorySettings* = RECORD
+	initialHealth*, initialBullets*, healthMaximum*, bonusHealthMaximum*, armorUnit*, bonusArmorMaximum*: SIGNED32;
+	healthBonus*, armorBonus*, stimpack*, medikit*, soulSphere*: SIGNED32;
+	boxMultiplier*, weaponAmmoMultiplier*, backpackMultiplier*: SIGNED32;
+	greenArmorDivisor*, blueArmorDivisor*: SIGNED32;
+	maximum*, pickup*: ARRAY DoomFormat.AmmoKinds OF SIGNED32
+END;
+
+SpriteName* = ARRAY 6 OF CHAR;
+SpriteFrames* = POINTER TO ARRAY OF SpriteName;
+
+BehaviorSettings* = POINTER TO RECORD
+	speed*, step*, sightRange*, range*: FLOAT64;
+	damage*, windup*, cycle*, frameTicks*: SIGNED32;
+	walk*, attack*: SpriteFrames;
+	hitscan*: BOOLEAN;
+	pellets*: SIGNED32;
+	spread*: FLOAT64
+END;
+
+ActorSettings* = RECORD
+	kind*, health*: SIGNED32;
+	height*, radius*: FLOAT64;
+	deathFrame*: SpriteName;
+	behavior*: BehaviorSettings
+END;
+
+CombatSettings* = RECORD
+	damage*, cooldown*, ammoCost*, flashTicks*, aimRadius*, aimGap*, aimColor*, fireColor*: SIGNED32;
+	range*: FLOAT64;
+	actors*: POINTER TO ARRAY OF ActorSettings
+END;
+
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
+	pickupRadius*, pickupBelowFeet*: FLOAT64;
 	hud*: HudSettings;
 	demoColors*: DemoPalette;
 	demoEye*, demoWallHeight*: FLOAT64;
 	demoLight*: SIGNED32;
-	demoBricks*: BrickSettings
+	demoBricks*: BrickSettings;
+	inventory*: InventorySettings;
+	combat*: CombatSettings;
+	controls*: ARRAY InputActions OF KeyBindings
 END;
 
 VAR values-: Settings;
 	loaded-: BOOLEAN;
+	actionNames: ARRAY InputActions OF ARRAY 16 OF CHAR;
+	ammoNames: ARRAY DoomFormat.AmmoKinds OF ARRAY 8 OF CHAR;
 
 PROCEDURE Keys(object: JSON.Object; CONST allowed: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR member: JSON.Member;
@@ -123,6 +186,313 @@ BEGIN
 	RETURN x + (Strings.Length(label) + digits) * HudCharacterAdvance + settings.hud.labelGap <= settings.width
 END FieldFits;
 
+(* KeySymbol folds letter case so releasing Shift cannot leave a movement key held. *)
+PROCEDURE KeySymbol*(key: SIGNED32): SIGNED32;
+BEGIN
+	IF (key >= ORD("A")) & (key <= ORD("Z")) THEN
+		RETURN key + ORD("a") - ORD("A")
+	END;
+	RETURN key
+END KeySymbol;
+
+PROCEDURE Controls(root: JSON.Object; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR object: JSON.Object;
+	value: JSON.Value;
+	list: JSON.Array;
+	action, other, i, j, key: SIGNED32;
+	number: FLOAT64;
+BEGIN
+	IF ~Section(root, "controls", "|forward|backward|left|right|strafe_left|strafe_right|use|fire|quit|", object, error) THEN
+		RETURN FALSE
+	END;
+	FOR action := 0 TO InputActions - 1 DO
+		value := object.Get(actionNames[action]);
+		IF (value = NIL) OR ~(value IS JSON.Array) THEN
+			COPY("Expected key sequence for ", error);
+			Strings.AppendX(error, actionNames[action]);
+			RETURN FALSE
+		END;
+		list := value(JSON.Array);
+		IF (list.length < 1) OR (list.length > MaximumBindings) THEN
+			COPY("Invalid control binding count for ", error);
+			Strings.AppendX(error, actionNames[action]);
+			RETURN FALSE
+		END;
+		settings.controls[action].count := SIGNED32(list.length);
+		FOR i := 0 TO settings.controls[action].count - 1 DO
+			value := list.At(i);
+			IF (value = NIL) OR ~(value IS JSON.Number) THEN
+				COPY("Control keys must be integer key symbols", error);
+				RETURN FALSE
+			END;
+			number := value(JSON.Number).value;
+			IF (number < 1) OR (number > MAX(SIGNED32)) OR (number # ENTIER(number)) THEN
+				COPY("Control key symbol is outside its integer range", error);
+				RETURN FALSE
+			END;
+			key := ENTIER(number);
+			FOR other := 0 TO action DO
+				FOR j := 0 TO settings.controls[other].count - 1 DO
+					IF ((other < action) & (KeySymbol(settings.controls[other].keys[j]) = KeySymbol(key))) OR
+						((other = action) & (j < i) & (settings.controls[other].keys[j] = key)) THEN
+						COPY("Duplicate control key for ", error);
+						Strings.AppendX(error, actionNames[action]);
+						RETURN FALSE
+					END
+				END
+			END;
+			settings.controls[action].keys[i] := key
+		END
+	END;
+	RETURN TRUE
+END Controls;
+
+PROCEDURE Inventory(root: JSON.Object; VAR settings: InventorySettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR object, group: JSON.Object;
+	i: SIGNED32;
+BEGIN
+	IF ~Section(root, "inventory", "|initial_health|initial_bullets|health_maximum|bonus_health_maximum|armor_unit|bonus_armor_maximum|health_bonus|armor_bonus|stimpack|medikit|soul_sphere|box_multiplier|weapon_ammo_multiplier|backpack_multiplier|green_armor_divisor|blue_armor_divisor|maximum_ammo|pickup_ammo|", object, error) OR
+		~Integer(object, "initial_health", 1, MaximumHudStat, settings.initialHealth, error) OR
+		~Integer(object, "initial_bullets", 0, MaximumHudStat, settings.initialBullets, error) OR
+		~Integer(object, "health_maximum", 1, MaximumHudStat, settings.healthMaximum, error) OR
+		~Integer(object, "bonus_health_maximum", 1, MaximumHudStat, settings.bonusHealthMaximum, error) OR
+		~Integer(object, "armor_unit", 1, MaximumHudStat DIV 2, settings.armorUnit, error) OR
+		~Integer(object, "bonus_armor_maximum", 1, MaximumHudStat, settings.bonusArmorMaximum, error) OR
+		~Integer(object, "health_bonus", 1, MaximumHudStat, settings.healthBonus, error) OR
+		~Integer(object, "armor_bonus", 1, MaximumHudStat, settings.armorBonus, error) OR
+		~Integer(object, "stimpack", 1, MaximumHudStat, settings.stimpack, error) OR
+		~Integer(object, "medikit", 1, MaximumHudStat, settings.medikit, error) OR
+		~Integer(object, "soul_sphere", 1, MaximumHudStat, settings.soulSphere, error) OR
+		~Integer(object, "box_multiplier", 1, MaximumPickupMultiplier, settings.boxMultiplier, error) OR
+		~Integer(object, "weapon_ammo_multiplier", 1, MaximumPickupMultiplier, settings.weaponAmmoMultiplier, error) OR
+		~Integer(object, "backpack_multiplier", 1, MaximumPickupMultiplier, settings.backpackMultiplier, error) OR
+		~Integer(object, "green_armor_divisor", 1, MaximumHudStat, settings.greenArmorDivisor, error) OR
+		~Integer(object, "blue_armor_divisor", 1, MaximumHudStat, settings.blueArmorDivisor, error) THEN
+		RETURN FALSE
+	END;
+	IF ~Section(object, "maximum_ammo", "|bullets|shells|cells|rockets|", group, error) THEN
+		RETURN FALSE
+	END;
+	FOR i := 0 TO DoomFormat.AmmoKinds - 1 DO
+		IF ~Integer(group, ammoNames[i], 1, MaximumHudStat, settings.maximum[i], error) THEN
+			RETURN FALSE
+		END;
+		IF settings.maximum[i] * settings.backpackMultiplier > MaximumHudStat THEN
+			COPY("Backpack ammunition must fit the HUD", error);
+			RETURN FALSE
+		END
+	END;
+	IF ~Section(object, "pickup_ammo", "|bullets|shells|cells|rockets|", group, error) THEN
+		RETURN FALSE
+	END;
+	FOR i := 0 TO DoomFormat.AmmoKinds - 1 DO
+		IF ~Integer(group, ammoNames[i], 1, MaximumHudStat, settings.pickup[i], error) THEN
+			RETURN FALSE
+		END
+	END;
+	IF (settings.initialHealth > settings.healthMaximum) OR
+		(settings.bonusHealthMaximum < settings.healthMaximum) OR
+		(settings.bonusArmorMaximum < settings.armorUnit * 2) OR
+		(settings.initialBullets > settings.maximum[0]) THEN
+		COPY("Initial inventory and bonus limits must fit their capacities", error);
+		RETURN FALSE
+	END;
+	RETURN TRUE
+END Inventory;
+
+PROCEDURE FrameName(value: JSON.Value; CONST key: ARRAY OF CHAR;
+	VAR name: SpriteName; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR i, c: SIGNED32;
+BEGIN
+	IF (value = NIL) OR ~(value IS JSON.String) THEN
+		COPY("Expected sprite frame string for ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	IF Strings.Length(value(JSON.String).value^) # LEN(name) - 1 THEN
+		COPY("Expected five-character sprite frame for ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	COPY(value(JSON.String).value^, name);
+	FOR i := 0 TO LEN(name) - 2 DO
+		c := ORD(name[i]);
+		IF ~((c >= ORD("A")) & (c <= ORD("Z"))) &
+			~((i < 4) & (c >= ORD("0")) & (c <= ORD("9"))) THEN
+			COPY("Invalid sprite frame for ", error);
+			Strings.AppendX(error, key);
+			RETURN FALSE
+		END
+	END;
+	RETURN TRUE
+END FrameName;
+
+PROCEDURE FrameList(object: JSON.Object; CONST key: ARRAY OF CHAR;
+	VAR frames: SpriteFrames; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+	list: JSON.Array;
+	i: SIGNED32;
+BEGIN
+	value := object.Get(key);
+	IF (value = NIL) OR ~(value IS JSON.Array) THEN
+		COPY("Expected sprite frame sequence for ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	list := value(JSON.Array);
+	IF (list.length < 1) OR (list.length > MaximumAnimationFrames) THEN
+		COPY("Invalid sprite frame count for ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	NEW(frames, list.length);
+	FOR i := 0 TO SIGNED32(list.length) - 1 DO
+		IF ~FrameName(list.At(i), key, frames[i], error) THEN
+			RETURN FALSE
+		END
+	END;
+	RETURN TRUE
+END FrameList;
+
+PROCEDURE Behavior(rule: JSON.Object; VAR actor: ActorSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+	object: JSON.Object;
+	name: ARRAY 16 OF CHAR;
+	keys: ARRAY 192 OF CHAR;
+BEGIN
+	value := rule.Get("behavior");
+	IF (value = NIL) OR ~(value IS JSON.String) THEN
+		COPY("Expected behavior string", error);
+		RETURN FALSE
+	END;
+	actor.behavior := NIL;
+	IF value(JSON.String).value^ = "static" THEN
+		IF (rule.Get("melee") # NIL) OR (rule.Get("hitscan") # NIL) THEN
+			COPY("Static behavior cannot have attack settings", error);
+			RETURN FALSE
+		END;
+		RETURN TRUE
+	ELSIF (value(JSON.String).value^ # "melee") & (value(JSON.String).value^ # "hitscan") THEN
+		COPY("Unsupported actor behavior", error);
+		RETURN FALSE
+	END;
+	COPY(value(JSON.String).value^, name);
+	IF ((name = "melee") & (rule.Get("hitscan") # NIL)) OR
+		((name = "hitscan") & (rule.Get("melee") # NIL)) THEN
+		COPY("Actor behavior cannot mix melee and hitscan settings", error);
+		RETURN FALSE
+	END;
+	NEW(actor.behavior);
+	actor.behavior.hitscan := name = "hitscan";
+	COPY("|speed_per_tick|step|sight_range|range|damage|windup_ticks|cycle_ticks|frame_ticks|walk_frames|attack_frames|", keys);
+	IF actor.behavior.hitscan THEN
+		Strings.AppendX(keys, "pellets|spread_radians|")
+	END;
+	IF ~Section(rule, name, keys, object, error) OR
+		~Real(object, "speed_per_tick", 0, 64, DoomFormat.UnitsPerWorld, actor.behavior.speed, error) OR
+		~Real(object, "step", 0, MaximumTargetHeight, DoomFormat.UnitsPerWorld, actor.behavior.step, error) OR
+		~Real(object, "sight_range", 1, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, actor.behavior.sightRange, error) OR
+		~Real(object, "range", 1, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, actor.behavior.range, error) OR
+		~Integer(object, "damage", 1, MaximumActorHealth, actor.behavior.damage, error) OR
+		~Integer(object, "windup_ticks", 1, MaximumClockValue, actor.behavior.windup, error) OR
+		~Integer(object, "cycle_ticks", 1, MaximumClockValue, actor.behavior.cycle, error) OR
+		~Integer(object, "frame_ticks", 1, MaximumClockValue, actor.behavior.frameTicks, error) OR
+		~FrameList(object, "walk_frames", actor.behavior.walk, error) OR
+		~FrameList(object, "attack_frames", actor.behavior.attack, error) THEN
+		RETURN FALSE
+	END;
+	IF (actor.behavior.step > actor.height) OR (actor.behavior.range > actor.behavior.sightRange) OR
+		(actor.behavior.windup >= actor.behavior.cycle) THEN
+		COPY("Actor step, range and windup must fit height, sight range and cycle", error);
+		RETURN FALSE
+	END;
+	IF actor.behavior.hitscan &
+		(~Integer(object, "pellets", 1, MaximumPellets, actor.behavior.pellets, error) OR
+		~Real(object, "spread_radians", 0, 1, 1, actor.behavior.spread, error)) THEN
+		RETURN FALSE
+	END;
+	RETURN TRUE
+END Behavior;
+
+PROCEDURE ActorRules(object: JSON.Object; VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+	list: JSON.Array;
+	rule: JSON.Object;
+	info: DoomThings.Info;
+	i, j: SIGNED32;
+BEGIN
+	value := object.Get("actors");
+	IF (value = NIL) OR ~(value IS JSON.Array) THEN
+		COPY("Expected actors sequence", error);
+		RETURN FALSE
+	END;
+	list := value(JSON.Array);
+	IF (list.length < 1) OR (list.length > MaximumActorRules) THEN
+		COPY("Invalid actors rule count", error);
+		RETURN FALSE
+	END;
+	NEW(settings.actors, list.length);
+	FOR i := 0 TO SIGNED32(list.length) - 1 DO
+		value := list.At(i);
+		IF (value = NIL) OR ~(value IS JSON.Object) THEN
+			COPY("Expected actor rule mapping", error);
+			RETURN FALSE
+		END;
+		rule := value(JSON.Object);
+		IF ~Keys(rule, "|kind|health|height|radius|death_frame|behavior|melee|hitscan|", error) OR
+			~Integer(rule, "kind", 1, DoomFormat.MaximumRecords - 1, settings.actors[i].kind, error) OR
+			~Integer(rule, "health", 1, MaximumActorHealth, settings.actors[i].health, error) OR
+			~Real(rule, "height", 1, MaximumTargetHeight, DoomFormat.UnitsPerWorld, settings.actors[i].height, error) OR
+			~Real(rule, "radius", 1, MaximumTargetHeight, DoomFormat.UnitsPerWorld, settings.actors[i].radius, error) THEN
+			RETURN FALSE
+		END;
+		IF ~DoomThings.Lookup(settings.actors[i].kind, info) OR (info.radius = 0) THEN
+			COPY("Actor kind must identify a supported solid sprite", error);
+			RETURN FALSE
+		END;
+		FOR j := 0 TO i - 1 DO
+			IF settings.actors[j].kind = settings.actors[i].kind THEN
+				COPY("Duplicate actor kind", error);
+				RETURN FALSE
+			END
+		END;
+		IF ~FrameName(rule.Get("death_frame"), "death_frame", settings.actors[i].deathFrame, error) OR
+			~Behavior(rule, settings.actors[i], error) THEN
+			RETURN FALSE
+		END;
+		IF (settings.actors[i].behavior # NIL) & info.ceiling THEN
+			COPY("Active behavior requires a ground actor", error);
+			RETURN FALSE
+		END
+	END;
+	RETURN TRUE
+END ActorRules;
+
+PROCEDURE Combat(root: JSON.Object; VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR object, group: JSON.Object;
+BEGIN
+	IF ~Section(root, "combat", "|pistol|aim|actors|", object, error) OR
+		~Section(object, "pistol", "|damage|cooldown_ticks|ammo_cost|range|flash_ticks|", group, error) OR
+		~Integer(group, "damage", 1, MaximumActorHealth, settings.damage, error) OR
+		~Integer(group, "cooldown_ticks", 1, MaximumClockValue, settings.cooldown, error) OR
+		~Integer(group, "ammo_cost", 1, MaximumHudStat, settings.ammoCost, error) OR
+		~Integer(group, "flash_ticks", 1, MaximumClockValue, settings.flashTicks, error) OR
+		~Real(group, "range", 1, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, settings.range, error) OR
+		~Section(object, "aim", "|radius|gap|color|fire_color|", group, error) OR
+		~Integer(group, "radius", 1, MaximumAimRadius, settings.aimRadius, error) OR
+		~Integer(group, "gap", 0, MaximumAimRadius, settings.aimGap, error) OR
+		~Integer(group, "color", 0, 0FFFFFFH, settings.aimColor, error) OR
+		~Integer(group, "fire_color", 0, 0FFFFFFH, settings.fireColor, error) OR
+		~ActorRules(object, settings, error) THEN
+		RETURN FALSE
+	END;
+	IF (settings.aimGap > settings.aimRadius) OR (settings.flashTicks > settings.cooldown) THEN
+		COPY("Aim gap and flash duration must fit their radius and cooldown", error);
+		RETURN FALSE
+	END;
+	RETURN TRUE
+END Combat;
+
 (* Decode validates the complete schema before replacing settings, so failed reads preserve the caller's state. *)
 PROCEDURE Decode(value: JSON.Value; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR root, object, hud, demo: JSON.Object;
@@ -134,7 +504,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|combat|controls|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -142,13 +512,15 @@ BEGIN
 		~Integer(object, "ticks_per_second", 1, MaximumClockValue, candidate.ticksPerSecond, error) OR
 		~Integer(object, "maximum_elapsed_ms", 1, MaximumClockValue, candidate.maximumElapsed, error) OR
 		~Integer(object, "sleep_ms", 1, MaximumClockValue, candidate.sleepMillis, error) OR
-		~Section(root, "player", "|radius|height|step|eye|move_per_tick|turn_per_tick|", object, error) OR
+		~Section(root, "player", "|radius|height|step|eye|move_per_tick|turn_per_tick|pickup_radius|pickup_below_feet|", object, error) OR
 		~Real(object, "radius", 1, 128, DoomFormat.UnitsPerWorld, candidate.playerRadius, error) OR
 		~Real(object, "height", 1, 256, DoomFormat.UnitsPerWorld, candidate.playerHeight, error) OR
 		~Real(object, "step", 0, 128, DoomFormat.UnitsPerWorld, candidate.playerStep, error) OR
 		~Real(object, "eye", 0, 256, DoomFormat.UnitsPerWorld, candidate.playerEye, error) OR
 		~Real(object, "move_per_tick", 0, 64, DoomFormat.UnitsPerWorld, candidate.moveSpeed, error) OR
 		~Real(object, "turn_per_tick", 0, 1, 1, candidate.turnSpeed, error) OR
+		~Real(object, "pickup_radius", 0, 128, DoomFormat.UnitsPerWorld, candidate.pickupRadius, error) OR
+		~Real(object, "pickup_below_feet", 0, 128, DoomFormat.UnitsPerWorld, candidate.pickupBelowFeet, error) OR
 		~Section(root, "doors", "|speed_per_tick|fast_speed_per_tick|wait_ticks|use_range|top_gap|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.doorSpeed, error) OR
 		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastDoorSpeed, error) OR
@@ -216,17 +588,26 @@ BEGIN
 		~FieldFits(candidate, candidate.hud.margin, "HEALTH", HudStatDigits) OR
 		~FieldFits(candidate, candidate.hud.margin, "PICKUPS", HudPickupDigits) OR
 		~FieldFits(candidate, candidate.hud.armorX, "ARMOR", HudStatDigits) OR
-		~FieldFits(candidate, candidate.hud.ammoX + (DoomInventory.AmmoKinds - 1) * candidate.hud.ammoSpacing, "BUL", HudStatDigits) OR
+		~FieldFits(candidate, candidate.hud.ammoX + (DoomFormat.AmmoKinds - 1) * candidate.hud.ammoSpacing, "BUL", HudStatDigits) OR
 		(candidate.hud.ammoSpacing < (Strings.Length("BUL") + HudStatDigits) * HudCharacterAdvance + candidate.hud.labelGap) OR
 		~FieldFits(candidate, candidate.hud.weaponsX, "WEAPONS", 1) OR
 		(candidate.hud.keysX + Strings.Length("KEYS") * HudCharacterAdvance > candidate.width) OR
-		(candidate.hud.keyStartX + (DoomInventory.KeyKinds - 1) * candidate.hud.keySpacing + HudCharacterAdvance > candidate.width) OR
+		(candidate.hud.keyStartX + (DoomFormat.KeyKinds - 1) * candidate.hud.keySpacing + HudCharacterAdvance > candidate.width) OR
 		(candidate.hud.hintX + Strings.Length("NEED YELLOW KEY") * HudCharacterAdvance > candidate.width) THEN
 		COPY("HUD layout must fit inside the configured frame", error);
 		RETURN FALSE
 	END;
 	IF (candidate.playerEye > candidate.playerHeight) OR (candidate.playerStep > candidate.playerHeight) THEN
 		COPY("Player eye and step must not exceed player height", error);
+		RETURN FALSE
+	END;
+	IF ~Inventory(root, candidate.inventory, error) OR
+		~Combat(root, candidate.combat, error) OR ~Controls(root, candidate, error) THEN
+		RETURN FALSE
+	END;
+	IF (candidate.height DIV 2 + candidate.combat.aimRadius >= candidate.height - candidate.hud.height) OR
+		(candidate.combat.ammoCost > candidate.inventory.maximum[0] * candidate.inventory.backpackMultiplier) THEN
+		COPY("Aim and ammunition cost must fit the configured frame and capacity", error);
 		RETURN FALSE
 	END;
 	settings := candidate;
@@ -258,6 +639,7 @@ VAR value: JSON.Value;
 
 	PROCEDURE MissingFields(object: JSON.Object);
 	VAR member: JSON.Member;
+		item: JSON.Item;
 		original: JSON.Value;
 	BEGIN
 		member := object.members;
@@ -270,6 +652,14 @@ VAR value: JSON.Value;
 			object.Set(member.key^, original);
 			IF original IS JSON.Object THEN
 				MissingFields(original(JSON.Object))
+			ELSIF original IS JSON.Array THEN
+				item := original(JSON.Array).items;
+				WHILE item # NIL DO
+					IF item.value IS JSON.Object THEN
+						MissingFields(item.value(JSON.Object))
+					END;
+					item := item.next
+				END
 			END;
 			member := member.next
 		END
@@ -406,6 +796,160 @@ BEGIN
 	ASSERT(settings.width = 640)
 END RejectInvalidAndPreserve;
 
+PROCEDURE {TEST} CombatAndInputBounds*;
+VAR value: JSON.Value;
+	root, combat, pistol, aim, inventory, controls, rule: JSON.Object;
+	actors, keys: JSON.Array;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
 BEGIN
-	loaded := FALSE
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	value := root.Get("combat");
+	combat := value(JSON.Object);
+	value := combat.Get("pistol");
+	pistol := value(JSON.Object);
+	RejectField(root, pistol, "damage", JSON.NewNumber(0), settings);
+	RejectField(root, pistol, "damage", JSON.NewNumber(1.5), settings);
+	RejectField(root, pistol, "range", JSON.NewNumber(0), settings);
+	RejectField(root, pistol, "ammo_cost", JSON.NewNumber(401), settings);
+	RejectField(root, pistol, "cooldown_ticks", JSON.NewNumber(0), settings);
+	RejectField(root, pistol, "flash_ticks", JSON.NewNumber(20), settings);
+	value := combat.Get("aim");
+	aim := value(JSON.Object);
+	RejectField(root, aim, "gap", JSON.NewNumber(4), settings);
+	RejectField(root, aim, "color", JSON.NewNumber(01000000H), settings);
+	value := combat.Get("actors");
+	actors := value(JSON.Array);
+	value := actors.At(0);
+	rule := value(JSON.Object);
+	RejectField(root, rule, "kind", JSON.NewNumber(9999), settings);
+	RejectField(root, rule, "kind", JSON.NewNumber(9), settings);
+	RejectField(root, rule, "health", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "height", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "death_frame", JSON.NewString("POSSL0"), settings);
+	RejectField(root, rule, "death_frame", JSON.NewString("possl"), settings);
+	RejectField(root, combat, "actors", JSON.NewArray(), settings);
+	value := root.Get("inventory");
+	inventory := value(JSON.Object);
+	RejectField(root, inventory, "initial_health", JSON.NewNumber(101), settings);
+	RejectField(root, inventory, "initial_bullets", JSON.NewNumber(201), settings);
+	RejectField(root, inventory, "backpack_multiplier", JSON.NewNumber(4), settings);
+	RejectField(root, inventory, "bonus_armor_maximum", JSON.NewNumber(199), settings);
+	value := root.Get("controls");
+	controls := value(JSON.Object);
+	RejectField(root, controls, "fire", JSON.NewNumber(1), settings);
+	RejectField(root, controls, "fire", JSON.NewArray(), settings);
+	keys := JSON.NewArray();
+	keys.Add(JSON.NewNumber(077H));
+	RejectField(root, controls, "fire", keys, settings);
+	keys := JSON.NewArray();
+	keys.Add(JSON.NewNumber(057H));
+	RejectField(root, controls, "fire", keys, settings);
+	keys := JSON.NewArray();
+	keys.Add(JSON.NewNumber(0));
+	RejectField(root, controls, "fire", keys, settings);
+	keys := JSON.NewArray();
+	keys.Add(JSON.NewNumber(1.5));
+	RejectField(root, controls, "fire", keys, settings);
+	ASSERT(Decode(root, settings, error))
+END CombatAndInputBounds;
+
+PROCEDURE {TEST} MeleeBounds*;
+VAR value: JSON.Value;
+	root, combat, rule, melee, inventory: JSON.Object;
+	actors, frames: JSON.Array;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	value := root.Get("combat");
+	combat := value(JSON.Object);
+	value := combat.Get("actors");
+	actors := value(JSON.Array);
+	value := actors.At(0);
+	rule := value(JSON.Object);
+	RejectField(root, rule, "radius", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "behavior", JSON.NewString("unknown"), settings);
+	RejectField(root, rule, "behavior", JSON.NewNumber(0), settings);
+	RejectField(root, rule, "melee", JSON.NewObject(), settings);
+	value := actors.At(7);
+	rule := value(JSON.Object);
+	ASSERT(rule.Get("kind")(JSON.Number).value = 3002);
+	value := rule.Get("melee");
+	melee := value(JSON.Object);
+	RejectField(root, rule, "behavior", JSON.NewString("static"), settings);
+	RejectField(root, melee, "speed_per_tick", JSON.NewNumber(-1), settings);
+	RejectField(root, melee, "step", JSON.NewNumber(57), settings);
+	RejectField(root, melee, "sight_range", JSON.NewNumber(79), settings);
+	RejectField(root, melee, "damage", JSON.NewNumber(0), settings);
+	RejectField(root, melee, "windup_ticks", JSON.NewNumber(24), settings);
+	RejectField(root, melee, "cycle_ticks", JSON.NewNumber(8), settings);
+	RejectField(root, melee, "frame_ticks", JSON.NewNumber(0), settings);
+	RejectField(root, melee, "walk_frames", JSON.NewArray(), settings);
+	frames := JSON.NewArray();
+	frames.Add(JSON.NewString("sarga"));
+	RejectField(root, melee, "attack_frames", frames, settings);
+	frames := JSON.NewArray();
+	frames.Add(JSON.NewNumber(0));
+	RejectField(root, melee, "attack_frames", frames, settings);
+	value := root.Get("inventory");
+	inventory := value(JSON.Object);
+	RejectField(root, inventory, "green_armor_divisor", JSON.NewNumber(0), settings);
+	RejectField(root, inventory, "blue_armor_divisor", JSON.NewNumber(1.5), settings);
+	ASSERT(Decode(root, settings, error))
+END MeleeBounds;
+
+PROCEDURE {TEST} HitscanBounds*;
+VAR value: JSON.Value;
+	root, combat, rule, hitscan: JSON.Object;
+	actors: JSON.Array;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	value := root.Get("combat");
+	combat := value(JSON.Object);
+	value := combat.Get("actors");
+	actors := value(JSON.Array);
+	value := actors.At(0);
+	rule := value(JSON.Object);
+	value := rule.Get("hitscan");
+	hitscan := value(JSON.Object);
+	RejectField(root, rule, "behavior", JSON.NewString("melee"), settings);
+	RejectField(root, rule, "behavior", JSON.NewString("static"), settings);
+	RejectField(root, rule, "melee", JSON.NewObject(), settings);
+	RejectField(root, hitscan, "pellets", JSON.NewNumber(0), settings);
+	RejectField(root, hitscan, "pellets", JSON.NewNumber(MaximumPellets + 1), settings);
+	RejectField(root, hitscan, "pellets", JSON.NewNumber(1.5), settings);
+	RejectField(root, hitscan, "spread_radians", JSON.NewNumber(-0.1), settings);
+	RejectField(root, hitscan, "spread_radians", JSON.NewNumber(1.1), settings);
+	RejectField(root, hitscan, "range", JSON.NewNumber(1025), settings);
+	RejectField(root, hitscan, "windup_ticks", JSON.NewNumber(35), settings);
+	ASSERT(Decode(root, settings, error))
+END HitscanBounds;
+
+BEGIN
+	loaded := FALSE;
+	COPY("forward", actionNames[Forward]);
+	COPY("backward", actionNames[Backward]);
+	COPY("left", actionNames[Left]);
+	COPY("right", actionNames[Right]);
+	COPY("strafe_left", actionNames[StrafeLeft]);
+	COPY("strafe_right", actionNames[StrafeRight]);
+	COPY("use", actionNames[Use]);
+	COPY("fire", actionNames[Fire]);
+	COPY("quit", actionNames[Quit]);
+	COPY("bullets", ammoNames[0]);
+	COPY("shells", ammoNames[1]);
+	COPY("cells", ammoNames[2]);
+	COPY("rockets", ammoNames[3])
 END DoomConfig.

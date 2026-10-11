@@ -12,6 +12,8 @@ player:
   eye: 42
   move_per_tick: 11.52
   turn_per_tick: 0.13
+  pickup_radius: 20
+  pickup_below_feet: 8
 doors:
   speed_per_tick: 4
   fast_speed_per_tick: 8
@@ -56,3 +58,142 @@ hud:
     blue_key: 0x60a0ff
     yellow_key: 0xffe060
     red_key: 0xff6060
+inventory:
+  initial_health: 80
+  initial_bullets: 24
+  health_maximum: 90
+  bonus_health_maximum: 180
+  armor_unit: 75
+  bonus_armor_maximum: 160
+  health_bonus: 3
+  armor_bonus: 4
+  stimpack: 7
+  medikit: 13
+  soul_sphere: 100
+  box_multiplier: 3
+  weapon_ammo_multiplier: 3
+  backpack_multiplier: 3
+  green_armor_divisor: 4
+  blue_armor_divisor: 3
+  maximum_ammo:
+    bullets: 100
+    shells: 40
+    cells: 120
+    rockets: 30
+  pickup_ammo:
+    bullets: 3
+    shells: 2
+    cells: 5
+    rockets: 2
+combat:
+  pistol:
+    damage: 7
+    cooldown_ticks: 3
+    ammo_cost: 2
+    range: 192
+    flash_ticks: 2
+  aim:
+    radius: 5
+    gap: 0
+    color: 0x224466
+    fire_color: 0xff8800
+  actors:
+    - kind: 3004
+      health: 15
+      height: 56
+      death_frame: POSSL
+      radius: 20
+      behavior: hitscan
+      hitscan:
+        speed_per_tick: 2
+        step: 24
+        sight_range: 256
+        range: 128
+        damage: 7
+        windup_ticks: 2
+        cycle_ticks: 7
+        frame_ticks: 1
+        walk_frames: [POSSA, POSSB, POSSC, POSSD]
+        attack_frames: [POSSE, POSSF, POSSE]
+        pellets: 1
+        spread_radians: 0
+    - kind: 9
+      health: 30
+      height: 56
+      death_frame: SPOSL
+      radius: 20
+      behavior: hitscan
+      hitscan:
+        speed_per_tick: 2
+        step: 24
+        sight_range: 256
+        range: 128
+        damage: 4
+        windup_ticks: 2
+        cycle_ticks: 10
+        frame_ticks: 1
+        walk_frames: [SPOSA, SPOSB, SPOSC, SPOSD]
+        attack_frames: [SPOSE, SPOSF, SPOSE]
+        pellets: 3
+        spread_radians: 0.1
+    - {kind: 64, health: 700, height: 56, death_frame: VILEZ, radius: 20, behavior: static}
+    - {kind: 66, health: 300, height: 56, death_frame: SKELQ, radius: 20, behavior: static}
+    - {kind: 67, health: 600, height: 64, death_frame: FATTT, radius: 48, behavior: static}
+    - {kind: 65, health: 70, height: 56, death_frame: CPOSN, radius: 20, behavior: static}
+    - {kind: 3001, health: 60, height: 56, death_frame: TROOM, radius: 20, behavior: static}
+    - kind: 3002
+      health: 150
+      height: 56
+      death_frame: SARGN
+      radius: 20
+      behavior: melee
+      melee:
+        speed_per_tick: 2
+        step: 24
+        sight_range: 256
+        range: 80
+        damage: 9
+        windup_ticks: 2
+        cycle_ticks: 7
+        frame_ticks: 1
+        walk_frames: [SARGA, SARGB, SARGC, SARGD]
+        attack_frames: [SARGE, SARGF, SARGG]
+    - kind: 58
+      health: 150
+      height: 56
+      death_frame: SARGN
+      radius: 20
+      behavior: melee
+      melee:
+        speed_per_tick: 2
+        step: 24
+        sight_range: 256
+        range: 80
+        damage: 9
+        windup_ticks: 2
+        cycle_ticks: 7
+        frame_ticks: 1
+        walk_frames: [SARGA, SARGB, SARGC, SARGD]
+        attack_frames: [SARGE, SARGF, SARGG]
+    - {kind: 3005, health: 400, height: 56, death_frame: HEADL, radius: 31, behavior: static}
+    - {kind: 3003, health: 1000, height: 64, death_frame: BOSSO, radius: 24, behavior: static}
+    - {kind: 69, health: 500, height: 64, death_frame: BOS2O, radius: 24, behavior: static}
+    - {kind: 3006, health: 100, height: 56, death_frame: SKULK, radius: 16, behavior: static}
+    - {kind: 7, health: 3000, height: 100, death_frame: SPIDS, radius: 128, behavior: static}
+    - {kind: 68, health: 500, height: 64, death_frame: BSPIP, radius: 64, behavior: static}
+    - {kind: 16, health: 4000, height: 110, death_frame: CYBRP, radius: 40, behavior: static}
+    - {kind: 71, health: 400, height: 56, death_frame: PAINM, radius: 31, behavior: static}
+    - {kind: 84, health: 50, height: 56, death_frame: SSWVM, radius: 20, behavior: static}
+    - {kind: 72, health: 100, height: 72, death_frame: KEENL, radius: 16, behavior: static}
+    - {kind: 88, health: 250, height: 16, death_frame: BBRNA, radius: 16, behavior: static}
+    - {kind: 2035, health: 20, height: 42, death_frame: BEXPE, radius: 10, behavior: static}
+controls:
+  forward: [0x69, 0x49, 0xff52]
+  backward: [0x73, 0x53, 0xff54]
+  left: [0xff51]
+  right: [0xff53]
+  strafe_left: [0x61, 0x41]
+  strafe_right: [0x64, 0x44]
+  use: [0x20]
+  fire: [0x66, 0x46]
+  quit: [0xff1b]

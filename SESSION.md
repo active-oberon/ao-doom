@@ -1,6 +1,118 @@
 # ao-doom session handoff
 
-Updated: 2026-10-11 11:28:59 UTC
+Updated: 2026-10-11 19:59:49 UTC
+
+## Delivery checkpoint: configurable combat
+
+The user explicitly requested a commit and push of the accumulated pistol,
+melee AI and ranged soldier changes to ao-doom/main. The pre-delivery local and
+remote main both point to `286f1e9`; publication can use a normal fast-forward.
+This checkpoint accompanies `feat(combat): add configurable pistol and monster attacks`.
+The task reply records the resulting commit and verified remote state.
+
+- Include all three new product modules, four new test modules, mandatory YAML
+  profiles, task staging and documentation in the feature commit.
+- Final Linux64 product sources and all 26 A64 product/test/config files match
+  the validated source tree; the tested window executable hash also matches.
+  Existing validation passed 205 fixtures, 32 {TEST} procedures, six A64 suites
+  under QEMU, 16 X11 scenarios and 132 original map probes.
+- No MiniA2, registry or engine source changes are part of this delivery.
+  CI, physical hardware and full playthroughs remain unchecked.
+- The continuation sections below preserve historical implementation states;
+  their uncommitted/no-push notes predate this explicit delivery request.
+  Push approval is single-use; later publication requires a new user request.
+
+## Current continuation: configurable ranged soldiers
+
+The latest user request was to continue. Zombiemen and shotgun soldiers now wake
+on sight, chase into configured range and fire after a windup. Soldier rays aim
+at current player height, cross open grilles and stop at walls/closed openings.
+Each pellet hits the closest shootable actor or player. Enemy fire can damage
+barrels/other enemies; killed actors cannot attack later in the same tick.
+
+- Started on main at `286f1e9` with pistol/melee changes already dirty. Preserved
+  all prior work. This continuation is also uncommitted; no push is authorized
+  or attempted. No engine, MiniA2 or registry source changes were needed.
+- BehaviorSettings replaces the melee-only internal settings type; shared
+  motion/attack timing serves melee and hitscan. Active rules require matching
+  sections; hitscan also requires pellets/spread_radians. Full default/custom/
+  invalid YAML profiles and generated soldier animation resources are updated.
+- Player/enemy shots share nearest-volume clipping. Enemy pellets share a private
+  health copy; motion/timers/pickups and old render snapshots remain preserved.
+  Sloped visibility supports different floor heights and rejects closed spawn
+  heights. Corpses stop intercepting subsequent pellets in the same attack.
+- Reproduced absent ranged damage before implementation. Final task check passed
+  205 synthetic fixtures and 32 {TEST} procedures. Fresh hitscan/AI/config/combat/
+  input/inventory A64 builds passed under QEMU, including the final multi-pellet
+  interception case. All 16 X11 scenarios and all 132 original map probes passed.
+  Evidence and exact limits: scratch/hitscan-check.md.
+- GUI weapon/input checks use complete static-target profiles to isolate input
+  from autonomous attacks; a separate scenario verifies ranged damage and kill.
+  The previous modifier-synchronization safeguard remains active.
+- No new product modules or MiniA2 modules were introduced. Doom module staging
+  and explicit new test staging include the final native/A64 dependencies.
+- Next: route finding, projectile attacks, weapon view/selection and map actions.
+  Fixed damage/symmetric spread remain simplified; no enemy retaliation, random
+  AI, sound wake, pain/death sequences or attack-frame fullbright transitions.
+  Doors still protect only the player. No CI, physical hardware, maximum-size
+  stress, original fidelity or full playthrough claim.
+
+## Current continuation: configurable melee AI
+
+The latest user request was to continue. Demons and spectres now wake on sight,
+chase with wall/step/player/actor collision, animate walking and wind up bites.
+An impact rechecks range and sight; death disables attacks. Armor absorption and
+player death are integrated. Dead-player controls, doors and AI freeze; Escape
+still works. Map replacement resets state only after full resource validation.
+
+- Began on main at `286f1e9` with the preceding pistol milestone uncommitted.
+  Preserved that dirty work; this continuation is also uncommitted. No push is
+  authorized or attempted. No SDK, registry or engine source edits were needed.
+- Damageable actor radii/behavior, melee speed/step/sight/range/damage/timing/frame
+  lists and armor divisors are mandatory YAML. No Defaults or duplicate profile.
+  Static actors reject melee fields; animation resources validate before loading.
+- DoomActors handles sight/chase/bites; DoomSprites publishes immutable motion
+  snapshots while preserving health/pickups. Both directions must pass sight
+  traces, avoiding wake/bites through the back of a one-sided line.
+- Reproduced absence of damage in the pre-AI dirty tree before implementation.
+  Final task check passed 192 fixtures and 25 file-based {TEST} procedures;
+  fresh config/AI/combat/input/inventory A64 builds passed under QEMU. All 15
+  X11 scenarios and all 132 original map probes passed. Evidence: scratch/ai-check.md.
+- An initial GUI Ctrl test saw Meta due to the driver's physical modifier
+  snapshot; priming it with an unbound character key fixed the test. Full final
+  checks passed. Product/SDK code was not changed for that test-driver issue.
+- New DoomActors is staged automatically and included in native/A64 builds.
+  No new MiniA2 modules, so no A64 standard-library list regeneration is needed.
+- Next: route finding/ranged attacks, weapon view/selection and more map actions.
+  Chase remains direct with fixed bites; no sound wake/randomized original AI.
+  Door obstruction remains player-only; no monster crushing/reversal. No CI,
+  physical hardware, maximum-size stress or full playthrough claim.
+
+## Current continuation: configurable pistol combat
+
+The latest user request was to continue implementing the game while keeping
+runtime gameplay and appearance tuning in mandatory startup YAML. The first
+combat milestone is complete locally: held-key pistol fire, ammunition/cooldown,
+nearest target damage, corpse frames and passable dead targets. Solid walls and
+closed doors stop shots; open windows/grilles pass them regardless of movement
+blocking flags. Actor health/height/death frames, weapon/crosshair settings,
+inventory capacities/pickup effects, pickup reach and all keyboard actions are
+required YAML. DoomInput keeps pure action state separate from the X11 adapter.
+Shift-letter releases and simultaneous physical aliases are covered.
+
+- Started clean on main at local `286f1e9`; that earlier demo commit remains local.
+  This continuation is uncommitted. No push is authorized or was attempted.
+- Native task check and all fourteen X11 scenarios passed; new input/combat and
+  inventory checks use {TEST}. Fresh config/combat/inventory/input A64 builds
+  passed under QEMU. All 132 original maps loaded/rendered/walked/turned/fired.
+- Reproduced original Ctrl-without-ammo-consumption failure before feature work.
+  Corrected test fixture assumptions and isolated GUI imports in the input check;
+  final required checks are green. Evidence and exact limits: scratch/combat-check.md.
+- No MiniA2/registry/engine source changes were needed. Both new Doom modules are
+  staged by the existing Doom*.Mod rule and compiled for native/A64 targets.
+- Pistol damage remains fixed with horizontal aim. Next: monster AI/animation,
+  weapon views/selection and additional map actions. No barrel splash, drops,
+  boss actions or sound yet; no complete-game, CI or physical-hardware claim.
 
 ## Current continuation: configurable procedural demo appearance
 
