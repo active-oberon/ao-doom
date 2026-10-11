@@ -57,6 +57,26 @@ BEGIN
 	ASSERT(DoomConfig.Load("doom.yaml", error))
 END DemoColors;
 
+PROCEDURE {TEST} DemoAppearance*;
+VAR game: Doom.Game;
+	wall: GameGeometry.Wall;
+	distance: FLOAT64;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(DoomConfig.Load("doom-custom.yaml", error));
+	NEW(game);
+	ASSERT(ABS(game.State().eye - 80.0 / 64) < 0.00000001);
+	ASSERT(game.world.Cast(2, 4, 0, -1, distance, wall));
+	ASSERT(wall.top = 192.0 / 64);
+	ASSERT(wall.light = 160);
+	ASSERT((wall.texture.width = 32) & (wall.texture.height = 32));
+	ASSERT(wall.texture.Sample(0, 0) = 0081119H);
+	ASSERT(wall.texture.Sample(1.0 / 32, 1.0 / 32) = 0112233H);
+	ASSERT(wall.texture.Sample(10.0 / 32, 9.0 / 32) = 0081119H);
+	ASSERT(wall.texture.Sample(11.0 / 32, 9.0 / 32) = 0112233H);
+	ASSERT(DoomConfig.Load("doom.yaml", error))
+END DemoAppearance;
+
 PROCEDURE {TEST} MovementAndPanel*;
 VAR game: Doom.Game;
 	pose: Doom.Pose;
@@ -122,8 +142,10 @@ BEGIN
 	RequiredFile;
 	DoomConfig.CompleteAndRequired;
 	DoomConfig.PaletteBounds;
+	DoomConfig.DemoAppearanceBounds;
 	DoomConfig.RejectInvalidAndPreserve;
 	DemoColors;
+	DemoAppearance;
 	MovementAndPanel;
 	DoorParameters;
 	DoomHud.Panel;

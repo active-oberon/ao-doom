@@ -10,6 +10,7 @@ CONST HudCharacterAdvance* = 4;
 	MinimumWidth = 320;
 	MinimumHeight = 40;
 	MaximumDimension = 4096;
+	MaximumTextureDimension = 1024;
 	MaximumClockValue = 1000;
 
 TYPE HudSettings* = RECORD
@@ -22,12 +23,19 @@ DemoPalette* = RECORD
 	horizontalWall*, verticalWall*, leftPartition*, rightPartition*, pillar*: SIGNED32
 END;
 
+BrickSettings* = RECORD
+	textureSize*, courseHeight*, brickWidth*, mortarWidth*, mortarShade*: SIGNED32
+END;
+
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
 	hud*: HudSettings;
-	demoColors*: DemoPalette
+	demoColors*: DemoPalette;
+	demoEye*, demoWallHeight*: FLOAT64;
+	demoLight*: SIGNED32;
+	demoBricks*: BrickSettings
 END;
 
 VAR values-: Settings;
@@ -149,13 +157,33 @@ BEGIN
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) THEN
 		RETURN FALSE
 	END;
-	IF ~Section(root, "demo", "|colors|", demo, error) OR
+	IF ~Section(root, "demo", "|eye|wall_height|light|bricks|colors|", demo, error) OR
+		~Real(demo, "eye", 0, 1024, DoomFormat.UnitsPerWorld, candidate.demoEye, error) OR
+		~Real(demo, "wall_height", 1, 1024, DoomFormat.UnitsPerWorld, candidate.demoWallHeight, error) OR
+		~Integer(demo, "light", 0, 255, candidate.demoLight, error) OR
+		~Section(demo, "bricks", "|texture_size|course_height|brick_width|mortar_width|mortar_shade|", object, error) OR
+		~Integer(object, "texture_size", 1, MaximumTextureDimension, candidate.demoBricks.textureSize, error) OR
+		~Integer(object, "course_height", 1, MaximumTextureDimension, candidate.demoBricks.courseHeight, error) OR
+		~Integer(object, "brick_width", 1, MaximumTextureDimension, candidate.demoBricks.brickWidth, error) OR
+		~Integer(object, "mortar_width", 0, MaximumTextureDimension, candidate.demoBricks.mortarWidth, error) OR
+		~Integer(object, "mortar_shade", 1, 256, candidate.demoBricks.mortarShade, error) OR
 		~Section(demo, "colors", "|horizontal_wall|vertical_wall|left_partition|right_partition|pillar|", object, error) OR
 		~Integer(object, "horizontal_wall", 0, 0FFFFFFH, candidate.demoColors.horizontalWall, error) OR
 		~Integer(object, "vertical_wall", 0, 0FFFFFFH, candidate.demoColors.verticalWall, error) OR
 		~Integer(object, "left_partition", 0, 0FFFFFFH, candidate.demoColors.leftPartition, error) OR
 		~Integer(object, "right_partition", 0, 0FFFFFFH, candidate.demoColors.rightPartition, error) OR
 		~Integer(object, "pillar", 0, 0FFFFFFH, candidate.demoColors.pillar, error) THEN
+		RETURN FALSE
+	END;
+	IF candidate.demoEye > candidate.demoWallHeight THEN
+		COPY("Demo eye must not exceed wall height", error);
+		RETURN FALSE
+	END;
+	IF (candidate.demoBricks.courseHeight > candidate.demoBricks.textureSize) OR
+		(candidate.demoBricks.brickWidth > candidate.demoBricks.textureSize) OR
+		(candidate.demoBricks.mortarWidth >= candidate.demoBricks.courseHeight) OR
+		(candidate.demoBricks.mortarWidth >= candidate.demoBricks.brickWidth) THEN
+		COPY("Brick dimensions must fit the texture and leave a brick interior", error);
 		RETURN FALSE
 	END;
 	IF ~Section(root, "hud", "|height|margin|top_row|bottom_row|label_gap|armor_x|ammo_x|ammo_spacing|weapons_x|keys_x|key_start_x|key_spacing|hint_x|colors|", hud, error) OR
@@ -300,6 +328,53 @@ BEGIN
 	ASSERT(settings.demoColors.horizontalWall = 0);
 	ASSERT(settings.demoColors.pillar = 0FFFFFFH)
 END PaletteBounds;
+
+PROCEDURE {TEST} DemoAppearanceBounds*;
+VAR value: JSON.Value;
+	root, demo, bricks: JSON.Object;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	value := root.Get("demo");
+	demo := value(JSON.Object);
+	value := demo.Get("bricks");
+	bricks := value(JSON.Object);
+	RejectField(root, demo, "eye", JSON.NewNumber(1025), settings);
+	RejectField(root, demo, "eye", JSON.NewNumber(180), settings);
+	RejectField(root, demo, "wall_height", JSON.NewNumber(0), settings);
+	RejectField(root, demo, "light", JSON.NewNumber(256), settings);
+	RejectField(root, demo, "light", JSON.NewNumber(-1), settings);
+	RejectField(root, demo, "light", JSON.NewNumber(1.5), settings);
+	RejectField(root, demo, "bricks", JSON.NewNull(), settings);
+	RejectField(root, bricks, "texture_size", JSON.NewNumber(0), settings);
+	RejectField(root, bricks, "texture_size", JSON.NewNumber(MaximumTextureDimension + 1), settings);
+	RejectField(root, bricks, "texture_size", JSON.NewNumber(8), settings);
+	RejectField(root, bricks, "course_height", JSON.NewNumber(0), settings);
+	RejectField(root, bricks, "course_height", JSON.NewNumber(65), settings);
+	RejectField(root, bricks, "brick_width", JSON.NewNumber(0), settings);
+	RejectField(root, bricks, "brick_width", JSON.NewNumber(65), settings);
+	RejectField(root, bricks, "brick_width", JSON.NewNumber(1), settings);
+	RejectField(root, bricks, "mortar_width", JSON.NewNumber(-1), settings);
+	RejectField(root, bricks, "mortar_width", JSON.NewNumber(16), settings);
+	RejectField(root, bricks, "mortar_shade", JSON.NewNumber(0), settings);
+	RejectField(root, bricks, "mortar_shade", JSON.NewNumber(257), settings);
+	demo.Set("eye", JSON.NewNumber(0));
+	demo.Set("wall_height", JSON.NewNumber(1));
+	demo.Set("light", JSON.NewNumber(0));
+	bricks.Set("texture_size", JSON.NewNumber(1));
+	bricks.Set("course_height", JSON.NewNumber(1));
+	bricks.Set("brick_width", JSON.NewNumber(1));
+	bricks.Set("mortar_width", JSON.NewNumber(0));
+	bricks.Set("mortar_shade", JSON.NewNumber(256));
+	ASSERT(Decode(root, settings, error));
+	ASSERT((settings.demoEye = 0) & (settings.demoWallHeight = 1.0 / 64));
+	ASSERT((settings.demoLight = 0) & (settings.demoBricks.textureSize = 1));
+	ASSERT((settings.demoBricks.mortarWidth = 0) & (settings.demoBricks.mortarShade = 256))
+END DemoAppearanceBounds;
 
 PROCEDURE {TEST} RejectInvalidAndPreserve*;
 VAR value: JSON.Value;

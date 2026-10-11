@@ -209,7 +209,13 @@ Distances use Doom map units. Player and door speeds are per simulation tick;
 turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
 timing, collision dimensions, motion, door interaction and panel layout/colors.
 `demo.colors` controls the procedural scene's outer walls, partitions and pillar,
-including their brick textures. Demo and HUD colors are RGB integers from
+including their brick textures. `demo.eye` and `demo.wall_height` use Doom map
+units; the eye must not exceed the wall height. `demo.light` ranges from 0 to 255.
+`demo.bricks` sets the square texture size, course height, brick width and mortar
+width in pixels; alternating courses shift by half a brick width. Texture sizes
+range from 1 to 1024; bricks must fit the texture and retain an interior. A mortar
+width of zero removes joints; `mortar_shade` divides each RGB channel by a value
+from 1 to 256. Demo and HUD colors are RGB integers from
 `0x000000` to `0xffffff`. The panel renderer derives value
 positions from label lengths and draws ammunition/key groups in loops.
 Configuration is read once; changing a running game's geometry is unsupported.
@@ -229,14 +235,16 @@ See MiniA2 `docs/YAML.md` for its API and exact limits.
 `DoomFormat` holds file-format constants such as WAD record sizes and coordinate
 scaling. Classic object IDs, item rules and spawn metadata remain code/data;
 changing those is a gameplay or format change rather than a startup preference.
-The procedural demo's wall geometry and eye height remain its authored scene data.
+The procedural demo's wall coordinates and start position remain its authored
+scene data.
 
-`task check` runs eight `{TEST}` procedures from `DoomConfig`, `DoomHud` and
+`task check` runs ten `{TEST}` procedures from `DoomConfig`, `DoomHud` and
 `DoomConfigSmoke` in a fixture-based executable. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
-wall colors/brick textures, movement, panel pixels, door timing/range and failure
-preservation. The executable runs in `build/`: these tests require real YAML/WAD
-files, which `ob test` does not copy into its isolated case directories.
+wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
+door timing/range and failure preservation. The executable runs in `build/`:
+these tests require real YAML/WAD files, which `ob test` does not copy into its
+isolated case directories.
 
 ## Project boundary and next milestones
 

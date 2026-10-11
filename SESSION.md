@@ -1,8 +1,27 @@
 # ao-doom session handoff
 
-Updated: 2026-10-11 08:15:34 UTC
+Updated: 2026-10-11 11:28:59 UTC
 
-## Current continuation: startup YAML configuration
+## Current continuation: configurable procedural demo appearance
+
+The user asked to continue the magic-number refactor. Doom now reads demo eye
+height, wall height, light and five brick parameters from mandatory YAML fields.
+Eye/wall heights use Doom map units; texture dimensions use pixels. Alternate
+courses shift by half the configured brick width rather than the course height.
+Validation rejects invalid dimensions, fully covered bricks, zero shade divisors
+and eyes above walls before game construction. Wall coordinates/start position
+remain authored map data. Complete default/custom/invalid fixtures are updated.
+Ten file-based {TEST} procedures passed on Linux64 and A64 under QEMU; the
+completeness test now rejects each of the 58 required keys. Task check passed;
+both default PPM images remain byte-identical to the pre-change captures.
+X11 startup checks used one unchanged executable for default/custom/unlit/1x1
+solid textures; Escape passed and five invalid configurations exited with error.
+The new appearance regression failed on the original code with ASSERT (exit 1).
+Evidence: scratch/demo-settings-check.md. CI and physical A64 were not checked.
+Mandatory-YAML changes were committed and pushed as b7b6490. The user requested
+a local commit for this demo follow-up; no additional push is authorized.
+
+## Completed startup YAML configuration
 
 The user asked for magic-number refactoring and clarified that configuration
 must be read at startup without recompiling. DoomConfig, DoomFormat, doom.yaml

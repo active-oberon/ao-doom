@@ -19,6 +19,15 @@ doors:
   use_range: 32
   top_gap: 8
 demo:
+  eye: 80
+  wall_height: 192
+  light: 160
+  bricks:
+    texture_size: 32
+    course_height: 8
+    brick_width: 20
+    mortar_width: 1
+    mortar_shade: 2
   colors:
     horizontal_wall: 0x112233
     vertical_wall: 0x445566

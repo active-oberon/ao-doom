@@ -2,15 +2,6 @@ MODULE Doom;
 
 IMPORT DoomConfig, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
 
-CONST DemoEye = 1.3;
-	DemoWallHeight = 2.8;
-	DemoLight = 255;
-	BrickTextureSize = 64;
-	BrickCourse = 16;
-	BrickWidth = 32;
-	MortarWidth = 2;
-	MortarShade = 3;
-
 TYPE
 	Pose* = RECORD
 		x*, y*, angle*, eye*: FLOAT64
@@ -48,7 +39,7 @@ TYPE
 			pose.x := 2;
 			pose.y := 4;
 			pose.angle := 0;
-			pose.eye := DemoEye;
+			pose.eye := DoomConfig.values.demoEye;
 			ticks := 0;
 			forward := 0;
 			strafe := 0;
@@ -68,9 +59,9 @@ TYPE
 			wall.bx := bx;
 			wall.by := by;
 			wall.bottom := 0;
-			wall.top := DemoWallHeight;
+			wall.top := DoomConfig.values.demoWallHeight;
 			wall.color := color;
-			wall.light := DemoLight;
+			wall.light := DoomConfig.values.demoLight;
 			wall.texture := Bricks(color);
 			wall.uScale := 1;
 			wall.vScale := 1;
@@ -198,16 +189,19 @@ TYPE
 
 PROCEDURE Bricks(color: SIGNED32): GameMaterials.Texture;
 VAR texture: GameMaterials.Texture;
+	appearance: DoomConfig.BrickSettings;
 	x, y, shift, mortar, texel: SIGNED32;
 BEGIN
-	NEW(texture, BrickTextureSize, BrickTextureSize);
-	mortar := (color DIV 65536 MOD 256 DIV MortarShade) * 65536 +
-		(color DIV 256 MOD 256 DIV MortarShade) * 256 + color MOD 256 DIV MortarShade;
-	FOR y := 0 TO BrickTextureSize - 1 DO
-		shift := y DIV BrickCourse MOD 2 * BrickCourse;
-		FOR x := 0 TO BrickTextureSize - 1 DO
+	appearance := DoomConfig.values.demoBricks;
+	NEW(texture, appearance.textureSize, appearance.textureSize);
+	mortar := (color DIV 65536 MOD 256 DIV appearance.mortarShade) * 65536 +
+		(color DIV 256 MOD 256 DIV appearance.mortarShade) * 256 + color MOD 256 DIV appearance.mortarShade;
+	FOR y := 0 TO appearance.textureSize - 1 DO
+		shift := y DIV appearance.courseHeight MOD 2 * (appearance.brickWidth DIV 2);
+		FOR x := 0 TO appearance.textureSize - 1 DO
 			texel := color;
-			IF (y MOD BrickCourse < MortarWidth) OR ((x + shift) MOD BrickWidth < MortarWidth) THEN
+			IF (y MOD appearance.courseHeight < appearance.mortarWidth) OR
+				((x + shift) MOD appearance.brickWidth < appearance.mortarWidth) THEN
 				texel := mortar
 			END;
 			texture.Set(x, y, texel)
