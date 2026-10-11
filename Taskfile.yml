@@ -14,6 +14,7 @@ tasks:
       - rm -f build/*.Gof* build/*.Sym*
       - cp "{{.ENGINE_DIR}}"/Game*.Mod build/
       - cp Doom*.Mod build/
+      - cp doom.yaml build/
 
   build:
     desc: Build the Linux64 windowed scene
@@ -38,6 +39,10 @@ tasks:
       - cp tests/DoomLockedDoorsSmoke.Mod build/
       - cp tests/DoomActorsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
+      - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml build/
+      - cd build && ob test DoomConfig.Mod DoomHud.Mod
+      - cd build && ob build DoomConfigSmoke.Mod -o config-check
+      - cd build && timeout 10 ./config-check
       - cd build && ob build DoomWadSmoke.Mod -o wad-check
       - cd build && timeout 10 ./wad-check
       - cd build && ob build DoomTexturesSmoke.Mod -o textures-check

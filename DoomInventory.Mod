@@ -1,5 +1,7 @@
 MODULE DoomInventory;
 
+IMPORT DoomThings;
+
 CONST Bullets* = 0;
 	Shells* = 1;
 	Cells* = 2;
@@ -19,12 +21,37 @@ CONST Bullets* = 0;
 	BlueSkull* = 3;
 	YellowSkull* = 4;
 	RedSkull* = 5;
+	AmmoKinds* = 4;
+	WeaponKinds* = 9;
+	KeyColors* = 3;
+	KeyKinds* = KeyColors * 2;
+	HealthMaximum = 100;
+	BonusHealthMaximum = 200;
+	ArmorUnit = 100;
+	GreenArmorClass = 1;
+	BlueArmorClass = 2;
+	BonusArmorMaximum = 200;
+	InitialBullets = 50;
+	MaximumBullets = 200;
+	MaximumShells = 50;
+	MaximumCells = 300;
+	MaximumRockets = 50;
+	ClipBullets = 10;
+	ShellPickup = 4;
+	CellPickup = 20;
+	RocketPickup = 1;
+	BoxMultiplier = 5;
+	WeaponAmmoMultiplier = 2;
+	BackpackCapacityMultiplier = 2;
+	StimpackHealth = 10;
+	MedikitHealth = 25;
+	SoulSphereHealth = 100;
 
 TYPE State* = RECORD
 	health*, armor*, armorType*, pickups*: SIGNED32;
 	(* shortcut: key hints persist until use or matching pickup; add expiry with timed player messages. *)
 	neededKey*: SIGNED32;
-	ammo*, maximum*: ARRAY 4 OF SIGNED32;
+	ammo*, maximum*: ARRAY AmmoKinds OF SIGNED32;
 	weapons*, keys*: SET;
 	backpack*: BOOLEAN
 END;
@@ -32,7 +59,7 @@ END;
 PROCEDURE Reset*(VAR player: State);
 VAR i: SIGNED32;
 BEGIN
-	player.health := 100;
+	player.health := HealthMaximum;
 	player.armor := 0;
 	player.armorType := 0;
 	player.pickups := 0;
@@ -40,20 +67,25 @@ BEGIN
 	player.keys := {};
 	player.neededKey := -1;
 	player.backpack := FALSE;
-	FOR i := 0 TO 3 DO
+	FOR i := 0 TO AmmoKinds - 1 DO
 		player.ammo[i] := 0
 	END;
-	player.ammo[Bullets] := 50;
-	player.maximum[Bullets] := 200;
-	player.maximum[Shells] := 50;
-	player.maximum[Cells] := 300;
-	player.maximum[Rockets] := 50
+	player.ammo[Bullets] := InitialBullets;
+	player.maximum[Bullets] := MaximumBullets;
+	player.maximum[Shells] := MaximumShells;
+	player.maximum[Cells] := MaximumCells;
+	player.maximum[Rockets] := MaximumRockets
 END Reset;
 
 PROCEDURE Supported*(kind: SIGNED32): BOOLEAN;
 BEGIN
 	CASE kind OF
-	5, 6, 8, 13, 17, 38..40, 82, 83, 2001..2008, 2010..2015, 2018, 2019, 2046..2049:
+	DoomThings.BlueCard, DoomThings.YellowCard, DoomThings.Backpack, DoomThings.RedCard, DoomThings.CellPack,
+	DoomThings.RedSkull, DoomThings.YellowSkull, DoomThings.BlueSkull, DoomThings.SuperShotgun, DoomThings.Megasphere,
+	DoomThings.Shotgun, DoomThings.Chaingun, DoomThings.Launcher, DoomThings.Plasma, DoomThings.Chainsaw,
+	DoomThings.Bfg, DoomThings.Clip, DoomThings.Shells, DoomThings.Rocket, DoomThings.Stimpack,
+	DoomThings.Medikit, DoomThings.SoulSphere, DoomThings.HealthBonus, DoomThings.ArmorBonus, DoomThings.GreenArmor,
+	DoomThings.BlueArmor, DoomThings.RocketBox, DoomThings.Cells, DoomThings.BulletBox, DoomThings.ShellBox:
 		RETURN TRUE
 	ELSE
 		RETURN FALSE
@@ -71,19 +103,19 @@ END Ammo;
 
 PROCEDURE Health(VAR player: State; amount: SIGNED32): BOOLEAN;
 BEGIN
-	IF player.health >= 100 THEN
+	IF player.health >= HealthMaximum THEN
 		RETURN FALSE
 	END;
-	player.health := MIN(100, player.health + amount);
+	player.health := MIN(HealthMaximum, player.health + amount);
 	RETURN TRUE
 END Health;
 
 PROCEDURE Armor(VAR player: State; kind: SIGNED32): BOOLEAN;
 BEGIN
-	IF player.armor >= kind * 100 THEN
+	IF player.armor >= kind * ArmorUnit THEN
 		RETURN FALSE
 	END;
-	player.armor := kind * 100;
+	player.armor := kind * ArmorUnit;
 	player.armorType := kind;
 	RETURN TRUE
 END Armor;
@@ -111,110 +143,114 @@ BEGIN
 		RETURN FALSE
 	END;
 	CASE kind OF
-	2014:
-		player.health := MIN(200, player.health + 1)
-	| 2015:
-		player.armor := MIN(200, player.armor + 1);
+	DoomThings.HealthBonus:
+		player.health := MIN(BonusHealthMaximum, player.health + 1)
+	| DoomThings.ArmorBonus:
+		player.armor := MIN(BonusArmorMaximum, player.armor + 1);
 		IF player.armorType = 0 THEN
-			player.armorType := 1
+			player.armorType := GreenArmorClass
 		END
-	| 2013:
-		player.health := MIN(200, player.health + 100)
-	| 83:
-		player.health := 200;
-		taken := Armor(player, 2)
-	| 2011, 2012:
-		i := 10;
-		IF kind = 2012 THEN
-			i := 25
+	| DoomThings.SoulSphere:
+		player.health := MIN(BonusHealthMaximum, player.health + SoulSphereHealth)
+	| DoomThings.Megasphere:
+		player.health := BonusHealthMaximum;
+		taken := Armor(player, BlueArmorClass)
+	| DoomThings.Stimpack, DoomThings.Medikit:
+		i := StimpackHealth;
+		IF kind = DoomThings.Medikit THEN
+			i := MedikitHealth
 		END;
 		IF ~Health(player, i) THEN
 			RETURN FALSE
 		END
-	| 2018, 2019:
-		IF ~Armor(player, kind - 2017) THEN
+	| DoomThings.GreenArmor, DoomThings.BlueArmor:
+		i := GreenArmorClass;
+		IF kind = DoomThings.BlueArmor THEN
+			i := BlueArmorClass
+		END;
+		IF ~Armor(player, i) THEN
 			RETURN FALSE
 		END
-	| 2007, 2048:
-		i := 10;
-		IF kind = 2048 THEN
-			i := 50
+	| DoomThings.Clip, DoomThings.BulletBox:
+		i := ClipBullets;
+		IF kind = DoomThings.BulletBox THEN
+			i := ClipBullets * BoxMultiplier
 		END;
 		IF ~Ammo(player, Bullets, i) THEN
 			RETURN FALSE
 		END
-	| 2008, 2049:
-		i := 4;
-		IF kind = 2049 THEN
-			i := 20
+	| DoomThings.Shells, DoomThings.ShellBox:
+		i := ShellPickup;
+		IF kind = DoomThings.ShellBox THEN
+			i := ShellPickup * BoxMultiplier
 		END;
 		IF ~Ammo(player, Shells, i) THEN
 			RETURN FALSE
 		END
-	| 2047, 17:
-		i := 20;
-		IF kind = 17 THEN
-			i := 100
+	| DoomThings.Cells, DoomThings.CellPack:
+		i := CellPickup;
+		IF kind = DoomThings.CellPack THEN
+			i := CellPickup * BoxMultiplier
 		END;
 		IF ~Ammo(player, Cells, i) THEN
 			RETURN FALSE
 		END
-	| 2010, 2046:
-		i := 1;
-		IF kind = 2046 THEN
-			i := 5
+	| DoomThings.Rocket, DoomThings.RocketBox:
+		i := RocketPickup;
+		IF kind = DoomThings.RocketBox THEN
+			i := RocketPickup * BoxMultiplier
 		END;
 		IF ~Ammo(player, Rockets, i) THEN
 			RETURN FALSE
 		END
-	| 5:
+	| DoomThings.BlueCard:
 		INCL(player.keys, BlueCard)
-	| 6:
+	| DoomThings.YellowCard:
 		INCL(player.keys, YellowCard)
-	| 13:
+	| DoomThings.RedCard:
 		INCL(player.keys, RedCard)
-	| 40:
+	| DoomThings.BlueSkull:
 		INCL(player.keys, BlueSkull)
-	| 39:
+	| DoomThings.YellowSkull:
 		INCL(player.keys, YellowSkull)
-	| 38:
+	| DoomThings.RedSkull:
 		INCL(player.keys, RedSkull)
-	| 8:
+	| DoomThings.Backpack:
 		IF ~player.backpack THEN
-			FOR i := 0 TO 3 DO
-				player.maximum[i] := player.maximum[i] * 2
+			FOR i := 0 TO AmmoKinds - 1 DO
+				player.maximum[i] := player.maximum[i] * BackpackCapacityMultiplier
 			END;
 			player.backpack := TRUE
 		END;
-		taken := Ammo(player, Bullets, 10);
-		taken := Ammo(player, Shells, 4);
-		taken := Ammo(player, Cells, 20);
-		taken := Ammo(player, Rockets, 1)
-	| 2001, 82:
+		taken := Ammo(player, Bullets, ClipBullets);
+		taken := Ammo(player, Shells, ShellPickup);
+		taken := Ammo(player, Cells, CellPickup);
+		taken := Ammo(player, Rockets, RocketPickup)
+	| DoomThings.Shotgun, DoomThings.SuperShotgun:
 		i := Shotgun;
-		IF kind = 82 THEN
+		IF kind = DoomThings.SuperShotgun THEN
 			i := SuperShotgun
 		END;
-		IF ~Weapon(player, i, Shells, 8) THEN
+		IF ~Weapon(player, i, Shells, ShellPickup * WeaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
-	| 2002:
-		IF ~Weapon(player, Chaingun, Bullets, 20) THEN
+	| DoomThings.Chaingun:
+		IF ~Weapon(player, Chaingun, Bullets, ClipBullets * WeaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
-	| 2003:
-		IF ~Weapon(player, Launcher, Rockets, 2) THEN
+	| DoomThings.Launcher:
+		IF ~Weapon(player, Launcher, Rockets, RocketPickup * WeaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
-	| 2004, 2006:
+	| DoomThings.Plasma, DoomThings.Bfg:
 		i := Plasma;
-		IF kind = 2006 THEN
+		IF kind = DoomThings.Bfg THEN
 			i := Bfg
 		END;
-		IF ~Weapon(player, i, Cells, 40) THEN
+		IF ~Weapon(player, i, Cells, CellPickup * WeaponAmmoMultiplier) THEN
 			RETURN FALSE
 		END
-	| 2005:
+	| DoomThings.Chainsaw:
 		IF ~Weapon(player, Chainsaw, -1, 0) THEN
 			RETURN FALSE
 		END
@@ -223,7 +259,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	IF (player.neededKey >= 0) &
-		((player.neededKey IN player.keys) OR (player.neededKey + 3 IN player.keys)) THEN
+		((player.neededKey IN player.keys) OR (player.neededKey + KeyColors IN player.keys)) THEN
 		player.neededKey := -1
 	END;
 	INC(player.pickups);

@@ -1,5 +1,36 @@
 MODULE DoomThings;
 
+CONST BlueCard* = 5;
+	YellowCard* = 6;
+	Backpack* = 8;
+	RedCard* = 13;
+	CellPack* = 17;
+	RedSkull* = 38;
+	YellowSkull* = 39;
+	BlueSkull* = 40;
+	SuperShotgun* = 82;
+	Megasphere* = 83;
+	Shotgun* = 2001;
+	Chaingun* = 2002;
+	Launcher* = 2003;
+	Plasma* = 2004;
+	Chainsaw* = 2005;
+	Bfg* = 2006;
+	Clip* = 2007;
+	Shells* = 2008;
+	Rocket* = 2010;
+	Stimpack* = 2011;
+	Medikit* = 2012;
+	SoulSphere* = 2013;
+	HealthBonus* = 2014;
+	ArmorBonus* = 2015;
+	GreenArmor* = 2018;
+	BlueArmor* = 2019;
+	RocketBox* = 2046;
+	Cells* = 2047;
+	BulletBox* = 2048;
+	ShellBox* = 2049;
+
 TYPE Info* = RECORD
 	name*: ARRAY 6 OF CHAR;
 	fullbright*, ceiling*: BOOLEAN;
@@ -15,25 +46,25 @@ BEGIN
 	info.height := 0;
 	info.radius := 0;
 	CASE kind OF
-	5:
+	BlueCard:
 		COPY("BKEYA", info.name)
-	| 6:
+	| YellowCard:
 		COPY("YKEYA", info.name)
 	| 7:
 		COPY("SPIDA", info.name)
-	| 8:
+	| Backpack:
 		COPY("BPAKA", info.name)
 	| 9:
 		COPY("SPOSA", info.name)
 	| 10, 12:
 		COPY("PLAYW", info.name)
-	| 13:
+	| RedCard:
 		COPY("RKEYA", info.name)
 	| 15:
 		COPY("PLAYN", info.name)
 	| 16:
 		COPY("CYBRA", info.name)
-	| 17:
+	| CellPack:
 		COPY("CELPA", info.name)
 	| 18:
 		COPY("POSSL", info.name)
@@ -75,11 +106,11 @@ BEGIN
 		COPY("COL5A", info.name)
 	| 37:
 		COPY("COL6A", info.name)
-	| 38:
+	| RedSkull:
 		COPY("RSKUA", info.name)
-	| 39:
+	| YellowSkull:
 		COPY("YSKUA", info.name)
-	| 40:
+	| BlueSkull:
 		COPY("BSKUA", info.name)
 	| 41:
 		COPY("CEYEA", info.name)
@@ -153,9 +184,9 @@ BEGIN
 		COPY("POB2A", info.name)
 	| 81:
 		COPY("BRS1A", info.name)
-	| 82:
+	| SuperShotgun:
 		COPY("SGN2A", info.name)
-	| 83:
+	| Megasphere:
 		COPY("MEGAA", info.name)
 	| 84, 89:
 		COPY("SSWVA", info.name)
@@ -165,37 +196,37 @@ BEGIN
 		COPY("TLP2A", info.name)
 	| 88:
 		COPY("BBRNA", info.name)
-	| 2001:
+	| Shotgun:
 		COPY("SHOTA", info.name)
-	| 2002:
+	| Chaingun:
 		COPY("MGUNA", info.name)
-	| 2003:
+	| Launcher:
 		COPY("LAUNA", info.name)
-	| 2004:
+	| Plasma:
 		COPY("PLASA", info.name)
-	| 2005:
+	| Chainsaw:
 		COPY("CSAWA", info.name)
-	| 2006:
+	| Bfg:
 		COPY("BFUGA", info.name)
-	| 2007:
+	| Clip:
 		COPY("CLIPA", info.name)
-	| 2008:
+	| Shells:
 		COPY("SHELA", info.name)
-	| 2010:
+	| Rocket:
 		COPY("ROCKA", info.name)
-	| 2011:
+	| Stimpack:
 		COPY("STIMA", info.name)
-	| 2012:
+	| Medikit:
 		COPY("MEDIA", info.name)
-	| 2013:
+	| SoulSphere:
 		COPY("SOULA", info.name)
-	| 2014:
+	| HealthBonus:
 		COPY("BON1A", info.name)
-	| 2015:
+	| ArmorBonus:
 		COPY("BON2A", info.name)
-	| 2018:
+	| GreenArmor:
 		COPY("ARM1A", info.name)
-	| 2019:
+	| BlueArmor:
 		COPY("ARM2A", info.name)
 	| 2022:
 		COPY("PINVA", info.name)
@@ -213,13 +244,13 @@ BEGIN
 		COPY("BAR1A", info.name)
 	| 2045:
 		COPY("PVISA", info.name)
-	| 2046:
+	| RocketBox:
 		COPY("BROKA", info.name)
-	| 2047:
+	| Cells:
 		COPY("CELLA", info.name)
-	| 2048:
+	| BulletBox:
 		COPY("AMMOA", info.name)
-	| 2049:
+	| ShellBox:
 		COPY("SBOXA", info.name)
 	| 3001:
 		COPY("TROOA", info.name)
@@ -235,7 +266,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	CASE kind OF
-		29, 34, 35, 41, 42, 44, 45, 46, 55, 56, 57, 70, 83, 85, 86, 2013, 2022, 2023, 2024, 2025, 2026, 2028, 2045, 3006:
+		29, 34, 35, 41, 42, 44, 45, 46, 55, 56, 57, 70, Megasphere, 85, 86, SoulSphere, 2022, 2023, 2024, 2025, 2026, 2028, 2045, 3006:
 			info.fullbright := TRUE
 	ELSE
 	END;

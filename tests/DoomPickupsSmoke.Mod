@@ -1,6 +1,6 @@
 MODULE DoomPickupsSmoke;
 
-IMPORT Doom, DoomInventory, DoomHud, DoomWad, DoomMap, DoomSprites,
+IMPORT DoomConfig, Doom, DoomInventory, DoomHud, DoomWad, DoomMap, DoomSprites,
 	GameRenderer, GameSurface;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
@@ -16,7 +16,7 @@ PROCEDURE Difference(first, second: GameSurface.Frame): SIGNED32;
 VAR x, y, count: SIGNED32;
 BEGIN
 	count := 0;
-	FOR y := 0 TO first.height - DoomHud.Height - 1 DO
+	FOR y := 0 TO first.height - DoomConfig.values.hud.height - 1 DO
 		FOR x := 0 TO first.width - 1 DO
 			IF first.Pixel(x, y) # second.Pixel(x, y) THEN
 				INC(count)

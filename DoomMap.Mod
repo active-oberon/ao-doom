@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomSprites, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomSprites, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -25,10 +25,10 @@ END MapLump;
 PROCEDURE Name(CONST data: ARRAY OF CHAR; offset: SIGNED32; VAR name: ARRAY OF CHAR);
 VAR i: SIGNED32;
 BEGIN
-	FOR i := 0 TO 7 DO
+	FOR i := 0 TO DoomFormat.NameLength - 1 DO
 		name[i] := CAP(data[offset + i])
 	END;
-	name[8] := 0X
+	name[DoomFormat.NameLength] := 0X
 END Name;
 
 PROCEDURE SkyName(CONST map: ARRAY OF CHAR; VAR sky: ARRAY OF CHAR);
@@ -55,11 +55,11 @@ PROCEDURE Side(archive: DoomWad.Archive; textures: DoomTextures.Library; doors: 
 VAR wall: GameGeometry.Wall;
 	front, back: GameGeometry.Sector;
 	offset: SIGNED32;
-	name: ARRAY 9 OF CHAR;
+	name: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 BEGIN
-	offset := sides.offset + side * 30;
+	offset := sides.offset + side * DoomFormat.SideSize;
 	wall.id := id;
-	wall.sector := GameBytes.U16(archive.data^, offset + 28);
+	wall.sector := GameBytes.U16(archive.data^, offset + DoomFormat.SideSector);
 	wall.neighbor := neighbor;
 	wall.blocking := flags MOD 2 = 1;
 	wall.omitMiddle := FALSE;
@@ -68,10 +68,10 @@ BEGIN
 	wall.middleFromFloor := flags DIV 16 MOD 2 = 1;
 	wall.upperFromNeighbor := flags DIV 8 MOD 2 = 0;
 	wall.lowerFromCeiling := flags DIV 16 MOD 2 = 1;
-	wall.ax := GameBytes.I16(archive.data^, vertices.offset + v1 * 4) / 64.0;
-	wall.ay := -GameBytes.I16(archive.data^, vertices.offset + v1 * 4 + 2) / 64.0;
-	wall.bx := GameBytes.I16(archive.data^, vertices.offset + v2 * 4) / 64.0;
-	wall.by := -GameBytes.I16(archive.data^, vertices.offset + v2 * 4 + 2) / 64.0;
+	wall.ax := GameBytes.I16(archive.data^, vertices.offset + v1 * DoomFormat.VertexSize) / DoomFormat.UnitsPerWorld;
+	wall.ay := -GameBytes.I16(archive.data^, vertices.offset + v1 * DoomFormat.VertexSize + 2) / DoomFormat.UnitsPerWorld;
+	wall.bx := GameBytes.I16(archive.data^, vertices.offset + v2 * DoomFormat.VertexSize) / DoomFormat.UnitsPerWorld;
+	wall.by := -GameBytes.I16(archive.data^, vertices.offset + v2 * DoomFormat.VertexSize + 2) / DoomFormat.UnitsPerWorld;
 	front := regions[wall.sector];
 	wall.bottom := front.floor;
 	wall.top := front.ceiling;
@@ -82,9 +82,9 @@ BEGIN
 	wall.lower := NIL;
 	wall.upperAnchor := front.ceiling;
 	wall.lowerAnchor := front.floor;
-	wall.xOffset := GameBytes.I16(archive.data^, offset) / 64.0;
-	wall.yOffset := GameBytes.I16(archive.data^, offset + 2) / 64.0;
-	wall.texelsPerUnit := 64;
+	wall.xOffset := GameBytes.I16(archive.data^, offset) / DoomFormat.UnitsPerWorld;
+	wall.yOffset := GameBytes.I16(archive.data^, offset + 2) / DoomFormat.UnitsPerWorld;
+	wall.texelsPerUnit := DoomFormat.UnitsPerWorld;
 	IF textures # NIL THEN
 		Name(archive.data^, offset + 20, name);
 		wall.omitMiddle := name = "-";
@@ -93,8 +93,8 @@ BEGIN
 			IF wall.texture = NIL THEN
 				RETURN FALSE
 			END;
-			wall.uScale := 64.0 / wall.texture.width;
-			wall.vScale := 64.0 / wall.texture.height;
+			wall.uScale := DoomFormat.UnitsPerWorld / wall.texture.width;
+			wall.vScale := DoomFormat.UnitsPerWorld / wall.texture.height;
 			wall.uOffset := wall.xOffset * wall.uScale;
 			wall.vOffset := wall.yOffset * wall.vScale
 		END;
@@ -114,7 +114,7 @@ BEGIN
 						RETURN FALSE
 					END;
 					IF flags DIV 8 MOD 2 = 0 THEN
-						wall.upperAnchor := back.ceiling + wall.upper.height / 64.0
+						wall.upperAnchor := back.ceiling + wall.upper.height / DoomFormat.UnitsPerWorld
 					END
 				END
 			END;
@@ -153,7 +153,7 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	degree: POINTER TO ARRAY OF SIGNED32;
 	partitions: DoomBsp.Nodes;
 	leaves: DoomBsp.Leaves;
-	textureName, skyName: ARRAY 9 OF CHAR;
+	textureName, skyName: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 	x, y, angle, floor: FLOAT64;
 BEGIN
 	map.world := NIL;
@@ -162,47 +162,47 @@ BEGIN
 	error[0] := 0X;
 	marker := archive.Find(name);
 	IF (marker < 0) OR
-		~MapLump(archive, marker + 1, "THINGS", 10, things) OR
-		~MapLump(archive, marker + 2, "LINEDEFS", 14, lines) OR
-		~MapLump(archive, marker + 3, "SIDEDEFS", 30, sides) OR
-		~MapLump(archive, marker + 4, "VERTEXES", 4, vertices) OR
-		~MapLump(archive, marker + 8, "SECTORS", 26, sectors) THEN
+		~MapLump(archive, marker + 1, "THINGS", DoomFormat.ThingSize, things) OR
+		~MapLump(archive, marker + 2, "LINEDEFS", DoomFormat.LineSize, lines) OR
+		~MapLump(archive, marker + 3, "SIDEDEFS", DoomFormat.SideSize, sides) OR
+		~MapLump(archive, marker + 4, "VERTEXES", DoomFormat.VertexSize, vertices) OR
+		~MapLump(archive, marker + 8, "SECTORS", DoomFormat.SectorSize, sectors) THEN
 		COPY("Missing or malformed classic Doom map lumps", error);
 		RETURN FALSE
 	END;
-	vertexCount := vertices.size DIV 4;
-	sideCount := sides.size DIV 30;
-	sectorCount := sectors.size DIV 26;
-	lineCount := lines.size DIV 14;
-	IF (lineCount > 65536) OR (sideCount > 65536) OR (vertexCount > 65536) OR (sectorCount > 65536) THEN
+	vertexCount := vertices.size DIV DoomFormat.VertexSize;
+	sideCount := sides.size DIV DoomFormat.SideSize;
+	sectorCount := sectors.size DIV DoomFormat.SectorSize;
+	lineCount := lines.size DIV DoomFormat.LineSize;
+	IF (lineCount > DoomFormat.MaximumRecords) OR (sideCount > DoomFormat.MaximumRecords) OR (vertexCount > DoomFormat.MaximumRecords) OR (sectorCount > DoomFormat.MaximumRecords) THEN
 		COPY("Map record count exceeds 65536", error);
 		RETURN FALSE
 	END;
 	FOR i := 0 TO sideCount - 1 DO
-		IF GameBytes.U16(archive.data^, sides.offset + i * 30 + 28) >= sectorCount THEN
+		IF GameBytes.U16(archive.data^, sides.offset + i * DoomFormat.SideSize + DoomFormat.SideSector) >= sectorCount THEN
 			COPY("SIDEDEFS references an invalid sector", error);
 			RETURN FALSE
 		END
 	END;
 	FOR i := 0 TO lineCount - 1 DO
-		offset := lines.offset + i * 14;
+		offset := lines.offset + i * DoomFormat.LineSize;
 		v1 := GameBytes.U16(archive.data^, offset);
 		v2 := GameBytes.U16(archive.data^, offset + 2);
-		front := GameBytes.U16(archive.data^, offset + 10);
-		back := GameBytes.U16(archive.data^, offset + 12);
-		flags := GameBytes.U16(archive.data^, offset + 4);
+		front := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
+		back := GameBytes.U16(archive.data^, offset + DoomFormat.LineBack);
+		flags := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags);
 		IF (v1 >= vertexCount) OR (v2 >= vertexCount) OR (front >= sideCount) OR
-			((back # 65535) & (back >= sideCount)) THEN
+			((back # DoomFormat.NoSide) & (back >= sideCount)) THEN
 			COPY("LINEDEFS references an invalid vertex or sidedef", error);
 			RETURN FALSE
 		END;
 		IF (v1 = v2) OR
-			((GameBytes.I16(archive.data^, vertices.offset + v1 * 4) = GameBytes.I16(archive.data^, vertices.offset + v2 * 4)) &
-			(GameBytes.I16(archive.data^, vertices.offset + v1 * 4 + 2) = GameBytes.I16(archive.data^, vertices.offset + v2 * 4 + 2))) THEN
+			((GameBytes.I16(archive.data^, vertices.offset + v1 * DoomFormat.VertexSize) = GameBytes.I16(archive.data^, vertices.offset + v2 * DoomFormat.VertexSize)) &
+			(GameBytes.I16(archive.data^, vertices.offset + v1 * DoomFormat.VertexSize + 2) = GameBytes.I16(archive.data^, vertices.offset + v2 * DoomFormat.VertexSize + 2))) THEN
 			COPY("Map contains a degenerate linedef", error);
 			RETURN FALSE
 		END;
-		IF (flags DIV 4 MOD 2 = 1) # (back # 65535) THEN
+		IF (flags DIV 4 MOD 2 = 1) # (back # DoomFormat.NoSide) THEN
 			COPY("Two-sided linedef flag disagrees with its back sidedef", error);
 			RETURN FALSE
 		END
@@ -222,13 +222,13 @@ BEGIN
 			END;
 			edges := 0;
 			FOR i := 0 TO lineCount - 1 DO
-				offset := lines.offset + i * 14;
-				front := GameBytes.U16(archive.data^, offset + 10);
-				back := GameBytes.U16(archive.data^, offset + 12);
-				frontSector := GameBytes.U16(archive.data^, sides.offset + front * 30 + 28);
+				offset := lines.offset + i * DoomFormat.LineSize;
+				front := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
+				back := GameBytes.U16(archive.data^, offset + DoomFormat.LineBack);
+				frontSector := GameBytes.U16(archive.data^, sides.offset + front * DoomFormat.SideSize + DoomFormat.SideSector);
 				backSector := -1;
-				IF back # 65535 THEN
-					backSector := GameBytes.U16(archive.data^, sides.offset + back * 30 + 28)
+				IF back # DoomFormat.NoSide THEN
+					backSector := GameBytes.U16(archive.data^, sides.offset + back * DoomFormat.SideSize + DoomFormat.SideSector)
 				END;
 				IF (frontSector # backSector) & ((frontSector = sector) OR (backSector = sector)) THEN
 					INC(degree[GameBytes.U16(archive.data^, offset)]);
@@ -259,11 +259,11 @@ BEGIN
 	markerLump := archive.Entry(marker);
 	SkyName(markerLump.name, skyName);
 	FOR sector := 0 TO sectorCount - 1 DO
-		offset := sectors.offset + sector * 26;
-		regions[sector].floor := GameBytes.I16(archive.data^, offset) / 64.0;
-		regions[sector].ceiling := GameBytes.I16(archive.data^, offset + 2) / 64.0;
+		offset := sectors.offset + sector * DoomFormat.SectorSize;
+		regions[sector].floor := GameBytes.I16(archive.data^, offset) / DoomFormat.UnitsPerWorld;
+		regions[sector].ceiling := GameBytes.I16(archive.data^, offset + 2) / DoomFormat.UnitsPerWorld;
 		regions[sector].light := GameBytes.I16(archive.data^, offset + 20);
-		IF (regions[sector].light < 0) OR (regions[sector].light > 255) THEN
+		IF (regions[sector].light < 0) OR (regions[sector].light > DoomFormat.LightMaximum) THEN
 			COPY("Sector has invalid light level", error);
 			RETURN FALSE
 		END;
@@ -300,21 +300,21 @@ BEGIN
 		END
 	END;
 	FOR i := 0 TO lineCount - 1 DO
-		offset := lines.offset + i * 14;
+		offset := lines.offset + i * DoomFormat.LineSize;
 		v1 := GameBytes.U16(archive.data^, offset);
 		v2 := GameBytes.U16(archive.data^, offset + 2);
-		flags := GameBytes.U16(archive.data^, offset + 4);
-		front := GameBytes.U16(archive.data^, offset + 10);
-		back := GameBytes.U16(archive.data^, offset + 12);
+		flags := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags);
+		front := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
+		back := GameBytes.U16(archive.data^, offset + DoomFormat.LineBack);
 		backSector := -1;
-		IF back # 65535 THEN
-			backSector := GameBytes.U16(archive.data^, sides.offset + back * 30 + 28)
+		IF back # DoomFormat.NoSide THEN
+			backSector := GameBytes.U16(archive.data^, sides.offset + back * DoomFormat.SideSize + DoomFormat.SideSector)
 		END;
 		IF ~Side(archive, textures, doors, world, regions^, vertices, sides, i, v1, v2, front, backSector, flags, error) THEN
 			RETURN FALSE
 		END;
-		IF back # 65535 THEN
-			frontSector := GameBytes.U16(archive.data^, sides.offset + front * 30 + 28);
+		IF back # DoomFormat.NoSide THEN
+			frontSector := GameBytes.U16(archive.data^, sides.offset + front * DoomFormat.SideSize + DoomFormat.SideSector);
 			IF ~Side(archive, textures, doors, world, regions^, vertices, sides, i, v2, v1, back, frontSector, flags, error) THEN
 				RETURN FALSE
 			END
@@ -322,9 +322,9 @@ BEGIN
 	END;
 	world.Seal;
 	start := -1;
-	FOR i := 0 TO things.size DIV 10 - 1 DO
-		offset := things.offset + i * 10;
-		IF (start < 0) & (GameBytes.I16(archive.data^, offset + 6) = 1) THEN
+	FOR i := 0 TO things.size DIV DoomFormat.ThingSize - 1 DO
+		offset := things.offset + i * DoomFormat.ThingSize;
+		IF (start < 0) & (GameBytes.I16(archive.data^, offset + DoomFormat.ThingType) = DoomFormat.PlayerOne) THEN
 			start := offset
 		END
 	END;
@@ -332,20 +332,21 @@ BEGIN
 		COPY("Map has no player-one start", error);
 		RETURN FALSE
 	END;
-	x := GameBytes.I16(archive.data^, start) / 64.0;
-	y := -GameBytes.I16(archive.data^, start + 2) / 64.0;
+	x := GameBytes.I16(archive.data^, start) / DoomFormat.UnitsPerWorld;
+	y := -GameBytes.I16(archive.data^, start + 2) / DoomFormat.UnitsPerWorld;
 	sector := world.Locate(x, y);
 	IF sector < 0 THEN
 		COPY("Player start is outside all sectors", error);
 		RETURN FALSE
 	END;
 	floor := regions[sector].floor;
-	IF ~world.Stand(x, y, 0.25, floor, 56.0 / 64, 24.0 / 64, floor) THEN
+	IF ~world.Stand(x, y, DoomConfig.values.playerRadius, floor,
+		DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor) THEN
 		COPY("Player start intersects a wall or has insufficient clearance", error);
 		RETURN FALSE
 	END;
-	result := GameBytes.I16(archive.data^, start + 4) MOD 360;
-	angle := -result * MathL.pi / 180;
+	result := GameBytes.I16(archive.data^, start + 4) MOD DoomFormat.DegreesPerCircle;
+	angle := -result * MathL.pi / DoomFormat.DegreesPerHalfCircle;
 	IF angle < -MathL.pi THEN
 		angle := angle + MathL.pi * 2
 	END;
@@ -358,7 +359,7 @@ BEGIN
 	map.x := x;
 	map.y := y;
 	map.angle := angle;
-	map.eye := floor + 41.0 / 64;
+	map.eye := floor + DoomConfig.values.playerEye;
 	RETURN TRUE
 END LoadMap;
 

@@ -1,13 +1,13 @@
 MODULE DoomSprites;
 
-IMPORT DoomWad, DoomTextures, DoomThings, DoomInventory, GameBytes, GameGeometry, GameRenderer, GameSurface, MathL;
+IMPORT DoomFormat, DoomWad, DoomTextures, DoomThings, DoomInventory, GameBytes, GameGeometry, GameRenderer, GameSurface, MathL;
 
 CONST MaximumWork = 64 * 1024 * 1024;
 
 TYPE
 	Images = POINTER TO RECORD
 		name: ARRAY 6 OF CHAR;
-		views: ARRAY 8 OF GameRenderer.Sprite;
+		views: ARRAY DoomFormat.SpriteRotations OF GameRenderer.Sprite;
 		next: Images
 	END;
 
@@ -28,7 +28,7 @@ TYPE
 		BEGIN
 			IF capacity > 0 THEN
 				NEW(actors, capacity);
-				NEW(collected, (capacity + 31) DIV 32)
+				NEW(collected, (capacity + DoomFormat.CollectionWordBits - 1) DIV DoomFormat.CollectionWordBits)
 			END;
 			count := 0;
 			remaining := 0
@@ -62,11 +62,11 @@ TYPE
 		BEGIN
 			snapshot := SELF;
 			FOR i := 0 TO count - 1 DO
-				IF ~(i MOD 32 IN collected[i DIV 32]) & DoomInventory.Supported(actors[i].kind) &
-					(ABS(actors[i].x - x) < radius + 20.0 / 64) &
-					(ABS(actors[i].y - y) < radius + 20.0 / 64) THEN
+				IF ~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) & DoomInventory.Supported(actors[i].kind) &
+					(ABS(actors[i].x - x) < radius + DoomFormat.PickupRadius) &
+					(ABS(actors[i].y - y) < radius + DoomFormat.PickupRadius) THEN
 					delta := world.Region(actors[i].sector).floor - feet;
-					IF (delta >= -8.0 / 64) & (delta <= height) &
+					IF (delta >= -DoomFormat.PickupBelowFeet) & (delta <= height) &
 						Reachable(world, x, y, actors[i].x, actors[i].y, height) &
 						DoomInventory.Give(player, actors[i].kind) THEN
 						IF snapshot = SELF THEN
@@ -79,7 +79,7 @@ TYPE
 								snapshot.collected[j] := collected[j]
 							END
 						END;
-						INCL(snapshot.collected[i DIV 32], i MOD 32);
+						INCL(snapshot.collected[i DIV DoomFormat.CollectionWordBits], i MOD DoomFormat.CollectionWordBits);
 						DEC(snapshot.remaining)
 					END
 				END
@@ -95,16 +95,16 @@ TYPE
 			region: GameGeometry.Sector;
 		BEGIN
 			FOR i := 0 TO count - 1 DO
-				IF ~(i MOD 32 IN collected[i DIV 32]) THEN
+				IF ~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) THEN
 					view := actors[i].angle - MathL.arctan2(y - actors[i].y, x - actors[i].x);
-					rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD 8;
+					rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD DoomFormat.SpriteRotations;
 					sprite := actors[i].images.views[rotation];
 					sprite.x := actors[i].x;
 					sprite.y := actors[i].y;
 					region := world.Region(actors[i].sector);
 					sprite.z := region.floor;
 					IF actors[i].ceiling THEN
-						sprite.z := region.ceiling - actors[i].height / 64.0
+						sprite.z := region.ceiling - actors[i].height / DoomFormat.UnitsPerWorld
 					END;
 					sprite.light := region.light;
 					sprite.fullbright := actors[i].fullbright;
@@ -125,7 +125,7 @@ BEGIN
 	END;
 	sector := world.Locate(x, y);
 	near := 0;
-	FOR i := 0 TO MIN(world.Count(), 256) - 1 DO
+	FOR i := 0 TO MIN(world.Count(), DoomFormat.MaximumTraceHits) - 1 DO
 		IF ~world.CastSector(sector, x, y, targetX - x, targetY - y, near, distance, wall) OR
 			(distance >= 1) THEN
 			RETURN TRUE
@@ -149,7 +149,7 @@ PROCEDURE Install(index, rotation: SIGNED32; flipped: BOOLEAN;
 	VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR i: SIGNED32;
 BEGIN
-	IF (rotation < 0) OR (rotation > 8) THEN
+	IF (rotation < 0) OR (rotation > DoomFormat.SpriteRotations) THEN
 		COPY("Sprite name contains an invalid rotation", error);
 		RETURN FALSE
 	END;
@@ -159,7 +159,7 @@ BEGIN
 			RETURN FALSE
 		END;
 		mode := 0;
-		FOR i := 0 TO 7 DO
+		FOR i := 0 TO DoomFormat.SpriteRotations - 1 DO
 			indices[i] := index;
 			IF flipped THEN
 				INCL(flips, i)
@@ -184,7 +184,7 @@ PROCEDURE Frame(archive: DoomWad.Archive; textures: DoomTextures.Library;
 	CONST name: ARRAY OF CHAR; VAR cache: Images; VAR work: SIGNED32;
 	VAR error: ARRAY OF CHAR): Images;
 VAR found: Images;
-	indices: ARRAY 8 OF SIGNED32;
+	indices: ARRAY DoomFormat.SpriteRotations OF SIGNED32;
 	flips: SET;
 	mode, i, left, top: SIGNED32;
 	lump: DoomWad.Lump;
@@ -198,7 +198,7 @@ BEGIN
 	END;
 	mode := -1;
 	flips := {};
-	FOR i := 0 TO 7 DO
+	FOR i := 0 TO DoomFormat.SpriteRotations - 1 DO
 		indices[i] := -1
 	END;
 	IF archive.Count() > MaximumWork - work THEN
@@ -240,7 +240,7 @@ BEGIN
 	END;
 	NEW(found);
 	COPY(name, found.name);
-	FOR i := 0 TO 7 DO
+	FOR i := 0 TO DoomFormat.SpriteRotations - 1 DO
 		IF indices[i] < 0 THEN
 			COPY("Sprite frame is missing one or more rotations", error);
 			RETURN NIL
@@ -251,7 +251,7 @@ BEGIN
 		END;
 		found.views[i].left := left;
 		found.views[i].top := top;
-		found.views[i].texelsPerUnit := 64;
+		found.views[i].texelsPerUnit := DoomFormat.UnitsPerWorld;
 		found.views[i].flipped := i IN flips
 	END;
 	found.next := cache;
@@ -269,15 +269,15 @@ VAR scene: Scene;
 	i, offset, flags, kind, work: SIGNED32;
 BEGIN
 	error[0] := 0X;
-	IF things.size DIV 10 > 65536 THEN
+	IF things.size DIV DoomFormat.ThingSize > DoomFormat.MaximumRecords THEN
 		COPY("THINGS record count exceeds 65536", error);
 		RETURN NIL
 	END;
-	NEW(scene, things.size DIV 10);
+	NEW(scene, things.size DIV DoomFormat.ThingSize);
 	cache := NIL;
 	work := 0;
-	FOR i := 0 TO things.size DIV 10 - 1 DO
-		offset := things.offset + i * 10;
+	FOR i := 0 TO things.size DIV DoomFormat.ThingSize - 1 DO
+		offset := things.offset + i * DoomFormat.ThingSize;
 		flags := GameBytes.U16(archive.data^, offset + 8);
 		kind := GameBytes.U16(archive.data^, offset + 6);
 		(* shortcut: unknown thing types are skipped in previews; reject them when full gameplay is supported. *)
@@ -286,8 +286,8 @@ BEGIN
 				COPY("Map sprites require palette and texture resources", error);
 				RETURN NIL
 			END;
-			actor.x := GameBytes.I16(archive.data^, offset) / 64.0;
-			actor.y := -GameBytes.I16(archive.data^, offset + 2) / 64.0;
+			actor.x := GameBytes.I16(archive.data^, offset) / DoomFormat.UnitsPerWorld;
+			actor.y := -GameBytes.I16(archive.data^, offset + 2) / DoomFormat.UnitsPerWorld;
 			actor.sector := world.Locate(actor.x, actor.y);
 			IF actor.sector < 0 THEN
 				COPY("Sprite thing is outside all sectors", error);
@@ -297,7 +297,7 @@ BEGIN
 			actor.ceiling := info.ceiling;
 			actor.fullbright := info.fullbright;
 			actor.height := info.height;
-			actor.radius := info.radius / 64.0;
+			actor.radius := info.radius / DoomFormat.UnitsPerWorld;
 			actor.kind := kind;
 			actor.images := Frame(archive, textures, info.name, cache, work, error);
 			IF actor.images = NIL THEN

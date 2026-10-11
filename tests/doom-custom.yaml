@@ -1,0 +1,18 @@
+video:
+  width: 400
+  height: 240
+player:
+  eye: 42
+  move_per_tick: 11.52
+  turn_per_tick: 0.13
+doors:
+  speed_per_tick: 4
+  wait_ticks: 10
+  use_range: 32
+  top_gap: 8
+hud:
+  height: 24
+  margin: 8
+  colors:
+    background: 0x010203
+    label: 0xabcdef

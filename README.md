@@ -94,6 +94,7 @@ Sources are staged in `build/`, with no shared compiler objects between trees.
 Staging clears generated objects/symbols so a changed engine record cannot link
 against objects left by a manual `ob compile`.
 
+
 ```sh
 # A local compatible WAD, followed by its map name (default E1M1).
 task run -- /path/to/local.wad E1M1
@@ -186,6 +187,49 @@ indices/ranges and requires child nodes to precede parents, preventing cycles.
 Subsector membership follows its first seg; unused sectors are retained.
 It supports opaque wall materials, masked middle textures and classic patches;
 extended tall-patch support is absent.
+
+## Startup configuration
+
+Active Oberon uses `CONST` for fixed values and records for runtime settings.
+`DoomConfig.values-` exports the validated settings as read-only data; consumers
+use typed fields instead of repeatedly querying a generic YAML tree.
+
+`DoomConfig` reads `doom.yaml` from the working directory before the window opens.
+Edit it and restart the same executable; recompilation is unnecessary. Use
+`./build/ao-doom --config /path/to/doom.yaml [wad [map]]` for another file.
+`task build` copies the repository's configuration into `build/` for runs from
+that directory. The window remains 640 x 400; `video` controls the rendered frame,
+which must fit the display. Missing files, unknown keys, invalid types, duplicate
+keys, values outside their limits and HUD layouts outside the frame abort startup.
+Omitted settings use the original defaults. Failed reads preserve previous values.
+
+Distances use Doom map units. Player and door speeds are per simulation tick;
+turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
+timing, collision dimensions, motion, door interaction and panel layout/colors.
+HUD colors are RGB integers, including `0xRRGGBB`. The panel renderer derives value
+positions from label lengths and draws ammunition/key groups in loops.
+Configuration is read once; changing a running game's geometry is unsupported.
+Library callers that do not load a file retain the original default profile;
+`Doom.Player*` constants describe that profile, while gameplay reads `DoomConfig.values`.
+
+The MiniA2 SDK must include the new `YAML` module in `std/encoding`; rebuild it
+from the adjacent MiniA2 checkout after updating its sources. YAML uses the
+existing `JSON.Value` containers and supports bounded configuration documents,
+including nested mappings/sequences, inline collections, quoted strings and
+finite numeric values. Tags, anchors/aliases, multiline scalars, complex/typed
+keys and multiple documents are outside this parser's supported subset.
+See MiniA2 `docs/YAML.md` for its API and exact limits.
+
+`DoomFormat` holds file-format constants such as WAD record sizes and coordinate
+scaling. Classic object IDs, item rules and spawn metadata remain code/data;
+changing those is a gameplay or format change rather than a startup preference.
+The procedural demo's wall geometry and eye height remain its authored scene data.
+
+`task check` runs `{TEST}` procedures in `DoomConfig` and `DoomHud`, then a
+fixture-based executable whose `{TEST}` procedures verify real file loading,
+configured movement, panel pixels, door timing/range and failure preservation.
+That executable runs in `build/`: `ob test` runs isolated cases in temporary
+directories and therefore cannot resolve the WAD/configuration fixtures by name.
 
 ## Project boundary and next milestones
 

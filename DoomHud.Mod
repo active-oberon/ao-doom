@@ -1,8 +1,13 @@
 MODULE DoomHud;
 
-IMPORT DoomInventory, GameSurface, GameText;
+IMPORT DoomConfig, DoomInventory, GameSurface, GameText, Strings;
 
-CONST Height* = 20;
+CONST CharacterAdvance = DoomConfig.HudCharacterAdvance;
+	StatDigits = DoomConfig.HudStatDigits;
+	PickupDigits = DoomConfig.HudPickupDigits;
+
+VAR ammoLabels: ARRAY DoomInventory.AmmoKinds OF ARRAY 4 OF CHAR;
+	keyHints: ARRAY DoomInventory.KeyColors OF ARRAY 16 OF CHAR;
 
 PROCEDURE Number(frame: GameSurface.Frame; x, y, color, value, digits: SIGNED32);
 VAR text: ARRAY 6 OF CHAR;
@@ -16,63 +21,114 @@ BEGIN
 	GameText.Draw(frame, x, y, color, text)
 END Number;
 
-PROCEDURE Draw*(CONST player: DoomInventory.State; frame: GameSurface.Frame);
-VAR x, y, i, color, owned: SIGNED32;
+(* Field derives the value position from its label so a label edit cannot overlap its number. *)
+PROCEDURE Field(CONST appearance: DoomConfig.HudSettings; frame: GameSurface.Frame; x, y: SIGNED32; CONST label: ARRAY OF CHAR;
+	value, digits: SIGNED32);
 BEGIN
-	y := frame.height - Height;
-	FOR x := 0 TO frame.width - 1 DO
-		frame.Span(x, y, frame.height - 1, 012161CH)
-	END;
-	GameText.Draw(frame, 4, y + 3, 0C0C8D0H, "HEALTH");
-	Number(frame, 32, y + 3, 0FFFFFFH, player.health, 3);
-	GameText.Draw(frame, 52, y + 3, 0C0C8D0H, "ARMOR");
-	Number(frame, 76, y + 3, 0FFFFFFH, player.armor, 3);
-	GameText.Draw(frame, 98, y + 3, 0C0C8D0H, "BUL");
-	Number(frame, 114, y + 3, 0FFFFFFH, player.ammo[DoomInventory.Bullets], 3);
-	GameText.Draw(frame, 138, y + 3, 0C0C8D0H, "SHL");
-	Number(frame, 154, y + 3, 0FFFFFFH, player.ammo[DoomInventory.Shells], 3);
-	GameText.Draw(frame, 178, y + 3, 0C0C8D0H, "CEL");
-	Number(frame, 194, y + 3, 0FFFFFFH, player.ammo[DoomInventory.Cells], 3);
-	GameText.Draw(frame, 218, y + 3, 0C0C8D0H, "RKT");
-	Number(frame, 234, y + 3, 0FFFFFFH, player.ammo[DoomInventory.Rockets], 3);
-	GameText.Draw(frame, 4, y + 13, 0C0C8D0H, "PICKUPS");
-	Number(frame, 36, y + 13, 0FFFFFFH, player.pickups, 5);
-	owned := 0;
-	FOR i := 0 TO 8 DO
-		IF i IN player.weapons THEN
-			INC(owned)
-		END
-	END;
-	GameText.Draw(frame, 68, y + 13, 0C0C8D0H, "WEAPONS");
-	Number(frame, 100, y + 13, 0FFFFFFH, owned, 1);
-	GameText.Draw(frame, 120, y + 13, 0C0C8D0H, "KEYS");
-	FOR i := 0 TO 5 DO
-		color := 0353D48H;
-		IF i IN player.keys THEN
-			CASE i MOD 3 OF
-			0:
-				color := 060A0FFH
-			| 1:
-				color := 0FFE060H
-			| 2:
-				color := 0FF6060H
-			END
-		END;
-		IF i < 3 THEN
-			GameText.Draw(frame, 144 + i * 12, y + 13, color, "C")
-		ELSE
-			GameText.Draw(frame, 144 + i * 12, y + 13, color, "S")
-		END
-	END;
-	CASE player.neededKey OF
+	GameText.Draw(frame, x, y, appearance.label, label);
+	Number(frame, x + SIGNED32(Strings.Length(label)) * CharacterAdvance + appearance.labelGap, y, appearance.value, value, digits)
+END Field;
+
+PROCEDURE KeyColor(CONST appearance: DoomConfig.HudSettings; key: SIGNED32): SIGNED32;
+BEGIN
+	CASE key MOD DoomInventory.KeyColors OF
 	DoomInventory.BlueCard:
-		GameText.Draw(frame, 216, y + 13, 060A0FFH, "NEED BLUE KEY")
+		RETURN appearance.blueKey
 	| DoomInventory.YellowCard:
-		GameText.Draw(frame, 216, y + 13, 0FFE060H, "NEED YELLOW KEY")
+		RETURN appearance.yellowKey
 	| DoomInventory.RedCard:
-		GameText.Draw(frame, 216, y + 13, 0FF6060H, "NEED RED KEY")
-	ELSE
+		RETURN appearance.redKey
 	END
+END KeyColor;
+
+PROCEDURE Supplies(CONST appearance: DoomConfig.HudSettings; CONST player: DoomInventory.State; frame: GameSurface.Frame; y: SIGNED32);
+VAR i: SIGNED32;
+BEGIN
+	FOR i := 0 TO DoomInventory.AmmoKinds - 1 DO
+		Field(appearance, frame, appearance.ammoX + i * appearance.ammoSpacing, y, ammoLabels[i], player.ammo[i], StatDigits)
+	END
+END Supplies;
+
+PROCEDURE Keys(CONST appearance: DoomConfig.HudSettings; CONST player: DoomInventory.State; frame: GameSurface.Frame; y: SIGNED32);
+VAR i, color: SIGNED32;
+BEGIN
+	GameText.Draw(frame, appearance.keysX, y, appearance.label, "KEYS");
+	FOR i := 0 TO DoomInventory.KeyKinds - 1 DO
+		color := appearance.missingKey;
+		IF i IN player.keys THEN
+			color := KeyColor(appearance, i)
+		END;
+		IF i < DoomInventory.KeyColors THEN
+			GameText.Draw(frame, appearance.keyStartX + i * appearance.keySpacing, y, color, "C")
+		ELSE
+			GameText.Draw(frame, appearance.keyStartX + i * appearance.keySpacing, y, color, "S")
+		END
+	END;
+	IF (player.neededKey >= 0) & (player.neededKey < DoomInventory.KeyColors) THEN
+		GameText.Draw(frame, appearance.hintX, y, KeyColor(appearance, player.neededKey), keyHints[player.neededKey])
+	END
+END Keys;
+
+PROCEDURE WeaponCount(CONST player: DoomInventory.State): SIGNED32;
+VAR i, count: SIGNED32;
+BEGIN
+	count := 0;
+	FOR i := 0 TO DoomInventory.WeaponKinds - 1 DO
+		IF i IN player.weapons THEN
+			INC(count)
+		END
+	END;
+	RETURN count
+END WeaponCount;
+
+PROCEDURE Draw*(CONST player: DoomInventory.State; frame: GameSurface.Frame);
+VAR x, y: SIGNED32;
+	appearance: DoomConfig.HudSettings;
+BEGIN
+	appearance := DoomConfig.values.hud;
+	IF (frame.height < appearance.height) OR (frame.width < DoomConfig.values.width) THEN
+		RETURN
+	END;
+	y := frame.height - appearance.height;
+	FOR x := 0 TO frame.width - 1 DO
+		frame.Span(x, y, frame.height - 1, appearance.background)
+	END;
+	Field(appearance, frame, appearance.margin, y + appearance.topRow, "HEALTH", player.health, StatDigits);
+	Field(appearance, frame, appearance.armorX, y + appearance.topRow, "ARMOR", player.armor, StatDigits);
+	Supplies(appearance, player, frame, y + appearance.topRow);
+	Field(appearance, frame, appearance.margin, y + appearance.bottomRow, "PICKUPS", player.pickups, PickupDigits);
+	Field(appearance, frame, appearance.weaponsX, y + appearance.bottomRow, "WEAPONS", WeaponCount(player), 1);
+	Keys(appearance, player, frame, y + appearance.bottomRow)
 END Draw;
 
+PROCEDURE {TEST} Panel*;
+VAR frame, small: GameSurface.Frame;
+	player: DoomInventory.State;
+BEGIN
+	NEW(small, 1, 1);
+	DoomInventory.Reset(player);
+	Draw(player, small);
+	ASSERT(small.Pixel(0, 0) = 0);
+	NEW(frame, DoomConfig.values.width, DoomConfig.values.hud.height * 2);
+	frame.Background(0, 0);
+	DoomInventory.Reset(player);
+	Draw(player, frame);
+	ASSERT(frame.Pixel(0, frame.height - DoomConfig.values.hud.height) = DoomConfig.values.hud.background);
+	ASSERT(frame.Pixel(0, frame.height - DoomConfig.values.hud.height - 1) = 0);
+	ASSERT(frame.Pixel(DoomConfig.values.hud.keyStartX, frame.height - DoomConfig.values.hud.height + DoomConfig.values.hud.bottomRow) = DoomConfig.values.hud.missingKey);
+	INCL(player.keys, DoomInventory.BlueCard);
+	player.neededKey := DoomInventory.RedCard;
+	Draw(player, frame);
+	ASSERT(frame.Pixel(DoomConfig.values.hud.keyStartX, frame.height - DoomConfig.values.hud.height + DoomConfig.values.hud.bottomRow) = DoomConfig.values.hud.blueKey);
+	ASSERT(frame.Pixel(DoomConfig.values.hud.hintX, frame.height - DoomConfig.values.hud.height + DoomConfig.values.hud.bottomRow) = DoomConfig.values.hud.redKey)
+END Panel;
+
+BEGIN
+	COPY("BUL", ammoLabels[DoomInventory.Bullets]);
+	COPY("SHL", ammoLabels[DoomInventory.Shells]);
+	COPY("CEL", ammoLabels[DoomInventory.Cells]);
+	COPY("RKT", ammoLabels[DoomInventory.Rockets]);
+	COPY("NEED BLUE KEY", keyHints[DoomInventory.BlueCard]);
+	COPY("NEED YELLOW KEY", keyHints[DoomInventory.YellowCard]);
+	COPY("NEED RED KEY", keyHints[DoomInventory.RedCard])
 END DoomHud.

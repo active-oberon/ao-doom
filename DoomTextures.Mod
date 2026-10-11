@@ -1,13 +1,24 @@
 MODULE DoomTextures;
 
-IMPORT DoomWad, GameBytes, GameMaterials;
+IMPORT DoomFormat, DoomWad, GameBytes, GameMaterials;
 
 CONST MaximumPixels = 16 * 1024 * 1024;
 	MaximumWork = 64 * 1024 * 1024;
+	MaximumDimension = 1024;
+	MaximumPatches = 4096;
+	PatchHeaderSize = 8;
+	TextureHeaderSize = 22;
+	TexturePatchSize = 10;
+	PostOverhead = 4;
+	PostPixels = 3;
+	ColumnEnd = 255;
+	WallTexture = 0;
+	FlatTexture = 1;
+	SpriteTexture = 2;
 
 TYPE
 	Cached = POINTER TO RECORD
-		name: ARRAY 9 OF CHAR;
+		name: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 		texture: GameMaterials.Texture;
 		kind, lump: SIGNED32;
 		next: Cached
@@ -36,7 +47,7 @@ TYPE
 				RETURN FALSE
 			END;
 			palette := archive.Entry(index);
-			IF palette.size < 768 THEN
+			IF palette.size < DoomFormat.PaletteBytes THEN
 				COPY("PLAYPAL is shorter than one RGB palette", error);
 				RETURN FALSE
 			END;
@@ -51,7 +62,7 @@ TYPE
 				RETURN FALSE
 			END;
 			count := GameBytes.I32(archive.data^, names.offset);
-			IF (count < 0) OR (count > 65536) THEN
+			IF (count < 0) OR (count > DoomFormat.MaximumRecords) THEN
 				COPY("PNAMES count is invalid", error);
 				RETURN FALSE
 			END;
@@ -87,7 +98,7 @@ TYPE
 				RETURN FALSE
 			END;
 			count := GameBytes.I32(archive.data^, table.offset);
-			IF (count < 0) OR (count > 65536) THEN
+			IF (count < 0) OR (count > DoomFormat.MaximumRecords) THEN
 				COPY("Texture directory count is invalid", error);
 				RETURN FALSE
 			END;
@@ -101,7 +112,7 @@ TYPE
 		PROCEDURE Find(CONST table: DoomWad.Lump; CONST name: ARRAY OF CHAR;
 			VAR offset: SIGNED32; VAR error: ARRAY OF CHAR): BOOLEAN;
 		VAR i, count, relative: SIGNED32;
-			entry: ARRAY 9 OF CHAR;
+			entry: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 		BEGIN
 			IF table.size = 0 THEN
 				RETURN FALSE
@@ -114,7 +125,7 @@ TYPE
 					RETURN FALSE
 				END;
 				offset := table.offset + relative;
-				IF ~Within(table, offset, 22) THEN
+				IF ~Within(table, offset, TextureHeaderSize) THEN
 					COPY("Texture record header is truncated", error);
 					RETURN FALSE
 				END;
@@ -131,17 +142,17 @@ TYPE
 		VAR width, height, x, row, column, relative, top, length,
 			i, paletteIndex, color, red, green, blue, destinationX, destinationY: SIGNED32;
 		BEGIN
-			IF patch.size < 8 THEN
+			IF patch.size < PatchHeaderSize THEN
 				COPY("Patch header is truncated", error);
 				RETURN FALSE
 			END;
 			width := GameBytes.U16(archive.data^, patch.offset);
 			height := GameBytes.U16(archive.data^, patch.offset + 2);
-			IF (width < 1) OR (width > 1024) OR (height < 1) OR (height > 1024) THEN
+			IF (width < 1) OR (width > MaximumDimension) OR (height < 1) OR (height > MaximumDimension) THEN
 				COPY("Patch dimensions are invalid or exceed 1024", error);
 				RETURN FALSE
 			END;
-			IF ~Within(patch, patch.offset + 8, width * 4) THEN
+			IF ~Within(patch, patch.offset + PatchHeaderSize, width * 4) THEN
 				COPY("Patch column table is truncated", error);
 				RETURN FALSE
 			END;
@@ -151,8 +162,8 @@ TYPE
 					RETURN FALSE
 				END;
 				INC(work);
-				relative := GameBytes.I32(archive.data^, patch.offset + 8 + x * 4);
-				IF (relative < 8 + width * 4) OR (relative >= patch.size) THEN
+				relative := GameBytes.I32(archive.data^, patch.offset + PatchHeaderSize + x * 4);
+				IF (relative < PatchHeaderSize + width * 4) OR (relative >= patch.size) THEN
 					COPY("Patch column offset is outside its pixel data", error);
 					RETURN FALSE
 				END;
@@ -163,15 +174,15 @@ TYPE
 						RETURN FALSE
 					END;
 					top := ORD(archive.data[column]);
-					IF top = 255 THEN
+					IF top = ColumnEnd THEN
 						EXIT
 					END;
-					IF ~Within(patch, column, 4) THEN
+					IF ~Within(patch, column, PostOverhead) THEN
 						COPY("Patch post header is truncated", error);
 						RETURN FALSE
 					END;
 					length := ORD(archive.data[column + 1]);
-					IF ~Within(patch, column, length + 4) OR (top + length > height) THEN
+					IF ~Within(patch, column, length + PostOverhead) OR (top + length > height) THEN
 						COPY("Patch post pixels are outside the column", error);
 						RETURN FALSE
 					END;
@@ -185,7 +196,7 @@ TYPE
 						destinationY := originY + top + row;
 						IF (destinationX >= 0) & (destinationX < texture.width) &
 							(destinationY >= 0) & (destinationY < texture.height) THEN
-							paletteIndex := ORD(archive.data[column + 3 + row]);
+							paletteIndex := ORD(archive.data[column + PostPixels + row]);
 							i := palette.offset + paletteIndex * 3;
 							red := ORD(archive.data[i]);
 							green := ORD(archive.data[i + 1]);
@@ -194,7 +205,7 @@ TYPE
 							texture.Set(destinationX, destinationY, color)
 						END
 					END;
-					INC(column, length + 4)
+					INC(column, length + PostOverhead)
 				END
 			END;
 			RETURN TRUE
@@ -205,13 +216,13 @@ TYPE
 			table, patch: DoomWad.Lump;
 			offset, width, height, count, patchCount, i, position, index,
 			originX, originY, lump: SIGNED32;
-			patchName, wanted: ARRAY 9 OF CHAR;
+			patchName, wanted: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 			texture: GameMaterials.Texture;
 		BEGIN
 			error[0] := 0X;
 			i := 0;
 			WHILE (i < LEN(name)) & (name[i] # 0X) DO
-				IF i = 8 THEN
+				IF i = DoomFormat.NameLength THEN
 					COPY("Texture name exceeds eight characters", error);
 					RETURN NIL
 				END;
@@ -221,7 +232,7 @@ TYPE
 			wanted[i] := 0X;
 			found := cache;
 			WHILE found # NIL DO
-				IF (found.name = wanted) & (found.kind = 0) THEN
+				IF (found.name = wanted) & (found.kind = WallTexture) THEN
 					RETURN found.texture
 				END;
 				found := found.next
@@ -242,12 +253,12 @@ TYPE
 			width := GameBytes.U16(archive.data^, offset + 12);
 			height := GameBytes.U16(archive.data^, offset + 14);
 			count := GameBytes.U16(archive.data^, offset + 20);
-			IF (width < 1) OR (width > 1024) OR (height < 1) OR (height > 1024) OR
-				(count < 1) OR (count > 4096) THEN
+			IF (width < 1) OR (width > MaximumDimension) OR (height < 1) OR (height > MaximumDimension) OR
+				(count < 1) OR (count > MaximumPatches) THEN
 				COPY("Texture dimensions or patch count are invalid", error);
 				RETURN NIL
 			END;
-			IF ~Within(table, offset + 22, count * 10) THEN
+			IF ~Within(table, offset + TextureHeaderSize, count * TexturePatchSize) THEN
 				COPY("Texture patch list is truncated", error);
 				RETURN NIL
 			END;
@@ -258,7 +269,7 @@ TYPE
 			NEW(texture, width, height);
 			patchCount := GameBytes.I32(archive.data^, names.offset);
 			FOR i := 0 TO count - 1 DO
-				position := offset + 22 + i * 10;
+				position := offset + TextureHeaderSize + i * TexturePatchSize;
 				originX := GameBytes.I16(archive.data^, position);
 				originY := GameBytes.I16(archive.data^, position + 2);
 				index := GameBytes.U16(archive.data^, position + 4);
@@ -282,7 +293,7 @@ TYPE
 			NEW(found);
 			COPY(wanted, found.name);
 			found.texture := texture;
-			found.kind := 0;
+			found.kind := WallTexture;
 			found.next := cache;
 			cache := found;
 			RETURN texture
@@ -290,7 +301,7 @@ TYPE
 
 		PROCEDURE Flat*(CONST name: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): GameMaterials.Texture;
 		VAR found: Cached;
-			wanted: ARRAY 9 OF CHAR;
+			wanted: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 			index, i, position, color, red, green, blue: SIGNED32;
 			lump: DoomWad.Lump;
 			texture: GameMaterials.Texture;
@@ -298,7 +309,7 @@ TYPE
 			error[0] := 0X;
 			i := 0;
 			WHILE (i < LEN(name)) & (name[i] # 0X) DO
-				IF i = 8 THEN
+				IF i = DoomFormat.NameLength THEN
 					COPY("Flat name exceeds eight characters", error);
 					RETURN NIL
 				END;
@@ -308,7 +319,7 @@ TYPE
 			wanted[i] := 0X;
 			found := cache;
 			WHILE found # NIL DO
-				IF (found.name = wanted) & (found.kind = 1) THEN
+				IF (found.name = wanted) & (found.kind = FlatTexture) THEN
 					RETURN found.texture
 				END;
 				found := found.next
@@ -319,30 +330,30 @@ TYPE
 				RETURN NIL
 			END;
 			lump := archive.Entry(index);
-			IF lump.size # 4096 THEN
+			IF lump.size # DoomFormat.FlatPixels THEN
 				COPY("Sector flat must contain 4096 palette indices", error);
 				RETURN NIL
 			END;
-			IF (4096 > MaximumPixels - pixels) OR (4096 > MaximumWork - work) THEN
+			IF (DoomFormat.FlatPixels > MaximumPixels - pixels) OR (DoomFormat.FlatPixels > MaximumWork - work) THEN
 				COPY("Flat decoding exceeds the texture resource budget", error);
 				RETURN NIL
 			END;
-			NEW(texture, 64, 64);
-			FOR i := 0 TO 4095 DO
+			NEW(texture, DoomFormat.FlatWidth, DoomFormat.FlatWidth);
+			FOR i := 0 TO DoomFormat.FlatPixels - 1 DO
 				position := palette.offset + ORD(archive.data[lump.offset + i]) * 3;
 				red := ORD(archive.data[position]);
 				green := ORD(archive.data[position + 1]);
 				blue := ORD(archive.data[position + 2]);
 				color := red * 65536 + green * 256 + blue;
-				texture.Set(i MOD 64, i DIV 64, color)
+				texture.Set(i MOD DoomFormat.FlatWidth, i DIV DoomFormat.FlatWidth, color)
 			END;
 			texture.Seal;
-			INC(pixels, 4096);
-			INC(work, 4096);
+			INC(pixels, DoomFormat.FlatPixels);
+			INC(work, DoomFormat.FlatPixels);
 			NEW(found);
 			COPY(wanted, found.name);
 			found.texture := texture;
-			found.kind := 1;
+			found.kind := FlatTexture;
 			found.next := cache;
 			cache := found;
 			RETURN texture
@@ -361,7 +372,7 @@ TYPE
 				RETURN NIL
 			END;
 			lump := archive.Entry(index);
-			IF lump.size < 8 THEN
+			IF lump.size < PatchHeaderSize THEN
 				COPY("Sprite patch header is truncated", error);
 				RETURN NIL
 			END;
@@ -369,14 +380,14 @@ TYPE
 			top := GameBytes.I16(archive.data^, lump.offset + 6);
 			found := cache;
 			WHILE found # NIL DO
-				IF (found.kind = 2) & (found.lump = index) THEN
+				IF (found.kind = SpriteTexture) & (found.lump = index) THEN
 					RETURN found.texture
 				END;
 				found := found.next
 			END;
 			width := GameBytes.U16(archive.data^, lump.offset);
 			height := GameBytes.U16(archive.data^, lump.offset + 2);
-			IF (width < 1) OR (width > 1024) OR (height < 1) OR (height > 1024) THEN
+			IF (width < 1) OR (width > MaximumDimension) OR (height < 1) OR (height > MaximumDimension) THEN
 				COPY("Sprite dimensions are invalid or exceed 1024", error);
 				RETURN NIL
 			END;
@@ -391,7 +402,7 @@ TYPE
 			texture.Seal;
 			INC(pixels, width * height);
 			NEW(found);
-			found.kind := 2;
+			found.kind := SpriteTexture;
 			found.lump := index;
 			found.texture := texture;
 			found.next := cache;
@@ -410,16 +421,16 @@ PROCEDURE Name(CONST data: ARRAY OF CHAR; offset: SIGNED32; VAR name: ARRAY OF C
 VAR i: SIGNED32;
 	value: CHAR;
 BEGIN
-	ASSERT(GameBytes.Range(data, offset, 8));
-	ASSERT(LEN(name) >= 9);
-	FOR i := 0 TO 7 DO
+	ASSERT(GameBytes.Range(data, offset, DoomFormat.NameLength));
+	ASSERT(LEN(name) > DoomFormat.NameLength);
+	FOR i := 0 TO DoomFormat.NameLength - 1 DO
 		value := data[offset + i];
 		IF (value >= "a") & (value <= "z") THEN
 			value := CHR(ORD(value) - ORD("a") + ORD("A"))
 		END;
 		name[i] := value
 	END;
-	name[8] := 0X
+	name[DoomFormat.NameLength] := 0X
 END Name;
 
 PROCEDURE Open*(archive: DoomWad.Archive; VAR error: ARRAY OF CHAR): Library;

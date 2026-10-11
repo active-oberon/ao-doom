@@ -1,12 +1,21 @@
 MODULE Doom;
 
-IMPORT GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
+IMPORT DoomConfig, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
 
-CONST TicksPerSecond* = 35;
-	PlayerRadius* = 0.25;
-	PlayerHeight* = 56.0 / 64;
-	PlayerStep* = 24.0 / 64;
-	PlayerEye* = 41.0 / 64;
+(* Player dimensions and tick rate retain the default-profile API; simulation reads DoomConfig.values. *)
+CONST TicksPerSecond* = DoomConfig.DefaultTicksPerSecond;
+	PlayerRadius* = DoomConfig.DefaultPlayerRadius;
+	PlayerHeight* = DoomConfig.DefaultPlayerHeight;
+	PlayerStep* = DoomConfig.DefaultPlayerStep;
+	PlayerEye* = DoomConfig.DefaultPlayerEye;
+	DemoEye = 1.3;
+	DemoWallHeight = 2.8;
+	DemoLight = 255;
+	BrickTextureSize = 64;
+	BrickCourse = 16;
+	BrickWidth = 32;
+	MortarWidth = 2;
+	MortarShade = 3;
 
 TYPE
 	Pose* = RECORD
@@ -42,7 +51,7 @@ TYPE
 			pose.x := 2;
 			pose.y := 4;
 			pose.angle := 0;
-			pose.eye := 1.3;
+			pose.eye := DemoEye;
 			ticks := 0;
 			forward := 0;
 			strafe := 0;
@@ -51,7 +60,7 @@ TYPE
 			sprites := NIL;
 			DoomInventory.Reset(inventory);
 			use := FALSE;
-			ASSERT(world.Free(pose.x, pose.y, PlayerRadius))
+			ASSERT(world.Free(pose.x, pose.y, DoomConfig.values.playerRadius))
 		END Init;
 
 		PROCEDURE Wall(ax, ay, bx, by: FLOAT64; color: SIGNED32);
@@ -62,9 +71,9 @@ TYPE
 			wall.bx := bx;
 			wall.by := by;
 			wall.bottom := 0;
-			wall.top := 2.8;
+			wall.top := DemoWallHeight;
 			wall.color := color;
-			wall.light := 255;
+			wall.light := DemoLight;
 			wall.texture := Bricks(color);
 			wall.uScale := 1;
 			wall.vScale := 1;
@@ -118,13 +127,13 @@ TYPE
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
-			pose.angle := pose.angle + turn * 0.065;
+			pose.angle := pose.angle + turn * DoomConfig.values.turnSpeed;
 			IF pose.angle > MathL.pi THEN
 				pose.angle := pose.angle - 2 * MathL.pi
 			ELSIF pose.angle < -MathL.pi THEN
 				pose.angle := pose.angle + 2 * MathL.pi
 			END;
-			speed := 0.09;
+			speed := DoomConfig.values.moveSpeed;
 			IF (forward # 0) & (strafe # 0) THEN
 				speed := speed / MathL.sqrt(2)
 			END;
@@ -133,20 +142,20 @@ TYPE
 			dy := (forward * MathL.sin(pose.angle) +
 				strafe * MathL.cos(pose.angle)) * speed;
 			IF world.SectorCount() = 0 THEN
-				ASSERT(world.Move(pose.x, pose.y, dx, dy, PlayerRadius))
+				ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius))
 			ELSE
-				feet := pose.eye - PlayerEye;
+				feet := pose.eye - DoomConfig.values.playerEye;
 				IF use THEN
 					used := doors.Use(world, pose.x, pose.y, pose.angle, inventory)
 				END;
-				doors.Step(world, pose.x, pose.y, PlayerRadius, feet, PlayerHeight, PlayerStep);
+				doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
 				ASSERT(world.MovePlayerChecked(pose.x, pose.y, feet, dx, dy,
-					PlayerRadius, PlayerHeight, PlayerStep, sprites.Free));
-				pose.eye := feet + PlayerEye
+					DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free));
+				pose.eye := feet + DoomConfig.values.playerEye
 			END;
 			IF sprites # NIL THEN
-				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - PlayerEye,
-					PlayerRadius, PlayerHeight, inventory)
+				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye,
+					DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, inventory)
 			END;
 			use := FALSE
 		END Step;
@@ -194,14 +203,14 @@ PROCEDURE Bricks(color: SIGNED32): GameMaterials.Texture;
 VAR texture: GameMaterials.Texture;
 	x, y, shift, mortar, texel: SIGNED32;
 BEGIN
-	NEW(texture, 64, 64);
-	mortar := (color DIV 65536 MOD 256 DIV 3) * 65536 +
-		(color DIV 256 MOD 256 DIV 3) * 256 + color MOD 256 DIV 3;
-	FOR y := 0 TO 63 DO
-		shift := y DIV 16 MOD 2 * 16;
-		FOR x := 0 TO 63 DO
+	NEW(texture, BrickTextureSize, BrickTextureSize);
+	mortar := (color DIV 65536 MOD 256 DIV MortarShade) * 65536 +
+		(color DIV 256 MOD 256 DIV MortarShade) * 256 + color MOD 256 DIV MortarShade;
+	FOR y := 0 TO BrickTextureSize - 1 DO
+		shift := y DIV BrickCourse MOD 2 * BrickCourse;
+		FOR x := 0 TO BrickTextureSize - 1 DO
 			texel := color;
-			IF (y MOD 16 < 2) OR ((x + shift) MOD 32 < 2) THEN
+			IF (y MOD BrickCourse < MortarWidth) OR ((x + shift) MOD BrickWidth < MortarWidth) THEN
 				texel := mortar
 			END;
 			texture.Set(x, y, texel)
@@ -219,7 +228,7 @@ VAR game: Game;
 	error: ARRAY 128 OF CHAR;
 BEGIN
 	NEW(game);
-	NEW(frame, 320, 200);
+	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
 	game.Render(frame);
 	ASSERT(frame.Save("scene.ppm"));
 	NEW(simulation, game.Step);

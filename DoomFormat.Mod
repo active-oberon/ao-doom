@@ -1,0 +1,40 @@
+MODULE DoomFormat;
+
+CONST UnitsPerWorld* = 64.0;
+	NameLength* = 8;
+	HeaderSize* = 12;
+	DirectorySize* = 16;
+	ThingSize* = 10;
+	LineSize* = 14;
+	SideSize* = 30;
+	VertexSize* = 4;
+	SectorSize* = 26;
+	SegSize* = 12;
+	SubsectorSize* = 4;
+	NodeSize* = 28;
+	SideSector* = 28;
+	LineFront* = 10;
+	LineBack* = 12;
+	LineFlags* = 4;
+	LineSpecial* = 6;
+	ThingType* = 6;
+	ThingFlags* = 8;
+	MaximumRecords* = 65536;
+	NoSide* = 65535;
+	LeafFlag* = 32768;
+	LightMaximum* = 255;
+	FlatWidth* = 64;
+	FlatPixels* = FlatWidth * FlatWidth;
+	PaletteColors* = 256;
+	ColorChannels* = 3;
+	PaletteBytes* = PaletteColors * ColorChannels;
+	SpriteRotations* = 8;
+	DegreesPerCircle* = 360;
+	DegreesPerHalfCircle* = 180;
+	PlayerOne* = 1;
+	PickupRadius* = 20.0 / UnitsPerWorld;
+	PickupBelowFeet* = 8.0 / UnitsPerWorld;
+	MaximumTraceHits* = 256;
+	CollectionWordBits* = 32;
+
+END DoomFormat.

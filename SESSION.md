@@ -1,8 +1,22 @@
 # ao-doom session handoff
 
-Updated: 2026-10-10 23:54:06 UTC
+Updated: 2026-10-11 00:42:41 UTC
 
-## Exit checkpoint
+## Current continuation: startup YAML configuration
+
+The user asked for magic-number refactoring and clarified that configuration
+must be read at startup without recompiling. DoomConfig, DoomFormat, doom.yaml
+and the HUD refactor are complete. MiniA2 now supplies bounded configuration
+YAML with {TEST}; a2-registry includes its manifest/index/API documentation.
+The user authorized one commit and push of this refactor to main in each
+repository. MiniA2 commit: 1648ac5. Registry commit: f8fda92.
+The final SDK is installed; its previous version is backed up in
+/tmp/ao-doom-config/previous-sdk. Evidence and exact limits: scratch/config-check.md.
+Final Doom check, YAML native/A64 tests and startup configuration probes passed.
+The full registry gate has unrelated pre-existing community/crypto divergence;
+its standard synchronization passed. Combat remains the next engine milestone.
+
+## Previous exit checkpoint (2026-10-10)
 
 The user asked to save state and is leaving. Stop feature work after this
 checkpoint. Resume from combat when the user next asks to continue.

@@ -1,11 +1,11 @@
 MODULE DoomWad;
 
-IMPORT GameBytes;
+IMPORT DoomFormat, GameBytes;
 
 TYPE
 	Lump* = RECORD
 		offset*, size*: SIGNED32;
-		name*: ARRAY 9 OF CHAR
+		name*: ARRAY DoomFormat.NameLength + 1 OF CHAR
 	END;
 
 	Archive* = OBJECT
@@ -21,7 +21,7 @@ TYPE
 		VAR count, directory, i, j, offset: SIGNED32;
 			magic: ARRAY 5 OF CHAR;
 		BEGIN
-			IF ~GameBytes.Range(data^, 0, 12) THEN
+			IF ~GameBytes.Range(data^, 0, DoomFormat.HeaderSize) THEN
 				COPY("WAD header is truncated", error);
 				RETURN FALSE
 			END;
@@ -35,27 +35,27 @@ TYPE
 			END;
 			count := GameBytes.I32(data^, 4);
 			directory := GameBytes.I32(data^, 8);
-			IF (count < 0) OR (count > 65536) THEN
+			IF (count < 0) OR (count > DoomFormat.MaximumRecords) THEN
 				COPY("WAD directory count is invalid or exceeds 65536", error);
 				RETURN FALSE
 			END;
-			IF ~GameBytes.Range(data^, directory, count * 16) THEN
+			IF ~GameBytes.Range(data^, directory, count * DoomFormat.DirectorySize) THEN
 				COPY("WAD directory is outside the file", error);
 				RETURN FALSE
 			END;
 			NEW(lumps, count);
 			FOR i := 0 TO count - 1 DO
-				offset := directory + i * 16;
+				offset := directory + i * DoomFormat.DirectorySize;
 				lumps[i].offset := GameBytes.I32(data^, offset);
 				lumps[i].size := GameBytes.I32(data^, offset + 4);
 				IF ~GameBytes.Range(data^, lumps[i].offset, lumps[i].size) THEN
 					COPY("WAD lump is outside the file", error);
 					RETURN FALSE
 				END;
-				FOR j := 0 TO 7 DO
+				FOR j := 0 TO DoomFormat.NameLength - 1 DO
 					lumps[i].name[j] := Upper(data[offset + 8 + j])
 				END;
-				lumps[i].name[8] := 0X
+				lumps[i].name[DoomFormat.NameLength] := 0X
 			END;
 			RETURN TRUE
 		END Validate;
@@ -73,11 +73,11 @@ TYPE
 
 		PROCEDURE Find*(CONST name: ARRAY OF CHAR): SIGNED32;
 		VAR i, j: SIGNED32;
-			wanted: ARRAY 9 OF CHAR;
+			wanted: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 		BEGIN
 			j := 0;
 			WHILE (j < LEN(name)) & (name[j] # 0X) DO
-				IF j = 8 THEN
+				IF j = DoomFormat.NameLength THEN
 					RETURN -1
 				END;
 				wanted[j] := Upper(name[j]);

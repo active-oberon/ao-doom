@@ -1,10 +1,21 @@
 MODULE DoomDoors;
 
-IMPORT DoomWad, DoomInventory, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomInventory, GameBytes, GameGeometry, MathL;
 
-CONST Speed = 2.0 / 64;
-	Wait = 150;
-	UseRange = 1.0;
+CONST Raise = 1;
+	BlueRaise = 26;
+	YellowRaise = 27;
+	RedRaise = 28;
+	Open = 31;
+	BlueOpen = 32;
+	RedOpen = 33;
+	YellowOpen = 34;
+	FastRaise = 117;
+	FastOpen = 118;
+	Closed = 0;
+	Opening = 1;
+	Closing = -1;
+	Waiting = 2;
 
 TYPE
 	Trigger = RECORD
@@ -28,19 +39,19 @@ TYPE
 			sectorCount: SIGNED32);
 		VAR i, offset, side: SIGNED32;
 		BEGIN
-			NEW(triggers, lines.size DIV 14);
+			NEW(triggers, lines.size DIV DoomFormat.LineSize);
 			NEW(doors, sectorCount);
 			NEW(moving, sectorCount);
 			NEW(heights, sectorCount);
 			FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
-				offset := lines.offset + i * 14;
-				triggers[i].special := GameBytes.U16(archive.data^, offset + 6);
-				side := GameBytes.U16(archive.data^, offset + 10);
-				triggers[i].front := GameBytes.U16(archive.data^, sides.offset + side * 30 + 28);
+				offset := lines.offset + i * DoomFormat.LineSize;
+				triggers[i].special := GameBytes.U16(archive.data^, offset + DoomFormat.LineSpecial);
+				side := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
+				triggers[i].front := GameBytes.U16(archive.data^, sides.offset + side * DoomFormat.SideSize + DoomFormat.SideSector);
 				triggers[i].back := -1;
-				side := GameBytes.U16(archive.data^, offset + 12);
-				IF side # 65535 THEN
-					triggers[i].back := GameBytes.U16(archive.data^, sides.offset + side * 30 + 28);
+				side := GameBytes.U16(archive.data^, offset + DoomFormat.LineBack);
+				IF side # DoomFormat.NoSide THEN
+					triggers[i].back := GameBytes.U16(archive.data^, sides.offset + side * DoomFormat.SideSize + DoomFormat.SideSector);
 					IF Supported(triggers[i].special) THEN
 						moving[triggers[i].back] := TRUE
 					END
@@ -71,7 +82,7 @@ TYPE
 					height := MIN(height, region.ceiling)
 				END
 			END;
-			RETURN height - 4.0 / 64
+			RETURN height - DoomConfig.values.doorTopGap
 		END Top;
 
 		PROCEDURE Use*(world: GameGeometry.World; x, y, angle: FLOAT64;
@@ -84,9 +95,9 @@ TYPE
 			player.neededKey := -1;
 			near := 0;
 			(* shortcut: use traces stop after 256 hits; add spatial traversal for denser edited maps. *)
-			FOR i := 1 TO MIN(world.Count(), 256) DO
+			FOR i := 1 TO MIN(world.Count(), DoomFormat.MaximumTraceHits) DO
 				IF ~world.CastSector(-1, x, y, MathL.cos(angle), MathL.sin(angle), near, distance, wall) OR
-					(distance > UseRange) THEN
+					(distance > DoomConfig.values.useRange) THEN
 					RETURN FALSE
 				END;
 				ASSERT((wall.id >= 0) & (wall.id < LEN(triggers^)));
@@ -98,25 +109,25 @@ TYPE
 						RETURN FALSE
 					END;
 					CASE special OF
-					26, 32:
+					BlueRaise, BlueOpen:
 						key := DoomInventory.BlueCard
-					| 27, 34:
+					| YellowRaise, YellowOpen:
 						key := DoomInventory.YellowCard
-					| 28, 33:
+					| RedRaise, RedOpen:
 						key := DoomInventory.RedCard
 					ELSE
 						key := -1
 					END;
-					IF (key >= 0) & ~((key IN player.keys) OR (key + 3 IN player.keys)) THEN
+					IF (key >= 0) & ~((key IN player.keys) OR (key + DoomInventory.KeyColors IN player.keys)) THEN
 						player.neededKey := key;
 						RETURN FALSE
 					END;
-					IF doors[sector].direction # 0 THEN
-						IF (special = 1) OR ((special >= 26) & (special <= 28)) OR (special = 117) THEN
-							IF doors[sector].direction = -1 THEN
-								doors[sector].direction := 1
+					IF doors[sector].direction # Closed THEN
+						IF (special = Raise) OR ((special >= BlueRaise) & (special <= RedRaise)) OR (special = FastRaise) THEN
+							IF doors[sector].direction = Closing THEN
+								doors[sector].direction := Opening
 							ELSE
-								doors[sector].direction := -1
+								doors[sector].direction := Closing
 							END;
 							RETURN TRUE
 						END;
@@ -128,15 +139,15 @@ TYPE
 						RETURN FALSE
 					END;
 					doors[sector].top := top;
-					doors[sector].speed := Speed;
-					IF special >= 117 THEN
-						doors[sector].speed := Speed * 4
+					doors[sector].speed := DoomConfig.values.doorSpeed;
+					IF special >= FastRaise THEN
+						doors[sector].speed := DoomConfig.values.fastDoorSpeed
 					END;
-					doors[sector].stayOpen := ((special >= 31) & (special <= 34)) OR (special = 118);
+					doors[sector].stayOpen := ((special >= Open) & (special <= YellowOpen)) OR (special = FastOpen);
 					IF doors[sector].stayOpen THEN
 						triggers[wall.id].special := 0
 					END;
-					doors[sector].direction := 1;
+					doors[sector].direction := Opening;
 					INC(active);
 					RETURN TRUE
 				END;
@@ -167,14 +178,14 @@ TYPE
 				heights[i] := region.ceiling
 			END;
 			FOR i := 0 TO SIGNED32(LEN(doors^)) - 1 DO
-				IF doors[i].direction = 2 THEN
+				IF doors[i].direction = Waiting THEN
 					DEC(doors[i].timer);
 					IF doors[i].timer = 0 THEN
-						doors[i].direction := -1
+						doors[i].direction := Closing
 					END
-				ELSIF doors[i].direction # 0 THEN
+				ELSIF doors[i].direction # Closed THEN
 					previous := heights[i];
-					IF doors[i].direction = 1 THEN
+					IF doors[i].direction = Opening THEN
 						heights[i] := MIN(doors[i].top, heights[i] + doors[i].speed)
 					ELSE
 						region := world.Region(i);
@@ -184,21 +195,21 @@ TYPE
 					ASSERT(candidate # NIL);
 					IF ~candidate.Stand(x, y, radius, feet, height, step, floor) THEN
 						heights[i] := previous;
-						doors[i].direction := 1
+						doors[i].direction := Opening
 					ELSE
 						world := candidate;
-						IF (doors[i].direction = 1) & (heights[i] = doors[i].top) THEN
+						IF (doors[i].direction = Opening) & (heights[i] = doors[i].top) THEN
 							IF doors[i].stayOpen THEN
-								doors[i].direction := 0;
+								doors[i].direction := Closed;
 								DEC(active)
 							ELSE
-								doors[i].direction := 2;
-								doors[i].timer := Wait
+								doors[i].direction := Waiting;
+								doors[i].timer := DoomConfig.values.doorWait
 							END
-						ELSIF doors[i].direction = -1 THEN
+						ELSIF doors[i].direction = Closing THEN
 							region := world.Region(i);
 							IF heights[i] = region.floor THEN
-								doors[i].direction := 0;
+								doors[i].direction := Closed;
 								DEC(active)
 							END
 						END
@@ -210,8 +221,8 @@ TYPE
 
 PROCEDURE Supported(special: SIGNED32): BOOLEAN;
 BEGIN
-	RETURN (special = 1) OR ((special >= 26) & (special <= 28)) OR
-		((special >= 31) & (special <= 34)) OR (special = 117) OR (special = 118)
+	RETURN (special = Raise) OR ((special >= BlueRaise) & (special <= RedRaise)) OR
+		((special >= Open) & (special <= YellowOpen)) OR (special = FastRaise) OR (special = FastOpen)
 END Supported;
 
 END DoomDoors.
