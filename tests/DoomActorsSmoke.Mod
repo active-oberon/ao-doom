@@ -1,6 +1,6 @@
 MODULE DoomActorsSmoke;
 
-IMPORT Doom, DoomWad, DoomMap, DoomSprites, DoomInventory, DoomThings, GameSurface;
+IMPORT DoomConfig, Doom, DoomWad, DoomMap, DoomSprites, DoomInventory, DoomThings, GameSurface;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -16,24 +16,24 @@ VAR map: DoomMap.Map;
 	x, y, feet, contact: FLOAT64;
 BEGIN
 	Load(path, map);
-	contact := 2 - Doom.PlayerRadius - radius / 64.0;
-	ASSERT(map.sprites.Free(contact, 0, Doom.PlayerRadius));
-	ASSERT(~map.sprites.Free(contact + 0.000001, 0, Doom.PlayerRadius));
-	ASSERT(map.sprites.Free(2, Doom.PlayerRadius + radius / 64.0, Doom.PlayerRadius));
-	ASSERT(~map.sprites.Free(2, Doom.PlayerRadius + radius / 64.0 - 0.000001, Doom.PlayerRadius));
-	ASSERT(~map.sprites.Free(contact + 0.000001, Doom.PlayerRadius + radius / 64.0 - 0.000001,
-		Doom.PlayerRadius));
+	contact := 2 - DoomConfig.values.playerRadius - radius / 64.0;
+	ASSERT(map.sprites.Free(contact, 0, DoomConfig.values.playerRadius));
+	ASSERT(~map.sprites.Free(contact + 0.000001, 0, DoomConfig.values.playerRadius));
+	ASSERT(map.sprites.Free(2, DoomConfig.values.playerRadius + radius / 64.0, DoomConfig.values.playerRadius));
+	ASSERT(~map.sprites.Free(2, DoomConfig.values.playerRadius + radius / 64.0 - 0.000001, DoomConfig.values.playerRadius));
+	ASSERT(~map.sprites.Free(contact + 0.000001, DoomConfig.values.playerRadius + radius / 64.0 - 0.000001,
+		DoomConfig.values.playerRadius));
 	x := map.x;
 	y := map.y;
-	feet := map.eye - Doom.PlayerEye;
+	feet := map.eye - DoomConfig.values.playerEye;
 	ASSERT(map.world.MovePlayerChecked(x, y, feet, 6, 0,
-		Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep, map.sprites.Free));
-	ASSERT((x <= contact) & (x > contact - Doom.PlayerRadius / 2));
-	ASSERT(map.sprites.Free(x, y, Doom.PlayerRadius));
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, map.sprites.Free));
+	ASSERT((x <= contact) & (x > contact - DoomConfig.values.playerRadius / 2));
+	ASSERT(map.sprites.Free(x, y, DoomConfig.values.playerRadius));
 	ASSERT(map.world.MovePlayerChecked(x, y, feet, 1, 1,
-		Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep, map.sprites.Free));
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, map.sprites.Free));
 	ASSERT((x > contact) & (y > 0.9));
-	ASSERT(map.sprites.Free(x, y, Doom.PlayerRadius))
+	ASSERT(map.sprites.Free(x, y, DoomConfig.values.playerRadius))
 END Solid;
 
 PROCEDURE Passable(CONST path: ARRAY OF CHAR);
@@ -63,6 +63,7 @@ VAR game: Doom.Game;
 	error: ARRAY 128 OF CHAR;
 	i: SIGNED32;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	ASSERT(DoomThings.Lookup(2035, info));
 	ASSERT(info.radius = 10);
 	ASSERT(DoomThings.Lookup(3004, info));
@@ -85,10 +86,10 @@ BEGIN
 	Passable("sprites.wad");
 	Load("pickups.wad", map);
 	DoomInventory.Reset(player);
-	scene := map.sprites.Touch(map.world, 2, 0, 0, Doom.PlayerRadius, Doom.PlayerHeight, player);
+	scene := map.sprites.Touch(map.world, 2, 0, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT((scene # map.sprites) & (player.pickups = 6));
-	ASSERT(map.sprites.Free(2, 0, Doom.PlayerRadius));
-	ASSERT(scene.Free(2, 0, Doom.PlayerRadius));
+	ASSERT(map.sprites.Free(2, 0, DoomConfig.values.playerRadius));
+	ASSERT(scene.Free(2, 0, DoomConfig.values.playerRadius));
 	NEW(game);
 	ASSERT(game.Load("actors-barrel.wad", "E1M1", error));
 	game.Controls(1, 0, 0);
@@ -134,7 +135,7 @@ BEGIN
 	END;
 	pose := game.State();
 	ASSERT((pose.x <= 2 - 26.0 / 64) & (pose.x > 1.5));
-	ASSERT(ABS(pose.eye - Doom.PlayerEye - 24.0 / 64) < 0.000001)
+	ASSERT(ABS(pose.eye - DoomConfig.values.playerEye - 24.0 / 64) < 0.000001)
 END Do;
 
 END DoomActorsSmoke.

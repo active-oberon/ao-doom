@@ -1,6 +1,6 @@
 MODULE DoomBspSmoke;
 
-IMPORT DoomWad, DoomMap, Doom, GameSurface, GameRenderer, MathL;
+IMPORT DoomConfig, DoomWad, DoomMap, GameSurface, GameRenderer, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -27,7 +27,9 @@ PROCEDURE Do*;
 VAR map: DoomMap.Map;
 	frame: GameSurface.Frame;
 	x, y, feet: FLOAT64;
+	error: ARRAY 256 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	Load("bsp-sectors.wad", map);
 	ASSERT(map.world.Locate(-2, 0) = 0);
 	ASSERT(map.world.Locate(2, 0) = 1);
@@ -40,15 +42,15 @@ BEGIN
 	NEW(frame, 320, 200);
 	GameRenderer.Render(map.world, frame, map.x, map.y, map.angle, map.eye);
 	ASSERT(frame.Pixel(160, 100) # 0202938H);
-	GameRenderer.Render(map.world, frame, 0, 0, 0, map.eye + Doom.PlayerStep);
+	GameRenderer.Render(map.world, frame, 0, 0, 0, map.eye + DoomConfig.values.playerStep);
 	ASSERT((frame.Pixel(160, 100) # 0202938H) & (frame.Pixel(160, 100) # 035302CH));
-	GameRenderer.Render(map.world, frame, 0, 0, MathL.pi, map.eye + Doom.PlayerStep);
+	GameRenderer.Render(map.world, frame, 0, 0, MathL.pi, map.eye + DoomConfig.values.playerStep);
 	ASSERT((frame.Pixel(160, 100) # 0202938H) & (frame.Pixel(160, 100) # 035302CH));
 	x := map.x;
 	y := map.y;
 	feet := 0;
-	ASSERT(map.world.MovePlayer(x, y, feet, 4, 0, Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
-	ASSERT((ABS(x - 2) < 0.000001) & (feet = Doom.PlayerStep));
+	ASSERT(map.world.MovePlayer(x, y, feet, 4, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep));
+	ASSERT((ABS(x - 2) < 0.000001) & (feet = DoomConfig.values.playerStep));
 	Load("bsp-unused-sector.wad", map);
 	ASSERT(map.world.SectorCount() = 4);
 	ASSERT(map.world.Locate(-2, 0) = 0);

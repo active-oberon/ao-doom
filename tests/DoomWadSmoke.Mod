@@ -1,6 +1,6 @@
 MODULE DoomWadSmoke;
 
-IMPORT DoomWad, DoomMap, GameGeometry, MathL;
+IMPORT DoomConfig, DoomWad, DoomMap, GameGeometry, MathL;
 
 PROCEDURE RejectArchive(CONST path: ARRAY OF CHAR);
 VAR archive: DoomWad.Archive;
@@ -31,6 +31,7 @@ VAR archive: DoomWad.Archive;
 	wall: GameGeometry.Wall;
 	distance: FLOAT64;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	RejectArchive("missing.wad");
 	RejectArchive("short.wad");
 	RejectArchive("magic.wad");

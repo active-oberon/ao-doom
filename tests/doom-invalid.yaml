@@ -1,2 +1,51 @@
+# Distances and speeds use Doom map units; turn_per_tick uses radians.
+# Movement and door speeds are per simulation tick, not per second.
+video:
+  width: 320
+  height: 200
+simulation:
+  ticks_per_second: 35
+  maximum_elapsed_ms: 250
+  sleep_ms: 5
 player:
   radius: -1
+  height: 56
+  step: 24
+  eye: 41
+  move_per_tick: 5.76
+  turn_per_tick: 0.065
+doors:
+  speed_per_tick: 2
+  fast_speed_per_tick: 8
+  wait_ticks: 150
+  use_range: 64
+  top_gap: 4
+demo:
+  colors:
+    horizontal_wall: 0x897060
+    vertical_wall: 0x607889
+    left_partition: 0x678160
+    right_partition: 0x806060
+    pillar: 0xb39258
+hud:
+  height: 20
+  margin: 4
+  top_row: 3
+  bottom_row: 13
+  label_gap: 4
+  armor_x: 52
+  ammo_x: 98
+  ammo_spacing: 40
+  weapons_x: 68
+  keys_x: 120
+  key_start_x: 144
+  key_spacing: 12
+  hint_x: 216
+  colors:
+    background: 0x12161c
+    label: 0xc0c8d0
+    value: 0xffffff
+    missing_key: 0x353d48
+    blue_key: 0x60a0ff
+    yellow_key: 0xffe060
+    red_key: 0xff6060

@@ -1,6 +1,6 @@
 MODULE DoomSpritesSmoke;
 
-IMPORT Doom, DoomWad, DoomMap, DoomTextures, DoomThings, GameGeometry, GameRenderer, GameSurface, GameMaterials, MathL;
+IMPORT DoomConfig, Doom, DoomWad, DoomMap, DoomTextures, DoomThings, GameGeometry, GameRenderer, GameSurface, GameMaterials, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -55,6 +55,7 @@ VAR map: DoomMap.Map;
 	index, left, top, column: SIGNED32;
 	error: ARRAY 128 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	ASSERT(DoomThings.Lookup(3004, info));
 	ASSERT(info.name = "POSSA");
 	ASSERT(DoomThings.Lookup(49, info));

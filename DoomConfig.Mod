@@ -7,11 +7,6 @@ CONST HudCharacterAdvance* = 4;
 	HudStatDigits* = 3;
 	HudPickupDigits* = 5;
 	DefaultFile* = "doom.yaml";
-	DefaultTicksPerSecond* = 35;
-	DefaultPlayerRadius* = 16.0 / DoomFormat.UnitsPerWorld;
-	DefaultPlayerHeight* = 56.0 / DoomFormat.UnitsPerWorld;
-	DefaultPlayerStep* = 24.0 / DoomFormat.UnitsPerWorld;
-	DefaultPlayerEye* = 41.0 / DoomFormat.UnitsPerWorld;
 	MinimumWidth = 320;
 	MinimumHeight = 40;
 	MaximumDimension = 4096;
@@ -23,55 +18,20 @@ TYPE HudSettings* = RECORD
 	background*, label*, value*, missingKey*, blueKey*, yellowKey*, redKey*: SIGNED32
 END;
 
+DemoPalette* = RECORD
+	horizontalWall*, verticalWall*, leftPartition*, rightPartition*, pillar*: SIGNED32
+END;
+
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
-	hud*: HudSettings
+	hud*: HudSettings;
+	demoColors*: DemoPalette
 END;
 
 VAR values-: Settings;
-
-(* Defaults preserves the original scene and classic player dimensions without requiring a file for library callers. *)
-PROCEDURE Defaults*(VAR settings: Settings);
-BEGIN
-	settings.width := 320;
-	settings.height := 200;
-	settings.ticksPerSecond := DefaultTicksPerSecond;
-	settings.maximumElapsed := 250;
-	settings.sleepMillis := 5;
-	settings.playerRadius := DefaultPlayerRadius;
-	settings.playerHeight := DefaultPlayerHeight;
-	settings.playerStep := DefaultPlayerStep;
-	settings.playerEye := DefaultPlayerEye;
-	settings.moveSpeed := 0.09;
-	settings.turnSpeed := 0.065;
-	settings.doorSpeed := 2.0 / DoomFormat.UnitsPerWorld;
-	settings.fastDoorSpeed := 8.0 / DoomFormat.UnitsPerWorld;
-	settings.doorWait := 150;
-	settings.useRange := 1;
-	settings.doorTopGap := 4.0 / DoomFormat.UnitsPerWorld;
-	settings.hud.height := 20;
-	settings.hud.margin := 4;
-	settings.hud.topRow := 3;
-	settings.hud.bottomRow := 13;
-	settings.hud.labelGap := 4;
-	settings.hud.armorX := 52;
-	settings.hud.ammoX := 98;
-	settings.hud.ammoSpacing := 40;
-	settings.hud.weaponsX := 68;
-	settings.hud.keysX := 120;
-	settings.hud.keyStartX := 144;
-	settings.hud.keySpacing := 12;
-	settings.hud.hintX := 216;
-	settings.hud.background := 012161CH;
-	settings.hud.label := 0C0C8D0H;
-	settings.hud.value := 0FFFFFFH;
-	settings.hud.missingKey := 0353D48H;
-	settings.hud.blueKey := 060A0FFH;
-	settings.hud.yellowKey := 0FFE060H;
-	settings.hud.redKey := 0FF6060H
-END Defaults;
+	loaded-: BOOLEAN;
 
 PROCEDURE Keys(object: JSON.Object; CONST allowed: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR member: JSON.Member;
@@ -102,11 +62,7 @@ PROCEDURE Section(root: JSON.Object; CONST name, allowed: ARRAY OF CHAR;
 VAR value: JSON.Value;
 BEGIN
 	value := root.Get(name);
-	IF value = NIL THEN
-		object := JSON.NewObject();
-		RETURN TRUE
-	END;
-	IF ~(value IS JSON.Object) THEN
+	IF (value = NIL) OR ~(value IS JSON.Object) THEN
 		COPY("Expected a mapping for ", error);
 		Strings.AppendX(error, name);
 		RETURN FALSE
@@ -122,7 +78,9 @@ VAR value: JSON.Value;
 BEGIN
 	value := object.Get(key);
 	IF value = NIL THEN
-		RETURN TRUE
+		COPY("Missing required configuration key: ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
 	END;
 	IF value IS JSON.Number THEN
 		number := value(JSON.Number).value;
@@ -140,7 +98,6 @@ PROCEDURE Integer(object: JSON.Object; CONST key: ARRAY OF CHAR; minimum, maximu
 	VAR destination: SIGNED32; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR number: FLOAT64;
 BEGIN
-	number := destination;
 	IF ~Real(object, key, minimum, maximum, 1, number, error) THEN
 		RETURN FALSE
 	END;
@@ -160,17 +117,16 @@ END FieldFits;
 
 (* Decode validates the complete schema before replacing settings, so failed reads preserve the caller's state. *)
 PROCEDURE Decode(value: JSON.Value; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
-VAR root, object, hud: JSON.Object;
+VAR root, object, hud, demo: JSON.Object;
 	candidate: Settings;
 BEGIN
 	error[0] := 0X;
-	Defaults(candidate);
-	IF ~(value IS JSON.Object) THEN
+	IF (value = NIL) OR ~(value IS JSON.Object) THEN
 		COPY("Doom configuration must be a mapping", error);
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|hud|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -191,6 +147,15 @@ BEGIN
 		~Integer(object, "wait_ticks", 1, MAX(SIGNED32), candidate.doorWait, error) OR
 		~Real(object, "use_range", 1, 1024, DoomFormat.UnitsPerWorld, candidate.useRange, error) OR
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) THEN
+		RETURN FALSE
+	END;
+	IF ~Section(root, "demo", "|colors|", demo, error) OR
+		~Section(demo, "colors", "|horizontal_wall|vertical_wall|left_partition|right_partition|pillar|", object, error) OR
+		~Integer(object, "horizontal_wall", 0, 0FFFFFFH, candidate.demoColors.horizontalWall, error) OR
+		~Integer(object, "vertical_wall", 0, 0FFFFFFH, candidate.demoColors.verticalWall, error) OR
+		~Integer(object, "left_partition", 0, 0FFFFFFH, candidate.demoColors.leftPartition, error) OR
+		~Integer(object, "right_partition", 0, 0FFFFFFH, candidate.demoColors.rightPartition, error) OR
+		~Integer(object, "pillar", 0, 0FFFFFFH, candidate.demoColors.pillar, error) THEN
 		RETURN FALSE
 	END;
 	IF ~Section(root, "hud", "|height|margin|top_row|bottom_row|label_gap|armor_x|ammo_x|ammo_spacing|weapons_x|keys_x|key_start_x|key_spacing|hint_x|colors|", hud, error) OR
@@ -250,57 +215,122 @@ END Read;
 (* Load publishes validated settings before constructing games; runtime reload is unsupported. *)
 PROCEDURE Load*(CONST path: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-	RETURN Read(path, values, error)
+	IF ~Read(path, values, error) THEN
+		RETURN FALSE
+	END;
+	loaded := TRUE;
+	RETURN TRUE
 END Load;
 
-PROCEDURE {TEST} DefaultsAndOverrides*;
+PROCEDURE {TEST} CompleteAndRequired*;
 VAR value: JSON.Value;
+	root: JSON.Object;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+
+	PROCEDURE MissingFields(object: JSON.Object);
+	VAR member: JSON.Member;
+		original: JSON.Value;
+	BEGIN
+		member := object.members;
+		WHILE member # NIL DO
+			original := member.value;
+			object.Set(member.key^, NIL);
+			ASSERT(~Decode(root, settings, error));
+			ASSERT(Strings.Pos(member.key^, error) >= 0);
+			ASSERT(settings.width = 640);
+			object.Set(member.key^, original);
+			IF original IS JSON.Object THEN
+				MissingFields(original(JSON.Object))
+			END;
+			member := member.next
+		END
+	END MissingFields;
+
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	MissingFields(root);
+	ASSERT(Decode(root, settings, error));
+	ASSERT(YAML.Parse("{}", value, error));
+	ASSERT(~Decode(value, settings, error));
+	ASSERT(YAML.Parse("null", value, error));
+	ASSERT(~Decode(value, settings, error));
+	ASSERT(~Decode(NIL, settings, error))
+END CompleteAndRequired;
+
+PROCEDURE RejectField(root, object: JSON.Object; CONST key: ARRAY OF CHAR;
+	value: JSON.Value; VAR settings: Settings);
+VAR original: JSON.Value;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	original := object.Get(key);
+	object.Set(key, value);
+	ASSERT(~Decode(root, settings, error));
+	ASSERT(error[0] # 0X);
+	ASSERT(settings.width = 640);
+	object.Set(key, original)
+END RejectField;
+
+PROCEDURE {TEST} PaletteBounds*;
+VAR value: JSON.Value;
+	root, demo, colors: JSON.Object;
 	settings: Settings;
 	error: ARRAY 256 OF CHAR;
 BEGIN
-	ASSERT(YAML.Parse("{}", value, error));
-	ASSERT(Decode(value, settings, error));
-	ASSERT((settings.width = 320) & (settings.height = 200));
-	ASSERT((settings.ticksPerSecond = 35) & (settings.playerHeight = 56.0 / 64));
-	ASSERT(YAML.Parse("{player: {move_per_tick: 11.52, radius: 20}, doors: {wait_ticks: 12}}", value, error));
-	ASSERT(Decode(value, settings, error));
-	ASSERT(ABS(settings.moveSpeed - 0.18) < 0.00000001);
-	ASSERT(settings.playerRadius = 20.0 / 64);
-	ASSERT((settings.doorWait = 12) & (settings.height = 200))
-END DefaultsAndOverrides;
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	value := root.Get("demo");
+	demo := value(JSON.Object);
+	value := demo.Get("colors");
+	colors := value(JSON.Object);
+	colors.Set("horizontal_wall", JSON.NewNumber(0));
+	colors.Set("pillar", JSON.NewNumber(0FFFFFFH));
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	RejectField(root, colors, "pillar", JSON.NewNumber(01000000H), settings);
+	RejectField(root, colors, "pillar", JSON.NewNumber(-1), settings);
+	RejectField(root, colors, "pillar", JSON.NewNumber(1.5), settings);
+	RejectField(root, colors, "pillar", JSON.NewString("0xffffff"), settings);
+	RejectField(root, demo, "colors", JSON.NewNull(), settings);
+	RejectField(root, root, "demo", JSON.NewNull(), settings);
+	RejectField(root, colors, "pilllar", JSON.NewNumber(1), settings);
+	ASSERT(settings.demoColors.horizontalWall = 0);
+	ASSERT(settings.demoColors.pillar = 0FFFFFFH)
+END PaletteBounds;
 
 PROCEDURE {TEST} RejectInvalidAndPreserve*;
 VAR value: JSON.Value;
+	root, object: JSON.Object;
 	settings: Settings;
 	error: ARRAY 256 OF CHAR;
 BEGIN
-	Defaults(settings);
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
 	settings.width := 640;
-	ASSERT(YAML.Parse("{video: {width: 800}, player: {radius: 0}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(settings.width = 640);
-	ASSERT(YAML.Parse("{video: {width: 320.5}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{player: {eye: 57}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{player: {move_per_tik: 1}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{video: null}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{simulation: {ticks_per_second: '35'}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{unknown: {}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{hud: {colors: {background: 0x1000000}}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{hud: {height: 10}}", value, error));
-	ASSERT(~Decode(value, settings, error));
-	ASSERT(YAML.Parse("{hud: {hint_x: 300}}", value, error));
-	ASSERT(~Decode(value, settings, error));
+	value := root.Get("video");
+	object := value(JSON.Object);
+	RejectField(root, object, "width", JSON.NewNumber(320.5), settings);
+	RejectField(root, root, "video", JSON.NewNull(), settings);
+	value := root.Get("simulation");
+	object := value(JSON.Object);
+	RejectField(root, object, "ticks_per_second", JSON.NewString("35"), settings);
+	value := root.Get("player");
+	object := value(JSON.Object);
+	RejectField(root, object, "radius", JSON.NewNumber(0), settings);
+	RejectField(root, object, "eye", JSON.NewNumber(settings.playerHeight * DoomFormat.UnitsPerWorld + 1), settings);
+	value := root.Get("hud");
+	object := value(JSON.Object);
+	RejectField(root, object, "height", JSON.NewNumber(settings.hud.bottomRow + HudGlyphHeight - 1), settings);
+	RejectField(root, object, "hint_x", JSON.NewNumber(settings.width), settings);
+	RejectField(root, root, "unknown", JSON.NewObject(), settings);
 	ASSERT(~Read("missing-doom-config.yaml", settings, error));
 	ASSERT(settings.width = 640)
 END RejectInvalidAndPreserve;
 
 BEGIN
-	Defaults(values)
+	loaded := FALSE
 END DoomConfig.

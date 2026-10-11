@@ -160,6 +160,10 @@ BEGIN
 	map.doors := NIL;
 	map.sprites := NIL;
 	error[0] := 0X;
+	IF ~DoomConfig.loaded THEN
+		COPY("Load Doom configuration before loading a map", error);
+		RETURN FALSE
+	END;
 	marker := archive.Find(name);
 	IF (marker < 0) OR
 		~MapLump(archive, marker + 1, "THINGS", DoomFormat.ThingSize, things) OR

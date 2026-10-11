@@ -20,6 +20,13 @@ doors:
   wait_ticks: 150
   use_range: 64
   top_gap: 4
+demo:
+  colors:
+    horizontal_wall: 0x897060
+    vertical_wall: 0x607889
+    left_partition: 0x678160
+    right_partition: 0x806060
+    pillar: 0xb39258
 hud:
   height: 20
   margin: 4

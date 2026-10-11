@@ -201,16 +201,22 @@ Edit it and restart the same executable; recompilation is unnecessary. Use
 that directory. The window remains 640 x 400; `video` controls the rendered frame,
 which must fit the display. Missing files, unknown keys, invalid types, duplicate
 keys, values outside their limits and HUD layouts outside the frame abort startup.
-Omitted settings use the original defaults. Failed reads preserve previous values.
+The file must contain every section and setting; missing fields also abort
+startup. `doom.yaml` is the only source of the standard profile, with no compiled
+fallback values. Failed reads preserve previously loaded settings.
 
 Distances use Doom map units. Player and door speeds are per simulation tick;
 turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
 timing, collision dimensions, motion, door interaction and panel layout/colors.
-HUD colors are RGB integers, including `0xRRGGBB`. The panel renderer derives value
+`demo.colors` controls the procedural scene's outer walls, partitions and pillar,
+including their brick textures. Demo and HUD colors are RGB integers from
+`0x000000` to `0xffffff`. The panel renderer derives value
 positions from label lengths and draws ammunition/key groups in loops.
 Configuration is read once; changing a running game's geometry is unsupported.
-Library callers that do not load a file retain the original default profile;
-`Doom.Player*` constants describe that profile, while gameplay reads `DoomConfig.values`.
+Library callers must call `DoomConfig.Load(path, error)` before creating a game,
+loading a map or drawing the HUD. `DoomConfig.loaded` reports whether loading
+succeeded. The old `Doom.Player*` and `Doom.TicksPerSecond` constants are removed;
+callers use the corresponding fields in `DoomConfig.values`.
 
 The MiniA2 SDK must include the new `YAML` module in `std/encoding`; rebuild it
 from the adjacent MiniA2 checkout after updating its sources. YAML uses the
@@ -225,11 +231,12 @@ scaling. Classic object IDs, item rules and spawn metadata remain code/data;
 changing those is a gameplay or format change rather than a startup preference.
 The procedural demo's wall geometry and eye height remain its authored scene data.
 
-`task check` runs `{TEST}` procedures in `DoomConfig` and `DoomHud`, then a
-fixture-based executable whose `{TEST}` procedures verify real file loading,
-configured movement, panel pixels, door timing/range and failure preservation.
-That executable runs in `build/`: `ob test` runs isolated cases in temporary
-directories and therefore cannot resolve the WAD/configuration fixtures by name.
+`task check` runs eight `{TEST}` procedures from `DoomConfig`, `DoomHud` and
+`DoomConfigSmoke` in a fixture-based executable. They verify complete YAML
+loading, rejection of every missing section/field, invalid values, configured
+wall colors/brick textures, movement, panel pixels, door timing/range and failure
+preservation. The executable runs in `build/`: these tests require real YAML/WAD
+files, which `ob test` does not copy into its isolated case directories.
 
 ## Project boundary and next milestones
 

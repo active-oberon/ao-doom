@@ -1,18 +1,49 @@
 video:
   width: 400
   height: 240
+simulation:
+  ticks_per_second: 35
+  maximum_elapsed_ms: 250
+  sleep_ms: 5
 player:
+  radius: 16
+  height: 56
+  step: 24
   eye: 42
   move_per_tick: 11.52
   turn_per_tick: 0.13
 doors:
   speed_per_tick: 4
+  fast_speed_per_tick: 8
   wait_ticks: 10
   use_range: 32
   top_gap: 8
+demo:
+  colors:
+    horizontal_wall: 0x112233
+    vertical_wall: 0x445566
+    left_partition: 0x778899
+    right_partition: 0xaabbcc
+    pillar: 0xddeeff
 hud:
   height: 24
   margin: 8
+  top_row: 3
+  bottom_row: 13
+  label_gap: 4
+  armor_x: 52
+  ammo_x: 98
+  ammo_spacing: 40
+  weapons_x: 68
+  keys_x: 120
+  key_start_x: 144
+  key_spacing: 12
+  hint_x: 216
   colors:
     background: 0x010203
     label: 0xabcdef
+    value: 0xffffff
+    missing_key: 0x353d48
+    blue_key: 0x60a0ff
+    yellow_key: 0xffe060
+    red_key: 0xff6060

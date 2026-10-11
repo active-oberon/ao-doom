@@ -26,6 +26,7 @@ VAR game: Doom.Game;
 	i: SIGNED32;
 	floor: FLOAT64;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	IF Unix.argc < 3 THEN
 		KernelLog.String("Usage: original-check WAD MAP");
 		KernelLog.Ln;
@@ -63,9 +64,9 @@ BEGIN
 	END;
 	pose := game.State();
 	ASSERT(game.world.Locate(pose.x, pose.y) >= 0);
-	ASSERT(game.world.Stand(pose.x, pose.y, Doom.PlayerRadius, pose.eye - Doom.PlayerEye,
-		Doom.PlayerHeight, Doom.PlayerStep, floor));
-	ASSERT(ABS(floor - pose.eye + Doom.PlayerEye) < 0.000001);
+	ASSERT(game.world.Stand(pose.x, pose.y, DoomConfig.values.playerRadius, pose.eye - DoomConfig.values.playerEye,
+		DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor));
+	ASSERT(ABS(floor - pose.eye + DoomConfig.values.playerEye) < 0.000001);
 	KernelLog.String(marker);
 	KernelLog.String(": loaded, rendered, walked and turned");
 	KernelLog.Ln

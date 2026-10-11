@@ -85,6 +85,7 @@ PROCEDURE Draw*(CONST player: DoomInventory.State; frame: GameSurface.Frame);
 VAR x, y: SIGNED32;
 	appearance: DoomConfig.HudSettings;
 BEGIN
+	ASSERT(DoomConfig.loaded);
 	appearance := DoomConfig.values.hud;
 	IF (frame.height < appearance.height) OR (frame.width < DoomConfig.values.width) THEN
 		RETURN
@@ -104,7 +105,9 @@ END Draw;
 PROCEDURE {TEST} Panel*;
 VAR frame, small: GameSurface.Frame;
 	player: DoomInventory.State;
+	error: ARRAY 256 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	NEW(small, 1, 1);
 	DoomInventory.Reset(player);
 	Draw(player, small);

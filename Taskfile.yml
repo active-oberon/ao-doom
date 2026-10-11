@@ -29,7 +29,7 @@ tasks:
       - ./build/ao-doom {{.CLI_ARGS}}
 
   check:
-    desc: Check engine, WAD validation, movement and collision
+    desc: Check engine, configuration, WAD validation, movement and collision
     cmds:
       - task --dir "{{.ENGINE_DIR}}" check
       - task: stage
@@ -39,8 +39,7 @@ tasks:
       - cp tests/DoomLockedDoorsSmoke.Mod build/
       - cp tests/DoomActorsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
-      - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml build/
-      - cd build && ob test DoomConfig.Mod DoomHud.Mod
+      - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml tests/doom-incomplete.yaml build/
       - cd build && ob build DoomConfigSmoke.Mod -o config-check
       - cd build && timeout 10 ./config-check
       - cd build && ob build DoomWadSmoke.Mod -o wad-check

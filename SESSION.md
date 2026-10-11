@@ -1,6 +1,6 @@
 # ao-doom session handoff
 
-Updated: 2026-10-11 00:42:41 UTC
+Updated: 2026-10-11 08:15:34 UTC
 
 ## Current continuation: startup YAML configuration
 
@@ -8,8 +8,19 @@ The user asked for magic-number refactoring and clarified that configuration
 must be read at startup without recompiling. DoomConfig, DoomFormat, doom.yaml
 and the HUD refactor are complete. MiniA2 now supplies bounded configuration
 YAML with {TEST}; a2-registry includes its manifest/index/API documentation.
-The user authorized one commit and push of this refactor to main in each
-repository. MiniA2 commit: 1648ac5. Registry commit: f8fda92.
+The user subsequently required a complete mandatory YAML file. DoomConfig.Defaults
+and the default-profile constants are removed; every section and setting is
+required. All in-tree callers load the file before using DoomConfig.values.
+The procedural demo's five wall colors come from demo.colors, including brick
+texture generation. Eight file-based {TEST} procedures passed on Linux64 and
+A64 under QEMU; the completeness test rejects each of the 49 required keys.
+Task check, the isolated benchmark and X11 startup checks passed; both default
+PPM images remain byte-identical. The same executable changed colors after a
+YAML-only edit and accepted an explicit full --config without a default file.
+Missing/incomplete files are rejected. Evidence: scratch/required-config-check.md.
+This follow-up completes the mandatory-YAML refactor; CI was not rerun.
+The user previously authorized one commit and push of the initial YAML/HUD
+refactor to main in each repository. MiniA2 commit: 1648ac5. Registry commit: f8fda92.
 The final SDK is installed; its previous version is backed up in
 /tmp/ao-doom-config/previous-sdk. Evidence and exact limits: scratch/config-check.md.
 Final Doom check, YAML native/A64 tests and startup configuration probes passed.

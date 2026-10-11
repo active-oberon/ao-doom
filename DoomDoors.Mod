@@ -39,6 +39,7 @@ TYPE
 			sectorCount: SIGNED32);
 		VAR i, offset, side: SIGNED32;
 		BEGIN
+			ASSERT(DoomConfig.loaded);
 			NEW(triggers, lines.size DIV DoomFormat.LineSize);
 			NEW(doors, sectorCount);
 			NEW(moving, sectorCount);

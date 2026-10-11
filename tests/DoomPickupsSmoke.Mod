@@ -1,7 +1,6 @@
 MODULE DoomPickupsSmoke;
 
-IMPORT DoomConfig, Doom, DoomInventory, DoomHud, DoomWad, DoomMap, DoomSprites,
-	GameRenderer, GameSurface;
+IMPORT DoomConfig, Doom, DoomInventory, DoomHud, DoomWad, DoomMap, DoomSprites, GameRenderer, GameSurface;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -33,7 +32,7 @@ VAR map: DoomMap.Map;
 BEGIN
 	Load(path, map);
 	DoomInventory.Reset(player);
-	scene := map.sprites.Touch(map.world, -0.25, 0, 0, Doom.PlayerRadius, Doom.PlayerHeight, player);
+	scene := map.sprites.Touch(map.world, -0.25, 0, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene = map.sprites);
 	ASSERT((scene.Count() = 1) & (player.pickups = 0))
 END Blocked;
@@ -48,17 +47,18 @@ VAR map: DoomMap.Map;
 	error: ARRAY 128 OF CHAR;
 	i: SIGNED32;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	Load("sprites-grate.wad", map);
 	DoomInventory.Reset(player);
 	scene := map.sprites.Touch(map.world, 2 - 36.0 / 64, 0, 0,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene = map.sprites);
 	scene := scene.Touch(map.world, 2 - 36.0 / 64 + 0.000001, 0, 0,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT((scene # map.sprites) & (scene.Count() = 0));
 	ASSERT((player.armor = 1) & (player.pickups = 1));
 	ASSERT(map.sprites.Count() = 1);
-	again := scene.Touch(map.world, 2, 0, 0, Doom.PlayerRadius, Doom.PlayerHeight, player);
+	again := scene.Touch(map.world, 2, 0, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT((again = scene) & (player.pickups = 1));
 	NEW(plain, 320, 200);
 	NEW(old, 320, 200);
@@ -74,20 +74,20 @@ BEGIN
 	ASSERT(collected.Save("pickups-after.ppm"));
 	DoomInventory.Reset(player);
 	scene := map.sprites.Touch(map.world, 2, 36.0 / 64, 0,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene = map.sprites);
 	scene := map.sprites.Touch(map.world, 2, 0, 8.0 / 64 + 0.000001,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene = map.sprites);
-	scene := map.sprites.Touch(map.world, 2, 0, -Doom.PlayerHeight - 0.000001,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+	scene := map.sprites.Touch(map.world, 2, 0, -DoomConfig.values.playerHeight - 0.000001,
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene = map.sprites);
 	scene := map.sprites.Touch(map.world, 2, 0, 8.0 / 64,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene.Count() = 0);
 	DoomInventory.Reset(player);
-	scene := map.sprites.Touch(map.world, 2, 0, -Doom.PlayerHeight,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+	scene := map.sprites.Touch(map.world, 2, 0, -DoomConfig.values.playerHeight,
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT(scene.Count() = 0);
 	Blocked("pickups-blocked.wad");
 	Blocked("pickups-solid.wad");
@@ -95,16 +95,16 @@ BEGIN
 	Load("pickups-passable.wad", map);
 	DoomInventory.Reset(player);
 	scene := map.sprites.Touch(map.world, -0.25, 0, 0,
-		Doom.PlayerRadius, Doom.PlayerHeight, player);
+		DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT((scene.Count() = 0) & (player.armor = 1));
 	Load("pickups-many.wad", map);
 	DoomInventory.Reset(player);
-	scene := map.sprites.Touch(map.world, 2, 0, 0, Doom.PlayerRadius, Doom.PlayerHeight, player);
+	scene := map.sprites.Touch(map.world, 2, 0, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT((map.sprites.Count() = 33) & (scene.Count() = 0));
 	ASSERT((player.armor = 33) & (player.pickups = 33));
 	Load("pickups.wad", map);
 	DoomInventory.Reset(player);
-	scene := map.sprites.Touch(map.world, 2, 0, 0, Doom.PlayerRadius, Doom.PlayerHeight, player);
+	scene := map.sprites.Touch(map.world, 2, 0, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player);
 	ASSERT((map.sprites.Count() = 8) & (scene.Count() = 2));
 	ASSERT((player.health = 101) & (player.armor = 1));
 	ASSERT((player.ammo[0] = 70) & (player.ammo[1] = 12));
@@ -112,7 +112,7 @@ BEGIN
 	ASSERT(DoomInventory.BlueCard IN player.keys);
 	ASSERT(DoomInventory.Shotgun IN player.weapons);
 	ASSERT(player.backpack & (player.pickups = 6));
-	ASSERT(scene.Touch(map.world, 2, 0, 0, Doom.PlayerRadius, Doom.PlayerHeight, player) = scene);
+	ASSERT(scene.Touch(map.world, 2, 0, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, player) = scene);
 	NEW(game);
 	ASSERT(game.Load("pickups.wad", "E1M1", error));
 	game.Controls(1, 0, 0);

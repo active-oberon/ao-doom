@@ -1,6 +1,6 @@
 MODULE DoomLockedDoorsSmoke;
 
-IMPORT Doom, DoomInventory, DoomMap, DoomWad, GameGeometry, GameSurface, MathL;
+IMPORT DoomConfig, Doom, DoomInventory, DoomMap, DoomWad, GameGeometry, GameSurface, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -22,7 +22,7 @@ PROCEDURE Advance(VAR map: DoomMap.Map; ticks: SIGNED32);
 VAR i: SIGNED32;
 BEGIN
 	FOR i := 1 TO ticks DO
-		map.doors.Step(map.world, map.x, map.y, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep)
+		map.doors.Step(map.world, map.x, map.y, DoomConfig.values.playerRadius, 0, DoomConfig.values.playerHeight, DoomConfig.values.playerStep)
 	END
 END Advance;
 
@@ -171,7 +171,9 @@ BEGIN
 END Gameplay;
 
 PROCEDURE Do*;
+VAR error: ARRAY 256 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	Variant("door-blue.wad", "door-blue-hidden.wad", DoomInventory.BlueCard, FALSE);
 	Variant("door-yellow.wad", "door-yellow-hidden.wad", DoomInventory.YellowCard, FALSE);
 	Variant("door-red.wad", "door-red-hidden.wad", DoomInventory.RedCard, FALSE);

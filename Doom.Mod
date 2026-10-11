@@ -2,13 +2,7 @@ MODULE Doom;
 
 IMPORT DoomConfig, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
 
-(* Player dimensions and tick rate retain the default-profile API; simulation reads DoomConfig.values. *)
-CONST TicksPerSecond* = DoomConfig.DefaultTicksPerSecond;
-	PlayerRadius* = DoomConfig.DefaultPlayerRadius;
-	PlayerHeight* = DoomConfig.DefaultPlayerHeight;
-	PlayerStep* = DoomConfig.DefaultPlayerStep;
-	PlayerEye* = DoomConfig.DefaultPlayerEye;
-	DemoEye = 1.3;
+CONST DemoEye = 1.3;
 	DemoWallHeight = 2.8;
 	DemoLight = 255;
 	BrickTextureSize = 64;
@@ -33,20 +27,23 @@ TYPE
 		use: BOOLEAN;
 
 		PROCEDURE &Init*;
+		VAR colors: DoomConfig.DemoPalette;
 		BEGIN
+			ASSERT(DoomConfig.loaded);
+			colors := DoomConfig.values.demoColors;
 			NEW(world, 12);
-			Wall(0, 0, 12, 0, 0897060H);
-			Wall(12, 0, 12, 10, 0607889H);
-			Wall(12, 10, 0, 10, 0897060H);
-			Wall(0, 10, 0, 0, 0607889H);
-			Wall(4, 0, 4, 3, 0678160H);
-			Wall(4, 5, 4, 10, 0678160H);
-			Wall(8, 0, 8, 5, 0806060H);
-			Wall(8, 7, 8, 10, 0806060H);
-			Wall(5, 7, 6, 7, 0B39258H);
-			Wall(6, 7, 6, 8, 0B39258H);
-			Wall(6, 8, 5, 8, 0B39258H);
-			Wall(5, 8, 5, 7, 0B39258H);
+			Wall(0, 0, 12, 0, colors.horizontalWall);
+			Wall(12, 0, 12, 10, colors.verticalWall);
+			Wall(12, 10, 0, 10, colors.horizontalWall);
+			Wall(0, 10, 0, 0, colors.verticalWall);
+			Wall(4, 0, 4, 3, colors.leftPartition);
+			Wall(4, 5, 4, 10, colors.leftPartition);
+			Wall(8, 0, 8, 5, colors.rightPartition);
+			Wall(8, 7, 8, 10, colors.rightPartition);
+			Wall(5, 7, 6, 7, colors.pillar);
+			Wall(6, 7, 6, 8, colors.pillar);
+			Wall(6, 8, 5, 8, colors.pillar);
+			Wall(5, 8, 5, 7, colors.pillar);
 			world.Seal;
 			pose.x := 2;
 			pose.y := 4;
@@ -227,6 +224,7 @@ VAR game: Game;
 	pose, preserved: Pose;
 	error: ARRAY 128 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	NEW(game);
 	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
 	game.Render(frame);
@@ -235,7 +233,7 @@ BEGIN
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(70));
 	pose := game.State();
-	ASSERT((pose.x > 7.6) & (pose.x < 8 - PlayerRadius));
+	ASSERT((pose.x > 7.6) & (pose.x < 8 - DoomConfig.values.playerRadius));
 	game.Controls(0, 1, 0);
 	ASSERT(simulation.Advance(23));
 	pose := game.State();
@@ -243,8 +241,8 @@ BEGIN
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(140));
 	pose := game.State();
-	ASSERT((pose.x > 11.5) & (pose.x < 12 - PlayerRadius));
-	ASSERT(game.world.Free(pose.x, pose.y, PlayerRadius));
+	ASSERT((pose.x > 11.5) & (pose.x < 12 - DoomConfig.values.playerRadius));
+	ASSERT(game.world.Free(pose.x, pose.y, DoomConfig.values.playerRadius));
 	game.Controls(0, 0, 1);
 	ASSERT(simulation.Advance(200));
 	pose := game.State();

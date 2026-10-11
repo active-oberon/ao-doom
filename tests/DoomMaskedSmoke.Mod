@@ -1,6 +1,6 @@
 MODULE DoomMaskedSmoke;
 
-IMPORT Doom, DoomWad, DoomTextures, DoomMap, GameMaterials, GameGeometry, GameSurface, GameRenderer, MathL;
+IMPORT DoomConfig, DoomWad, DoomTextures, DoomMap, GameMaterials, GameGeometry, GameSurface, GameRenderer, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -35,6 +35,7 @@ VAR archive: DoomWad.Archive;
 	x, y, feet, distance: FLOAT64;
 	column, row, changed, holes, black: SIGNED32;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	archive := DoomWad.Open("masked.wad", error);
 	ASSERT(archive # NIL);
 	library := DoomTextures.Open(archive, error);
@@ -97,7 +98,7 @@ BEGIN
 	x := map.x;
 	y := map.y;
 	feet := 0;
-	ASSERT(map.world.MovePlayer(x, y, feet, 4, 0, Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
+	ASSERT(map.world.MovePlayer(x, y, feet, 4, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep));
 	ASSERT(ABS(x - 2) < 0.000001);
 	GameRenderer.Render(map.world, masked, 2, 0, MathL.pi, map.eye);
 	ASSERT(masked.Pixel(128, 50) = 0);
@@ -135,8 +136,8 @@ BEGIN
 	x := map.x;
 	y := map.y;
 	feet := 0;
-	ASSERT(map.world.MovePlayer(x, y, feet, 4, 0, Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
-	ASSERT(x < -Doom.PlayerRadius);
+	ASSERT(map.world.MovePlayer(x, y, feet, 4, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep));
+	ASSERT(x < -DoomConfig.values.playerRadius);
 	Reject("masked-unknown.wad");
 	Reject("masked-no-end.wad")
 END Do;

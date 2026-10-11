@@ -1,6 +1,6 @@
 MODULE DoomDoorsSmoke;
 
-IMPORT Doom, DoomInventory, DoomMap, DoomWad, GameGeometry, GameRenderer, GameSurface, MathL;
+IMPORT DoomConfig, Doom, DoomInventory, DoomMap, DoomWad, GameGeometry, GameRenderer, GameSurface, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -15,7 +15,7 @@ PROCEDURE Advance(VAR map: DoomMap.Map; ticks: SIGNED32; x: FLOAT64);
 VAR i: SIGNED32;
 BEGIN
 	FOR i := 1 TO ticks DO
-		map.doors.Step(map.world, x, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep)
+		map.doors.Step(map.world, x, 0, DoomConfig.values.playerRadius, 0, DoomConfig.values.playerHeight, DoomConfig.values.playerStep)
 	END
 END Advance;
 
@@ -37,7 +37,7 @@ BEGIN
 	DoomInventory.Reset(player);
 	Load("door.wad", map);
 	old := map.world;
-	ASSERT(~map.world.Stand(0, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep, floor));
+	ASSERT(~map.world.Stand(0, 0, DoomConfig.values.playerRadius, 0, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor));
 	ASSERT(~map.doors.Use(map.world, -2, 0, 0, player));
 	ASSERT(~map.doors.Use(map.world, -1.000001, 0, 0, player));
 	ASSERT(~map.doors.Use(map.world, map.x, 0, MathL.pi, player));
@@ -49,11 +49,11 @@ BEGIN
 	ASSERT(map.doors.Use(map.world, -1, 0, 0, player));
 	Advance(map, 27, map.x);
 	ASSERT(Ceiling(map.world) = 54.0 / 64);
-	ASSERT(~map.world.Stand(0, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep, floor));
+	ASSERT(~map.world.Stand(0, 0, DoomConfig.values.playerRadius, 0, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor));
 	GameRenderer.Render(map.world, frame, map.x, 0, 0, map.eye);
 	ASSERT(frame.Save("door-opening.ppm"));
 	Advance(map, 1, map.x);
-	ASSERT(map.world.Stand(0, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep, floor));
+	ASSERT(map.world.Stand(0, 0, DoomConfig.values.playerRadius, 0, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor));
 	Advance(map, 34, map.x);
 	ASSERT(Ceiling(map.world) = 124.0 / 64);
 	ASSERT(Ceiling(old) = 0);
@@ -63,7 +63,7 @@ BEGIN
 	x := map.x;
 	y := 0;
 	feet := 0;
-	ASSERT(map.world.MovePlayer(x, y, feet, 3, 0, Doom.PlayerRadius, Doom.PlayerHeight, Doom.PlayerStep));
+	ASSERT(map.world.MovePlayer(x, y, feet, 3, 0, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep));
 	ASSERT(x > 2);
 	Advance(map, 150, map.x);
 	ASSERT(Ceiling(map.world) = 124.0 / 64);
@@ -85,7 +85,7 @@ BEGIN
 	Advance(map, 150, 0.5);
 	Advance(map, 35, 0.5);
 	ASSERT(Ceiling(map.world) = 56.0 / 64);
-	ASSERT(map.world.Stand(0.5, 0, Doom.PlayerRadius, 0, Doom.PlayerHeight, Doom.PlayerStep, floor));
+	ASSERT(map.world.Stand(0.5, 0, DoomConfig.values.playerRadius, 0, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, floor));
 	Advance(map, 1, 0.5);
 	ASSERT(Ceiling(map.world) = 58.0 / 64)
 END Cycle;
@@ -140,6 +140,7 @@ VAR map: DoomMap.Map;
 	error: ARRAY 128 OF CHAR;
 	i: SIGNED32;
 BEGIN
+	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	DoomInventory.Reset(player);
 	Cycle;
 	Variant("door-open.wad", 62, TRUE);
