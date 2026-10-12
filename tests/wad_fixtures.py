@@ -399,6 +399,14 @@ def fixtures(directory):
 
     combat = combat_lumps()
     files["combat.wad"] = wad(combat)
+    arsenal = combat_lumps(things=[(128, 0, 0, 3004, 7)] +
+                           [(0, 0, 0, kind, 7) for kind in (2001, 2002, 2003, 2004, 2005, 2006, 82)])
+    arsenal += [(name, sprite_patch(6)) for name in
+                ("SHOTA0", "MGUNA0", "LAUNA0", "PLASA0", "CSAWA0", "BFUGA0", "SGN2A0",
+                 "MISLA0", "PLSSA0", "BFS1A0")]
+    files["weapons.wad"] = wad(arsenal)
+    files["weapons-missing.wad"] = wad([entry for entry in arsenal if entry[0] != "MISLA0"])
+    files["weapons-bad.wad"] = wad([(name, b"abc" if name == "PLSSA0" else data) for name, data in arsenal])
     files["combat-nearest.wad"] = wad(combat_lumps(things=[(192, 0, 0, 3004, 7),
                                                           (128, 0, 0, 3004, 7)]))
     files["combat-off-axis.wad"] = wad(combat_lumps(things=[(128, 64, 0, 3004, 7)]))

@@ -1,11 +1,11 @@
 MODULE DoomOriginalSmoke;
 
-IMPORT DoomConfig, DoomCombat, Doom, GameSurface, KernelLog, Unix, Commands;
+IMPORT DoomConfig, DoomCombat, DoomInventory, Doom, GameSurface, KernelLog, Unix, Commands;
 
 PROCEDURE Visible(frame: GameSurface.Frame): BOOLEAN;
 VAR x, y, color: SIGNED32;
 BEGIN
-	FOR y := 0 TO frame.height - DoomConfig.values.hud.height - 1 DO
+	FOR y := 0 TO frame.height - DoomConfig.values.hud.height - DoomConfig.values.hud.margin - 6 DO
 		FOR x := 0 TO frame.width - 1 DO
 			color := frame.Pixel(x, y);
 			IF ((ABS(x - frame.width DIV 2) > DoomConfig.values.combat.aimRadius) OR
@@ -20,10 +20,16 @@ END Visible;
 
 PROCEDURE {TEST} SceneVisibility*;
 VAR frame: GameSurface.Frame;
+	player: DoomInventory.State;
+	weapon: DoomCombat.Weapon;
 BEGIN
 	NEW(frame, 320, 200);
 	frame.Background(0202938H, 035302CH);
 	DoomCombat.DrawAim(frame, FALSE);
+	ASSERT(~Visible(frame));
+	DoomInventory.Reset(player);
+	DoomCombat.Reset(weapon, player);
+	DoomCombat.DrawStatus(weapon, player, frame);
 	ASSERT(~Visible(frame));
 	frame.Span(0, 0, 0, 0FFFFFFH);
 	ASSERT(Visible(frame))

@@ -1,6 +1,6 @@
 MODULE DoomConfig;
 
-IMPORT YAML, JSON, Strings, DoomFormat, DoomThings;
+IMPORT YAML, JSON, Strings, DoomFormat, DoomThings, MathL;
 
 CONST HudCharacterAdvance* = 4;
 	HudGlyphHeight = 5;
@@ -21,7 +21,11 @@ CONST HudCharacterAdvance* = 4;
 	Use* = 6;
 	Fire* = 7;
 	Quit* = 8;
-	InputActions* = 9;
+	Reload* = 9;
+	Aim* = 10;
+	Weapon1* = 11;
+	Weapon7* = 17;
+	InputActions* = 18;
 	MaximumBindings = 8;
 	MaximumActorRules = 128;
 	MaximumThingRules = 128;
@@ -32,6 +36,8 @@ CONST HudCharacterAdvance* = 4;
 	MaximumAimRadius = 16;
 	MaximumAnimationFrames = 16;
 	MaximumPellets = 32;
+	MaximumMouseDelta* = 32768;
+	MaximumWheelSteps* = 64;
 
 TYPE HudSettings* = RECORD
 	height*, margin*, topRow*, bottomRow*, labelGap*: SIGNED32;
@@ -87,16 +93,27 @@ ActorSettings* = RECORD
 	behavior*: BehaviorSettings
 END;
 
+WeaponSettings* = RECORD
+	label*: ARRAY 16 OF CHAR;
+	ammo*, damage*, cooldown*, ammoCost*, flashTicks*, magazine*, reloadTicks*, pellets*: SIGNED32;
+	range*, spread*: FLOAT64;
+	projectile*: ProjectileSettings
+END;
+
 CombatSettings* = RECORD
 	damage*, cooldown*, ammoCost*, flashTicks*, aimRadius*, aimGap*, aimColor*, fireColor*: SIGNED32;
 	range*: FLOAT64;
-	actors*: POINTER TO ARRAY OF ActorSettings
+	actors*: POINTER TO ARRAY OF ActorSettings;
+	weapons*: ARRAY DoomFormat.WeaponKinds OF WeaponSettings
 END;
 
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
+	mouseSensitivity*, aimSensitivity*, pitchLimit*, aimZoom*: FLOAT64;
+	invertMouse*: BOOLEAN;
+	fireButton*, aimButton*: SIGNED32;
 	pickupRadius*, pickupBelowFeet*: FLOAT64;
 	hud*: HudSettings;
 	demoColors*: DemoPalette;
@@ -113,6 +130,7 @@ VAR values-: Settings;
 	loaded-: BOOLEAN;
 	actionNames: ARRAY InputActions OF ARRAY 16 OF CHAR;
 	ammoNames: ARRAY DoomFormat.AmmoKinds OF ARRAY 8 OF CHAR;
+	weaponNames: ARRAY DoomFormat.WeaponKinds OF ARRAY 16 OF CHAR;
 
 PROCEDURE Keys(object: JSON.Object; CONST allowed: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR member: JSON.Member;
@@ -226,7 +244,7 @@ VAR object: JSON.Object;
 	action, other, i, j, key: SIGNED32;
 	number: FLOAT64;
 BEGIN
-	IF ~Section(root, "controls", "|forward|backward|left|right|strafe_left|strafe_right|use|fire|quit|", object, error) THEN
+	IF ~Section(root, "controls", "|forward|backward|left|right|strafe_left|strafe_right|use|fire|quit|reload|aim|weapon_1|weapon_2|weapon_3|weapon_4|weapon_5|weapon_6|weapon_7|", object, error) THEN
 		RETURN FALSE
 	END;
 	FOR action := 0 TO InputActions - 1 DO
@@ -237,7 +255,7 @@ BEGIN
 			RETURN FALSE
 		END;
 		list := value(JSON.Array);
-		IF (list.length < 1) OR (list.length > MaximumBindings) THEN
+		IF ((list.length < 1) & (action # Aim)) OR (list.length > MaximumBindings) THEN
 			COPY("Invalid control binding count for ", error);
 			Strings.AppendX(error, actionNames[action]);
 			RETURN FALSE
@@ -565,12 +583,118 @@ BEGIN
 	RETURN TRUE
 END ActorRules;
 
+PROCEDURE WeaponRules(combat: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR group, object, flight: JSON.Object;
+	value: JSON.Value;
+	i, j, kind: SIGNED32;
+	info: DoomThings.Info;
+BEGIN
+	IF ~Section(combat, "weapons", "|fist|shotgun|chaingun|launcher|plasma|bfg|chainsaw|super_shotgun|", group, error) THEN
+		RETURN FALSE
+	END;
+	FOR i := 0 TO DoomFormat.WeaponKinds - 1 DO
+		IF i = 1 THEN
+			value := combat.Get("pistol")
+		ELSE
+			value := group.Get(weaponNames[i])
+		END;
+		IF (value = NIL) OR ~(value IS JSON.Object) THEN
+			COPY("Missing weapon definition: ", error);
+			Strings.AppendX(error, weaponNames[i]);
+			RETURN FALSE
+		END;
+		object := value(JSON.Object);
+		IF ~Keys(object, "|mode|label|ammo|damage|cooldown_ticks|ammo_cost|range|flash_ticks|magazine|reload_ticks|pellets|spread_radians|projectile|", error) OR
+			~Integer(object, "damage", 1, MaximumActorHealth, settings.weapons[i].damage, error) OR
+			~Integer(object, "cooldown_ticks", 1, MaximumClockValue, settings.weapons[i].cooldown, error) OR
+			~Integer(object, "ammo_cost", 0, MaximumHudStat, settings.weapons[i].ammoCost, error) OR
+			~Integer(object, "flash_ticks", 1, MaximumClockValue, settings.weapons[i].flashTicks, error) OR
+			~Integer(object, "magazine", 0, MaximumHudStat, settings.weapons[i].magazine, error) OR
+			~Integer(object, "reload_ticks", 1, MaximumClockValue, settings.weapons[i].reloadTicks, error) OR
+			~Integer(object, "pellets", 1, MaximumPellets, settings.weapons[i].pellets, error) OR
+			~Real(object, "spread_radians", 0, 1, 1, settings.weapons[i].spread, error) OR
+			~Real(object, "range", 1, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, settings.weapons[i].range, error) THEN
+			RETURN FALSE
+		END;
+		value := object.Get("label");
+		IF (value = NIL) OR ~(value IS JSON.String) THEN
+			COPY("Weapon label must be a string", error);
+			RETURN FALSE
+		END;
+		IF (Strings.Length(value(JSON.String).value^) < 1) OR (Strings.Length(value(JSON.String).value^) > 15) THEN
+			COPY("Weapon label must contain 1 to 15 characters", error);
+			RETURN FALSE
+		END;
+		COPY(value(JSON.String).value^, settings.weapons[i].label);
+		value := object.Get("ammo");
+		IF (value = NIL) OR ~(value IS JSON.String) THEN
+			COPY("Weapon ammo must be an ammunition name or none", error);
+			RETURN FALSE
+		END;
+		settings.weapons[i].ammo := -2;
+		IF value(JSON.String).value^ = "none" THEN
+			settings.weapons[i].ammo := -1
+		END;
+		FOR j := 0 TO DoomFormat.AmmoKinds - 1 DO
+			IF value(JSON.String).value^ = ammoNames[j] THEN
+				settings.weapons[i].ammo := j
+			END
+		END;
+		IF (settings.weapons[i].ammo = -2) OR
+			((settings.weapons[i].ammo < 0) # (settings.weapons[i].ammoCost = 0)) OR
+			((settings.weapons[i].ammo < 0) # (settings.weapons[i].magazine = 0)) OR
+			(settings.weapons[i].magazine < settings.weapons[i].ammoCost) OR
+			(settings.weapons[i].flashTicks > settings.weapons[i].cooldown) THEN
+			COPY("Weapon ammunition, magazine and timing must be consistent", error);
+			RETURN FALSE
+		END;
+		settings.weapons[i].projectile := NIL;
+		value := object.Get("mode");
+		IF (value = NIL) OR ~(value IS JSON.String) THEN
+			COPY("Expected weapon mode", error);
+			RETURN FALSE
+		END;
+		IF value(JSON.String).value^ = "projectile" THEN
+			IF (settings.weapons[i].pellets # 1) OR (settings.weapons[i].spread # 0) THEN
+				COPY("Projectile weapons require one unspread shot", error);
+				RETURN FALSE
+			END;
+			IF (i = 0) OR (i = 1) THEN
+				COPY("Initial weapons must use hitscan mode", error);
+				RETURN FALSE
+			END;
+			IF ~Section(object, "projectile", "|thing|speed_per_tick|", flight, error) OR
+				~Integer(flight, "thing", 1, DoomFormat.MaximumRecords - 1, kind, error) THEN
+				RETURN FALSE
+			END;
+			IF ~DoomThings.Lookup(definitions, kind, info) OR info.ceiling OR (info.height <= 0) OR (info.radius <= 0) THEN
+				COPY("Weapon projectile must reference a finite ground thing", error);
+				RETURN FALSE
+			END;
+			NEW(settings.weapons[i].projectile);
+			settings.weapons[i].projectile.kind := kind;
+			settings.weapons[i].projectile.height := info.height / DoomFormat.UnitsPerWorld;
+			settings.weapons[i].projectile.radius := info.radius / DoomFormat.UnitsPerWorld;
+			settings.weapons[i].projectile.fullbright := info.fullbright;
+			COPY(info.name, settings.weapons[i].projectile.frame);
+			IF ~Real(flight, "speed_per_tick", 0.01, 1024, DoomFormat.UnitsPerWorld, settings.weapons[i].projectile.speed, error) THEN
+				RETURN FALSE
+			END
+		ELSIF (value(JSON.String).value^ # "hitscan") OR (object.Get("projectile") # NIL) THEN
+			COPY("Weapon mode must match its projectile settings", error);
+			RETURN FALSE
+		END
+	END;
+	RETURN TRUE
+END WeaponRules;
+
 PROCEDURE Combat(root: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
 	VAR settings: CombatSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR object, group: JSON.Object;
 BEGIN
-	IF ~Section(root, "combat", "|pistol|aim|actors|", object, error) OR
-		~Section(object, "pistol", "|damage|cooldown_ticks|ammo_cost|range|flash_ticks|", group, error) OR
+	IF ~Section(root, "combat", "|pistol|weapons|aim|actors|", object, error) OR
+		~Section(object, "pistol", "|damage|cooldown_ticks|ammo_cost|range|flash_ticks|mode|label|ammo|magazine|reload_ticks|pellets|spread_radians|", group, error) OR
 		~Integer(group, "damage", 1, MaximumActorHealth, settings.damage, error) OR
 		~Integer(group, "cooldown_ticks", 1, MaximumClockValue, settings.cooldown, error) OR
 		~Integer(group, "ammo_cost", 1, MaximumHudStat, settings.ammoCost, error) OR
@@ -581,7 +705,8 @@ BEGIN
 		~Integer(group, "gap", 0, MaximumAimRadius, settings.aimGap, error) OR
 		~Integer(group, "color", 0, 0FFFFFFH, settings.aimColor, error) OR
 		~Integer(group, "fire_color", 0, 0FFFFFFH, settings.fireColor, error) OR
-		~ActorRules(object, definitions, settings, error) THEN
+		~ActorRules(object, definitions, settings, error) OR
+		~WeaponRules(object, definitions, settings, error) THEN
 		RETURN FALSE
 	END;
 	IF (settings.aimGap > settings.aimRadius) OR (settings.flashTicks > settings.cooldown) THEN
@@ -595,6 +720,7 @@ END Combat;
 PROCEDURE Decode(value: JSON.Value; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR root, object, hud, demo: JSON.Object;
 	candidate: Settings;
+	i, ammo: SIGNED32;
 BEGIN
 	error[0] := 0X;
 	IF (value = NIL) OR ~(value IS JSON.Object) THEN
@@ -602,7 +728,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|things|combat|controls|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|things|combat|controls|mouse|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -701,12 +827,32 @@ BEGIN
 	END;
 	IF ~ThingRules(root, candidate.things, error) OR
 		~Inventory(root, candidate.inventory, error) OR
-		~Combat(root, candidate.things^, candidate.combat, error) OR ~Controls(root, candidate, error) THEN
+		~Combat(root, candidate.things^, candidate.combat, error) OR ~Controls(root, candidate, error) OR
+		~Section(root, "mouse", "|sensitivity|aim_sensitivity|invert_y|pitch_limit|aim_zoom|fire_button|aim_button|", object, error) OR
+		~Real(object, "sensitivity", 0.00001, 0.1, 1, candidate.mouseSensitivity, error) OR
+		~Real(object, "aim_sensitivity", 0.01, 1, 1, candidate.aimSensitivity, error) OR
+		~Real(object, "pitch_limit", 0, 0.8, 1, candidate.pitchLimit, error) OR
+		~Real(object, "aim_zoom", 1, 4, 1, candidate.aimZoom, error) OR
+		~Boolean(object, "invert_y", candidate.invertMouse, error) OR
+		~Integer(object, "fire_button", 0, 2, candidate.fireButton, error) OR
+		~Integer(object, "aim_button", 0, 2, candidate.aimButton, error) THEN
 		RETURN FALSE
 	END;
 	IF (candidate.height DIV 2 + candidate.combat.aimRadius >= candidate.height - candidate.hud.height) OR
 		(candidate.combat.ammoCost > candidate.inventory.maximum[0] * candidate.inventory.backpackMultiplier) THEN
 		COPY("Aim and ammunition cost must fit the configured frame and capacity", error);
+		RETURN FALSE
+	END;
+	FOR i := 0 TO DoomFormat.WeaponKinds - 1 DO
+		ammo := candidate.combat.weapons[i].ammo;
+		IF (ammo >= 0) & (candidate.combat.weapons[i].ammoCost > candidate.inventory.maximum[ammo] * candidate.inventory.backpackMultiplier) THEN
+			COPY("Weapon ammo_cost must fit inventory capacity", error);
+			RETURN FALSE
+		END
+	END;
+	IF (candidate.fireButton = candidate.aimButton) OR
+		(candidate.height + 2 * (ENTIER(candidate.width / 1.32 * MathL.sin(candidate.pitchLimit) / MathL.cos(candidate.pitchLimit)) + 1) > MaximumDimension) THEN
+		COPY("Mouse buttons must differ and the pitched viewport must fit the frame limit", error);
 		RETURN FALSE
 	END;
 	settings := candidate;
@@ -1113,6 +1259,7 @@ PROCEDURE {TEST} ProjectileBounds*;
 VAR value: JSON.Value;
 	root, combat, rule, settingsObject, thing: JSON.Object;
 	actors, things: JSON.Array;
+	i: SIGNED32;
 	settings: Settings;
 	error: ARRAY 256 OF CHAR;
 BEGIN
@@ -1139,9 +1286,15 @@ BEGIN
 	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewString("10"), settings);
 	value := root.Get("things");
 	things := value(JSON.Array);
-	value := things.At(things.length - 1);
-	thing := value(JSON.Object);
-	ASSERT(thing.Get("kind")(JSON.Number).value = 60000);
+	thing := NIL;
+	value := things.At(0);
+	FOR i := 0 TO SIGNED32(things.length) - 1 DO
+		value := things.At(i);
+		IF value(JSON.Object).Get("kind")(JSON.Number).value = 60000 THEN
+			thing := value(JSON.Object)
+		END
+	END;
+	ASSERT(thing # NIL);
 	RejectField(root, thing, "ceiling", JSON.NewBool(TRUE), settings);
 	RejectField(root, thing, "radius", JSON.NewNumber(0), settings);
 	RejectField(root, thing, "height", JSON.NewNumber(0), settings);
@@ -1149,6 +1302,56 @@ BEGIN
 	ASSERT(settings.combat.actors[6].behavior.projectile.speed = 10.0 / 64);
 	ASSERT(settings.combat.actors[6].behavior.projectile.fullbright)
 END ProjectileBounds;
+
+PROCEDURE {TEST} WeaponMouseBounds*;
+VAR value: JSON.Value;
+	root, combat, weapons, pistol, rocket, mouse, flight: JSON.Object;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	ASSERT((settings.combat.weapons[1].magazine = 12) & (settings.combat.weapons[1].ammo = 0));
+	ASSERT((settings.combat.weapons[4].projectile.kind = 60001) & (settings.combat.weapons[6].ammoCost = 40));
+	settings.width := 640;
+	value := root.Get("mouse");
+	mouse := value(JSON.Object);
+	RejectField(root, mouse, "sensitivity", JSON.NewNumber(0), settings);
+	RejectField(root, mouse, "aim_sensitivity", JSON.NewNumber(2), settings);
+	RejectField(root, mouse, "pitch_limit", JSON.NewNumber(1), settings);
+	RejectField(root, mouse, "aim_zoom", JSON.NewNumber(0.9), settings);
+	RejectField(root, mouse, "invert_y", JSON.NewNumber(0), settings);
+	RejectField(root, mouse, "fire_button", JSON.NewNumber(2), settings);
+	RejectField(root, mouse, "aim_button", JSON.NewNumber(3), settings);
+	value := root.Get("combat");
+	combat := value(JSON.Object);
+	value := combat.Get("pistol");
+	pistol := value(JSON.Object);
+	RejectField(root, pistol, "magazine", JSON.NewNumber(0), settings);
+	RejectField(root, pistol, "magazine", JSON.NewNumber(1.5), settings);
+	RejectField(root, pistol, "reload_ticks", JSON.NewNumber(0), settings);
+	RejectField(root, pistol, "mode", JSON.NewString("projectile"), settings);
+	RejectField(root, pistol, "ammo", JSON.NewString("unknown"), settings);
+	RejectField(root, pistol, "ammo", JSON.NewString("none"), settings);
+	RejectField(root, pistol, "label", JSON.NewString(""), settings);
+	RejectField(root, pistol, "label", JSON.NewString("TOO LONG WEAPON NAME"), settings);
+	value := combat.Get("weapons");
+	weapons := value(JSON.Object);
+	value := weapons.Get("launcher");
+	rocket := value(JSON.Object);
+	RejectField(root, rocket, "mode", JSON.NewString("hitscan"), settings);
+	RejectField(root, rocket, "pellets", JSON.NewNumber(0), settings);
+	RejectField(root, rocket, "pellets", JSON.NewNumber(2), settings);
+	RejectField(root, rocket, "spread_radians", JSON.NewNumber(-1), settings);
+	RejectField(root, rocket, "spread_radians", JSON.NewNumber(0.1), settings);
+	value := rocket.Get("projectile");
+	flight := value(JSON.Object);
+	RejectField(root, flight, "thing", JSON.NewNumber(9999), settings);
+	RejectField(root, flight, "thing", JSON.NewNumber(2015), settings);
+	RejectField(root, flight, "speed_per_tick", JSON.NewNumber(0), settings);
+	ASSERT(Decode(root, settings, error))
+END WeaponMouseBounds;
 
 BEGIN
 	loaded := FALSE;
@@ -1161,6 +1364,24 @@ BEGIN
 	COPY("use", actionNames[Use]);
 	COPY("fire", actionNames[Fire]);
 	COPY("quit", actionNames[Quit]);
+	COPY("reload", actionNames[Reload]);
+	COPY("aim", actionNames[Aim]);
+	COPY("weapon_1", actionNames[Weapon1]);
+	COPY("weapon_2", actionNames[Weapon1 + 1]);
+	COPY("weapon_3", actionNames[Weapon1 + 2]);
+	COPY("weapon_4", actionNames[Weapon1 + 3]);
+	COPY("weapon_5", actionNames[Weapon1 + 4]);
+	COPY("weapon_6", actionNames[Weapon1 + 5]);
+	COPY("weapon_7", actionNames[Weapon7]);
+	COPY("fist", weaponNames[0]);
+	COPY("pistol", weaponNames[1]);
+	COPY("shotgun", weaponNames[2]);
+	COPY("chaingun", weaponNames[3]);
+	COPY("launcher", weaponNames[4]);
+	COPY("plasma", weaponNames[5]);
+	COPY("bfg", weaponNames[6]);
+	COPY("chainsaw", weaponNames[7]);
+	COPY("super_shotgun", weaponNames[8]);
 	COPY("bullets", ammoNames[0]);
 	COPY("shells", ammoNames[1]);
 	COPY("cells", ammoNames[2]);

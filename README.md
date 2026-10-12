@@ -26,7 +26,7 @@ holes. Opaque black pixels remain visible. Layered grilles retain the nearest
 covered pixel, repeat horizontally, and draw their height once inside the
 sector opening. Sidedef offsets and top/bottom pegging remain active while
 ceilings move. Blocking flags still decide whether the player can cross.
-Space activates manual doors from their front side within 64 Doom units.
+E activates manual doors from their front side within 64 Doom units.
 Types 1, 31, 117 and 118 are unlocked. Types 26/32 require blue, 27/34 yellow,
 and 28/33 red: either a card or a skull of that color works without consumption.
 Types 26-28 raise, wait and close; 32-34 stay open and consume their line action.
@@ -76,16 +76,24 @@ and skull keys. Health and armor bonuses can reach 200; ordinary medicine stops
 at 100. Ammo and armor remain in the map when they cannot improve the current
 stock. Bonuses, duplicate keys and backpacks retain their classic consumption
 rules. The backpack doubles ammo capacity once. Placed weapons grant ownership
-and ammunition; weapon selection is not implemented. The owned pistol fires
-while its configured key is held, spends bullets and hits the nearest live target
-in range. Solid walls and closed openings stop shots; two-sided windows and
+and ammunition. Digits 1–7 select owned weapons using classic Doom slots;
+repeating 1 toggles fist/chainsaw and 3 toggles shotgun/super shotgun. The wheel
+cycles owned weapons. First selection loads available reserve into its magazine;
+later switching preserves magazines and cancels a pending reload. Inventory ammo
+includes loaded rounds, so stowed magazines cannot duplicate shared bullets or shells.
+LMB fires the selected weapon; R reloads over configured ticks and firing pauses
+until completion. Empty magazines require R. Fist/chainsaw use close-range hits,
+pistol/chaingun use rays, shotguns use configured pellet fans, and rocket/plasma/BFG
+use visible projectiles. Damage is fixed; projectiles currently apply direct damage
+without rocket splash or the original BFG secondary effect. The selected weapon,
+loaded rounds/reserve or reload status appear above the status panel. Solid walls and closed openings stop shots; two-sided windows and
 grilles pass them when the shot fits the open height, even if movement is blocked.
 Dead targets remain visible and no longer block movement.
 The bottom 20 pixels show health, armor, four ammo stocks, total pickups,
 weapon count and colored key indicators (`C` card, `S` skull; blue/yellow/red).
 Trying a locked manual door without its key shows the required color in the panel.
 The hint clears on the next use, matching key pickup or successful map load;
-it has no timed expiry. Collecting a key requires a fresh Space press to use it.
+it has no timed expiry. Collecting a key requires a fresh E press to use it.
 Pickups require horizontal overlap, reachable height and a clear physical path;
 solid walls, blocking grilles and closed portals prevent collection through them.
 The existing `sprites-grate.wad` grille stays passable by its map flags.
@@ -101,9 +109,16 @@ task check
 task run
 ```
 
-Default controls: W/S or Up/Down move, A/D strafe, Left/Right turn, Space uses,
-Ctrl fires the pistol, Escape exits. Every action and its aliases come from YAML.
-Holding Space issues one action until release; losing focus clears held input.
+Default controls: WASD moves/strafes, mouse motion turns/pitches the view, LMB
+fires, RMB aims while held, R reloads, digits 1–7 or the wheel select weapons,
+E uses nearby manual doors, and Escape exits. Pickups are automatic on contact.
+Up/Down, Left/Right and Ctrl remain secondary keyboard bindings in YAML.
+Holding E issues one action until release. Losing focus clears held buttons,
+keys and pending input, restores normal aim and releases pointer confinement.
+The Linux X11 adapter captures only the focused game window and recenters the
+hidden pointer for unlimited turning. Escape and loop shutdown release capture.
+RMB zooms the view and lowers mouse sensitivity; pitch shifts the existing 2.5D
+projection rather than rotating a 3D camera. Hits and projectiles follow its slope.
 Linux execution needs an X11 display. The installed SDK must contain the
 key release and focus notification fixes in MiniA2 `source/Unix.KbdMouse.Mod`; older drivers
 leave movement keys held after release or focus loss.
@@ -126,10 +141,10 @@ task run -- /path/to/local.wad E1M1
 task run -- build/valid.wad E1M1
 # Three connected rooms, a step and a lower ceiling.
 task run -- build/sectors.wad E1M1
-# A closed manual door; press Space, then walk through.
+# A closed manual door; press E, then walk through.
 task run -- build/door.wad E1M1
-# A locked blue door: try Space, briefly strafe right with D to collect its key,
-# release Space, press it again, then walk through.
+# A locked blue door: try E, briefly strafe right with D to collect its key,
+# release E, press it again, then walk through.
 task run -- build/door-key.wad E1M1
 # A grille with transparent holes; the line permits crossing.
 task run -- build/masked.wad E1M1
@@ -137,15 +152,15 @@ task run -- build/masked.wad E1M1
 task run -- build/sprites-grate.wad E1M1
 # Walk into health/armor, ammo, a key, a weapon and a backpack.
 task run -- build/pickups.wad E1M1
-# Shoot a target twice with Ctrl, then walk over its corpse.
+# Shoot a target twice with LMB, then walk over its corpse.
 task run -- build/combat.wad E1M1
-# A demon approaches and bites; Ctrl shoots, S retreats.
+# A demon approaches and bites; LMB shoots, S retreats.
 task run -- build/ai.wad E1M1
-# A zombieman fires at range; Ctrl fires back.
+# A zombieman fires at range; LMB fires back.
 task run -- build/hitscan.wad E1M1
 # A shotgun soldier fires three pellets with configured spread.
 task run -- build/hitscan-shotgun.wad E1M1
-# An imp launches visible fireballs; strafe to dodge and Ctrl to fire back.
+# An imp launches visible fireballs; strafe to dodge and LMB to fire back.
 task run -- build/projectiles.wad E1M1
 # Walk toward a solid barrel, then strafe or move diagonally around it.
 task run -- build/actors-barrel.wad E1M1
@@ -162,7 +177,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 205 original WAD fixtures, rejects
+`task check` runs engine checks, generates 221 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -190,13 +205,17 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies sixteen scenarios: corridor, single-sector,
+`task gui-check` additionally verifies eighteen scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
-pistol scenarios with default/remapped keys, a chasing demon and a ranged soldier.
+pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier, an imp and the modern mouse controls.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
-Each checks movement, release, focus loss, turning, and Escape shutdown.
+The existing scenes check movement, release, focus loss, turning and Escape.
+The modern scenario checks yaw/pitch, repeated recentering, LMB, RMB/release,
+magazine depletion, R reload, digit/wheel selection and actual focus transfer to
+another owned window. It verifies pointer release and clears firing on refocus;
+all GUI checks restore the prior focus and pointer after closing their processes.
 The demon scenario waits for chase and bite without player input, then uses
 a complete startup YAML with higher pistol damage to kill it and verifies
 that its movement, animation and attacks stop.
@@ -208,10 +227,14 @@ The barrel scene approaches the actor, verifies that another forward input
 leaves the view unchanged, and checks diagonal sliding around it.
 Both windowed and headless visible-scene checks exclude the status panel so
 text alone cannot hide an empty map frame.
-The door scene also checks held/released Space, closing and reopening.
+The door scene also checks held/released E, closing and reopening.
 The locked-door scene checks the missing-color hint, card pickup, hint clearing,
-opening after a new Space press and movement through the doorway.
-It needs Xlib and an accessible X11 server. Each check launches a temporary
+opening after a new E press and movement through the doorway.
+It needs Xlib and an accessible X11 server. The same scenarios validate JSON startup/shutdown records, typed fields and
+component context. A separate logging probe checks the headless entry and four
+startup errors, including an escaped missing-file path. `gui-check` builds its
+headless probe and runs it from the WAD fixture directory.
+Each check launches a temporary
 copy of the executable so it identifies
 its own window even when another copy of the game is running.
 `task bench` measures 200 textured frames without display transfer.
@@ -297,14 +320,20 @@ Each map validates its used corpse and animation resources before replacing
 the live scene. The standard profile enables melee for demons/spectres and
 hitscan for zombiemen/shotgun soldiers and projectiles for imps. Settings can enable other configured
 ground actors with suitable sprite resources.
-`controls` lists integer X11-compatible key symbols for all nine actions; aliases
+`controls` lists integer X11-compatible key symbols for all eighteen actions; aliases
 must be unique across actions. Letters ignore Shift case so releasing Shift
 cannot leave a key held. Releasing one physical alias preserves another held alias.
-The pistol currently uses a horizontal shot with fixed damage. Chase moves
+`aim` may have an empty key list because RMB supplies the default binding.
+`mouse` supplies sensitivity, aim sensitivity multiplier, vertical inversion,
+pitch limit (radians), aim zoom and fire/aim buttons (0 left, 1 middle, 2 right).
+`combat.pistol` and `combat.weapons` supply ammunition, magazine capacity,
+reload/cooldown ticks, damage/range, pellets/spread and display labels. Projectile
+weapons reference `things` for flight appearance/dimensions and configure speed.
+Existing custom profiles need these new mandatory sections/fields. Chase moves
 directly toward the player and slides along obstacles; route finding, sound
 wake, original randomized attacks, death animations, drops,
-barrel splash, boss actions, spread/autoaim, other weapons
-and sound remain later milestones.
+barrel/rocket splash, boss actions, randomized spread/autoaim, weapon view animations,
+full original BFG behavior and sound remain later milestones.
 Imp fireballs have visible flight and direct fixed damage. Their swept actor
 tests prevent tunneling at high speeds; walls, sector openings, floors and
 ceilings clip flight. Movement-blocking grilles pass projectiles when their
@@ -356,7 +385,7 @@ scene data.
 
 `task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
 `DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
-`DoomHitscanSmoke` and `DoomInput`
+`DoomHitscanSmoke`, `DoomControlsSmoke` and `DoomInput`
 in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
@@ -365,7 +394,10 @@ closed/open doors, blocking grilles, corpses, ammo/cooldown, custom tuning and
 input aliases, wake/occlusion, chase collision, steps, animated frames,
 windup/dodge, armor damage, death freeze and map replacement. Ranged checks cover
 pellet spread/damage, sloped floor/ceiling occlusion, friendly interception,
-same-tick death, complete custom tuning and resource failures. These executables run in `build/`:
+same-tick death, complete custom tuning and resource failures. Modern-control
+checks cover edge input, mouse focus clearing, pitch limits, aimed sensitivity,
+partial/timed/cancelled reloads, shared ammo conservation, classic slots, owned
+weapon cycling, melee/pellets/player projectiles, map reset and automatic pickups. These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
 
@@ -379,13 +411,42 @@ archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scen
 All spawn metadata and footprints come from `things`. `DoomActors` owns sight traces, chase
 and attack timing. `DoomSprites` resolves melee/hitscan impacts, loads immutable metadata and images, chooses
 directional/animated/death frames and publishes collection/health/motion snapshots.
-`DoomCombat` owns pistol timing, ammunition use and the crosshair.
+`DoomInput` collects keyboard/mouse actions; `DoomMouse` owns Linux X11 capture.
+`DoomCombat` owns selection, magazines, reload/firing timing and aim/status overlays.
 `DoomProjectiles` owns fixed flight directions, volume clipping and sector traces;
 `DoomSprites` owns projectile state, rendering and impact damage.
 `DoomInventory` owns item effects; `DoomHud` owns the status panel layout.
 Game state uses a monitor; rendering captures camera, inventory,
 the sprite scene and the sealed world together before
 working without the game lock.
+
+## Application logging
+
+The SDK must include MiniA2 `Logging` (`std/logging`, introduced in commit
+`890ac86`). Older installed bundles need rebuilding from updated MiniA2 sources.
+`Doom.log` owns one JSON handler and a dedicated KernelLog stream writer with
+`component=doom`. Game entries use INFO for configuration/map load and window
+start/stop, and ERROR for startup/resource/display failures. Records carry UTC
+timestamps and typed path/map/error, dimensions, tick rate and final tick/result
+fields. No synchronous logging is added to simulation ticks or rendering.
+Kernel/driver diagnostics and test summaries can still use their existing output.
+
+## Full A2 port assessment
+
+Source inspection suggests moderate porting effort; no full-A2 compile or run
+has been performed. The game rules, renderer and WAD reader mainly use common
+Active Oberon libraries. The current executable entry and pointer capture use
+Unix/X11 and require a native A2 launcher, display/window and input adapter.
+A2 provides keyboard, wheel and relative mouse messages, but the port must also
+handle focus, capture, key release and shutdown through its window system.
+
+The inspected `a2oberon` tree has JSON and the parser/logging dependencies, but
+lacks the MiniA2 YAML and Logging modules. Port those modules and verify compiler
+and library API compatibility before estimating runtime performance. Start with
+a 320x200 windowed scene in a running A2 system; a native boot image and physical
+hardware performance are later checks. A64/QEMU headless tests do not validate
+full A2 desktop or bare-metal execution. The user deferred the port and chose
+to continue the game implementation.
 
 A short headless load/render/movement check passed all 132 maps from the supplied
 Doom, Doom II, TNT and Plutonia IWADs, up from 90 before BSP lookup. Interactive

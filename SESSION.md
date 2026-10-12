@@ -1,6 +1,114 @@
 # ao-doom session handoff
 
-Updated: 2026-10-12
+Updated: 2026-10-13
+
+## Resumed delivery: modern controls and structured game logs
+
+The previous session stopped before committing or pushing the delivery below.
+Recovered the direct user request from its transcript and verified that local
+main remained at 3913c9e while remote main remained at 2078712. The pending
+commit/push authorization applies to this delivery only.
+
+- Rebuilt clean MiniA2 890ac86 and its Linux64 SDK under
+  /tmp/ao-doom-resume-1khrtq_c/minia2 after the previous temporary SDK disappeared.
+  A64 module-list regeneration had no differences. The installed SDK, user-owned
+  MiniA2 work and engine checkout were left unchanged; engine checks use a copy.
+- Fresh task check passed engine regressions, 221 owned WAD fixtures and
+  47 file-based TEST procedures. Fresh isolated Xephyr task gui-check passed
+  all 18 game scenarios and the five logging cases. All 132 original-map
+  start/walk/render probes passed again. No product-source correction was needed.
+- Earlier five-suite A64/QEMU results are retained, not rerun in this recovery.
+  CI, Windows, ARMhf, hardware, full A2, maximum-scene stress and complete
+  playthroughs remain unchecked. Future builds require an SDK containing Logging.
+- The existing untracked scene.ppm is preserved outside the delivery. Exact
+  source hashes, logs, resulting commit and remote verification are recorded in
+  scratch/resume-check.md. Later publication requires a new push approval.
+
+## Delivery checkpoint: modern controls and structured game logs
+
+The user deferred the full A2 port, asked to save its assessment, requested a
+commit and push of ao-doom/main, and asked to use the new MiniA2 Logging module.
+This checkpoint accompanies `feat(input): add modern controls and structured game logs`.
+The pending controls below and structured logging are included. Publication also
+includes the earlier local imp commit `3913c9e`; origin/main was verified at
+`2078712` before delivery. This push approval is single-use.
+
+- `Doom.log` owns one JSON handler and a dedicated KernelLog stream with the
+  component context. Window startup/config/map events use INFO with typed fields;
+  failures use ERROR, and shutdown records final ticks/result. The headless game
+  check also uses Logging. No logging was added to rendering or simulation ticks.
+  Kernel/driver and test diagnostics retain their existing output.
+- The installed SDK lacked Logging. Built a clean archived MiniA2 snapshot at
+  `890ac86` under `/tmp/ao-doom-logging.szafo7bb/minia2`. The A64 list regenerated
+  without differences; Linux64/bundle, 60 A64 runtime modules and 380 A64 stdlib
+  modules built. The A64 system answered shell commands under QEMU. Existing
+  MiniA2 source/build/installed SDK trees were not modified by this task.
+- `README.md` saves the full-A2 assessment: moderate adapter/library work;
+  Unix/X11 launcher/capture need replacement, and full A2 lacks YAML/Logging.
+  Start with a 320x200 window after compiler/API checks. No full A2 compile/run
+  or hardware performance evidence exists; the user explicitly deferred it.
+- Native `task check` passed 221 owned fixtures and 47 file-based {TEST}
+  procedures. Five game suites passed on the fresh A64 SDK under QEMU, and all
+  132 original-map start/walk/render probes passed on current game sources.
+- Main-desktop attempts hit an Escape timeout and a remapped-frame mismatch;
+  the frame difference had no established cause. An isolated Xephyr server
+  exposed the shutdown race: restoring previous focus before synthetic Escape
+  could make the controller ignore that key. The shared test shutdown now focuses
+  its owned game window first. The new logging probe initially used the wrong
+  fixture cwd; corrected it and made `gui-check` build that probe. Final full
+  validation and exact source hashes are recorded in scratch/logging-check.md.
+- Runtime logs require an SDK containing std/logging. The Logging source remains
+  owned by MiniA2; it is not vendored. Durable logging rules are in local AGENTS
+  and tracked README. Full-A2 execution, CI, Windows, ARMhf, hardware calibration,
+  maximum-map stress and complete playthroughs remain unchecked.
+
+## Current continuation: modern FPS controls
+
+The user requested a commit first, then WASD/mouse/fire/aim/reload/weapon/use
+controls with automatic pickups. Committed the validated imp milestone on main
+as `3913c9e` (`feat(combat): add configurable imp fireballs`) before these edits.
+The uncommitted/no-push status here describes the pre-delivery state; the newer
+delivery checkpoint above records the subsequent user authorization.
+
+- WASD moves/strafes; mouse movement changes yaw and pitch independently of tick
+  frequency. LMB fires, held RMB zooms and reduces sensitivity, R reloads,
+  1-7 select classic slots and the wheel cycles owned weapons. Repeating 1 or 3
+  toggles fist/chainsaw or shotgun/super shotgun. E replaces Space for manual
+  door use. Existing arrow/Ctrl aliases remain. Contact pickups stay automatic.
+- `DoomMouse` is a Linux X11 input adapter over the installed SDK/Xlib. It confines
+  and recenters the hidden pointer only in the focused game window, releases it
+  on focus loss/exit and keeps allocation-capable controller calls outside the
+  Machine.X11 lock. Focus clears buttons, keys, motion and pending edge actions.
+- `DoomCombat` now owns selected weapons, persistent magazines, timed/partial
+  reloads and shared reserves. Inventory ammo includes loaded rounds; selecting
+  a weapon cannot create ammo. First selection fills its magazine from reserve;
+  subsequent switches preserve it and cancel pending reloads. Empty magazines
+  require R. The active weapon and loaded/reserve or reload state are visible.
+- All nine owned weapons can attack: fist/chainsaw melee, pistol/chaingun rays,
+  deterministic shotgun pellet fans, and rocket/plasma/BFG projectile flight.
+  Player rays and projectiles follow the pitch slope. Projectile definitions
+  reuse `things` through local IDs 60001-60003; appearance has no compiled table.
+- New mandatory YAML weapon/mouse/reload/slot fields are validated atomically;
+  complete default/custom/invalid profiles are updated. The custom profile also
+  checks inversion, sensitivity and swapped fire/aim buttons. Engine/SDK sources
+  and external archives were not changed; no original assets are redistributed.
+- Final `task check` passed 221 owned WAD fixtures and 47 file-based {TEST}
+  procedures. Final `task gui-check` passed 18 owned-window scenarios, including
+  E doors, automatic pickups and all modern controls. Five final-source A64
+  suites passed under QEMU (config, controls, combat, input, projectiles).
+  All 132 original-map start/walk probes passed; these are short probes, not
+  complete playthroughs. Exact logs/limits: scratch/controls-check.md.
+- The first mouse GUI run exposed a Machine lock hierarchy assertion; fixed by
+  releasing X11 before controller calls. The first release test used root focus,
+  which the local window manager immediately returned to the game; the final
+  test transfers real focus to a second owned window and verifies confinement
+  release and stopped firing. Visibility checks now exclude weapon status text.
+- Deliberate limits: pitch shears the existing 2.5D renderer, not a 3D camera;
+  RMB supplies zoom without a weapon-view animation. Damage remains fixed;
+  projectiles have no splash/impact animation or original BFG secondary effect.
+  Captured mouse input is Linux/X11 only; A64 evidence covers headless logic.
+  CI, Windows, ARMhf, physical mouse/hardware calibration, maximum-scene stress
+  and complete playthroughs remain unchecked. Future publication needs approval.
 
 ## Delivery checkpoint: configurable imp fireballs
 

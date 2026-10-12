@@ -203,13 +203,71 @@ things:
   - {kind: 3005, spawn_frame: HEADA, fullbright: false, ceiling: false, height: 56, radius: 31}
   - {kind: 3006, spawn_frame: SKULA, fullbright: true, ceiling: false, height: 56, radius: 16}
   - {kind: 60000, spawn_frame: BAL1A, fullbright: true, ceiling: false, height: 8, radius: 6}
+  - {kind: 60001, spawn_frame: MISLA, fullbright: true, ceiling: false, height: 8, radius: 6}
+  - {kind: 60002, spawn_frame: PLSSA, fullbright: true, ceiling: false, height: 8, radius: 6}
+  - {kind: 60003, spawn_frame: BFS1A, fullbright: true, ceiling: false, height: 16, radius: 13}
 combat:
   pistol:
+    mode: hitscan
+    label: PISTOL
+    ammo: bullets
+    magazine: 12
+    reload_ticks: 35
+    pellets: 1
+    spread_radians: 0
     damage: 7
     cooldown_ticks: 3
     ammo_cost: 2
     range: 192
     flash_ticks: 2
+  weapons:
+    fist: {mode: hitscan, label: FIST, ammo: none, damage: 10, cooldown_ticks: 15, ammo_cost: 0, range: 64, flash_ticks: 1, magazine: 0, reload_ticks: 1, pellets: 1, spread_radians: 0}
+    shotgun: {mode: hitscan, label: SHOTGUN, ammo: shells, damage: 10, cooldown_ticks: 30, ammo_cost: 1, range: 2048, flash_ticks: 3, magazine: 8, reload_ticks: 60, pellets: 7, spread_radians: 0.1}
+    chaingun: {mode: hitscan, label: CHAINGUN, ammo: bullets, damage: 10, cooldown_ticks: 4, ammo_cost: 1, range: 2048, flash_ticks: 2, magazine: 30, reload_ticks: 45, pellets: 1, spread_radians: 0}
+    launcher:
+      mode: projectile
+      label: ROCKET
+      ammo: rockets
+      damage: 100
+      cooldown_ticks: 20
+      ammo_cost: 1
+      range: 2048
+      flash_ticks: 3
+      magazine: 1
+      reload_ticks: 35
+      pellets: 1
+      spread_radians: 0
+      projectile: {thing: 60001, speed_per_tick: 20}
+    plasma:
+      mode: projectile
+      label: PLASMA
+      ammo: cells
+      damage: 20
+      cooldown_ticks: 3
+      ammo_cost: 1
+      range: 2048
+      flash_ticks: 2
+      magazine: 40
+      reload_ticks: 45
+      pellets: 1
+      spread_radians: 0
+      projectile: {thing: 60002, speed_per_tick: 25}
+    bfg:
+      mode: projectile
+      label: BFG
+      ammo: cells
+      damage: 400
+      cooldown_ticks: 40
+      ammo_cost: 40
+      range: 2048
+      flash_ticks: 4
+      magazine: 40
+      reload_ticks: 70
+      pellets: 1
+      spread_radians: 0
+      projectile: {thing: 60003, speed_per_tick: 25}
+    chainsaw: {mode: hitscan, label: CHAINSAW, ammo: none, damage: 10, cooldown_ticks: 4, ammo_cost: 0, range: 64, flash_ticks: 1, magazine: 0, reload_ticks: 1, pellets: 1, spread_radians: 0}
+    super_shotgun: {mode: hitscan, label: SSG, ammo: shells, damage: 10, cooldown_ticks: 40, ammo_cost: 2, range: 2048, flash_ticks: 3, magazine: 2, reload_ticks: 50, pellets: 20, spread_radians: 0.18}
   aim:
     radius: 5
     gap: 0
@@ -320,6 +378,23 @@ controls:
   right: [0xff53]
   strafe_left: [0x61, 0x41]
   strafe_right: [0x64, 0x44]
-  use: [0x20]
+  use: [0x65, 0x45]
   fire: [0x66, 0x46]
   quit: [0xff1b]
+  reload: [0x72, 0x52]
+  aim: []
+  weapon_1: [0x31]
+  weapon_2: [0x32]
+  weapon_3: [0x33]
+  weapon_4: [0x34]
+  weapon_5: [0x35]
+  weapon_6: [0x36]
+  weapon_7: [0x37]
+mouse:
+  sensitivity: 0.004
+  aim_sensitivity: 0.25
+  invert_y: true
+  pitch_limit: 0.5
+  aim_zoom: 2.0
+  fire_button: 2
+  aim_button: 0

@@ -110,8 +110,7 @@ BEGIN
 	DoomInventory.Reset(player);
 	ASSERT((player.health = 80) & (player.ammo[DoomInventory.Bullets] = 24));
 	ASSERT(map.sprites.Health(0) = 15);
-	weapon.nextShot := 0;
-	weapon.flashUntil := 0;
+	DoomCombat.Reset(weapon, player);
 	scene := DoomCombat.Step(1, FALSE, weapon, map.world, map.sprites, 0, 0, 0, map.eye, player);
 	ASSERT((scene = map.sprites) & (player.ammo[DoomInventory.Bullets] = 24));
 	scene := DoomCombat.Step(1, TRUE, weapon, map.world, scene, 0, 0, 0, map.eye, player);

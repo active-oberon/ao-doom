@@ -40,6 +40,7 @@ tasks:
       - cp tests/DoomActorsSmoke.Mod tests/DoomCombatSmoke.Mod tests/DoomInputSmoke.Mod build/
       - cp tests/DoomAISmoke.Mod tests/DoomHitscanSmoke.Mod build/
       - cp tests/DoomProjectilesSmoke.Mod build/
+      - cp tests/DoomControlsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
       - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml tests/doom-incomplete.yaml build/
       - cd build && ob build DoomConfigSmoke.Mod -o config-check
@@ -68,6 +69,8 @@ tasks:
       - cd build && timeout 10 ./projectiles-check
       - cd build && ob build DoomInputSmoke.Mod -o input-check
       - cd build && timeout 10 ./input-check
+      - cd build && ob build DoomControlsSmoke.Mod -o controls-check
+      - cd build && timeout 10 ./controls-check
       - cd build && ob build DoomSectorsSmoke.Mod -o sectors-check
       - cd build && timeout 10 ./sectors-check
       - cd build && ob build DoomBspSmoke.Mod -o bsp-check
@@ -113,9 +116,12 @@ tasks:
       - python3 tests/gui_smoke.py --ai build/ao-doom build/ai.wad E1M1
       - python3 tests/gui_smoke.py --hitscan build/ao-doom build/hitscan.wad E1M1
       - python3 tests/gui_smoke.py --projectiles build/ao-doom build/projectiles.wad E1M1
+      - python3 tests/gui_smoke.py --modern build/ao-doom build/combat.wad E1M1
       - python3 tests/gui_smoke.py --actor build/ao-doom build/actors-barrel.wad E1M1
       - python3 tests/gui_smoke.py --door build/ao-doom build/door.wad E1M1
       - python3 tests/gui_smoke.py --locked-door build/ao-doom build/door-key.wad E1M1
+      - cd build && ob build Doom.Mod -o doom-check
+      - python3 tests/logging_smoke.py build/doom-check build/ao-doom
 
   door-check:
     desc: Open and cross a manual door in a local WAD map

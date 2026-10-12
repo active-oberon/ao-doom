@@ -3,7 +3,7 @@ MODULE DoomProjectiles;
 IMPORT DoomFormat, GameGeometry, MathL;
 
 TYPE State* = RECORD
-	owner*: SIGNED32;
+	owner*, weapon*: SIGNED32;
 	x*, y*, z*, dx*, dy*, dz*, remaining*: FLOAT64
 END;
 

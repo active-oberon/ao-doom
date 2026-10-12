@@ -30,6 +30,7 @@ TYPE
 		states: POINTER TO ARRAY OF DoomActors.State;
 		projectiles: POINTER TO ARRAY OF DoomProjectiles.State;
 		projectileCount: SIGNED32;
+		playerImages: ARRAY DoomInventory.WeaponKinds OF Images;
 		count, remaining, movingActor: SIGNED32;
 		tick: SIGNED64;
 		playerX, playerY: FLOAT64;
@@ -79,6 +80,7 @@ TYPE
 
 		PROCEDURE Copy(): Scene;
 		VAR snapshot: Scene;
+			i: SIGNED32;
 		BEGIN
 			NEW(snapshot, 0);
 			snapshot.actors := actors;
@@ -90,6 +92,9 @@ TYPE
 			snapshot.tick := tick;
 			snapshot.projectiles := projectiles;
 			snapshot.projectileCount := projectileCount;
+			FOR i := 0 TO DoomInventory.WeaponKinds - 1 DO
+				snapshot.playerImages[i] := playerImages[i]
+			END;
 			RETURN snapshot
 		END Copy;
 
@@ -176,21 +181,26 @@ TYPE
 			RETURN snapshot
 		END Damage;
 
-		(* Shoot shares target clipping with enemy shots while retaining horizontal player aim. *)
+		(* Shoot retains horizontal aim for existing callers. *)
 		PROCEDURE Shoot*(world: GameGeometry.World; x, y, angle, eye, range: FLOAT64; damage: SIGNED32): Scene;
+		BEGIN
+			RETURN ShootAim(world, x, y, angle, eye, 0, range, damage)
+		END Shoot;
+
+		PROCEDURE ShootAim*(world: GameGeometry.World; x, y, angle, eye, slope, range: FLOAT64; damage: SIGNED32): Scene;
 		VAR target: SIGNED32;
 			dx, dy, limit: FLOAT64;
 		BEGIN
 			ASSERT((range > 0) & (damage > 0));
 			dx := MathL.cos(angle);
 			dy := MathL.sin(angle);
-			limit := DoomActors.TraceLimit(world, x, y, dx, dy, eye, range);
-			target := Target(world, -1, x, y, dx, dy, eye, 0, limit);
+			limit := DoomActors.Trace(world, x, y, dx, dy, eye, slope, range);
+			target := Target(world, -1, x, y, dx, dy, eye, slope, limit);
 			IF target < 0 THEN
 				RETURN SELF
 			END;
 			RETURN Damage(target, damage)
-		END Shoot;
+		END ShootAim;
 
 		(* EnemyShot resolves each configured pellet against the closest current live volume. *)
 		PROCEDURE EnemyShot(world: GameGeometry.World; index: SIGNED32;
@@ -241,6 +251,32 @@ TYPE
 			RETURN snapshot
 		END EnemyShot;
 
+		PROCEDURE PlayerShot*(weapon: SIGNED32; x, y, z, angle, slope: FLOAT64): Scene;
+		VAR snapshot: Scene;
+			shot: DoomProjectiles.State;
+			i: SIGNED32;
+		BEGIN
+			ASSERT((weapon >= 0) & (weapon < DoomInventory.WeaponKinds));
+			IF (projectileCount = MaximumProjectiles) OR (playerImages[weapon] = NIL) THEN
+				RETURN SELF
+			END;
+			snapshot := Copy();
+			NEW(snapshot.projectiles, projectileCount + 1);
+			FOR i := 0 TO projectileCount - 1 DO
+				snapshot.projectiles[i] := projectiles[i]
+			END;
+			shot.owner := -1;
+			shot.weapon := weapon;
+			shot.x := x;
+			shot.y := y;
+			shot.z := z;
+			shot.remaining := DoomConfig.values.combat.weapons[weapon].range;
+			DoomProjectiles.Aim(shot, x + MathL.cos(angle), y + MathL.sin(angle), z + slope, angle);
+			snapshot.projectiles[projectileCount] := shot;
+			INC(snapshot.projectileCount);
+			RETURN snapshot
+		END PlayerShot;
+
 		PROCEDURE Launch(index: SIGNED32; x, y, feet: FLOAT64);
 		VAR expanded: POINTER TO ARRAY OF DoomProjectiles.State;
 			shot: DoomProjectiles.State;
@@ -278,7 +314,7 @@ TYPE
 			previous: POINTER TO ARRAY OF DoomProjectiles.State;
 			shot: DoomProjectiles.State;
 			rules: DoomConfig.ProjectileSettings;
-			i, j, kept, target: SIGNED32;
+			i, j, kept, target, damage: SIGNED32;
 			travel, limit, bottom: FLOAT64;
 			playerHit: BOOLEAN;
 		BEGIN
@@ -288,11 +324,17 @@ TYPE
 			kept := 0;
 			FOR i := 0 TO projectileCount - 1 DO
 				shot := previous[i];
-				rules := actors[shot.owner].behavior.projectile;
+				IF shot.owner < 0 THEN
+					rules := DoomConfig.values.combat.weapons[shot.weapon].projectile;
+					damage := DoomConfig.values.combat.weapons[shot.weapon].damage
+				ELSE
+					rules := actors[shot.owner].behavior.projectile;
+					damage := actors[shot.owner].behavior.damage
+				END;
 				IF player.health > 0 THEN
 					travel := MIN(shot.remaining, rules.speed);
 					limit := DoomProjectiles.Trace(world, shot, rules.radius, rules.height, travel);
-					playerHit := DoomProjectiles.Hit(shot, rules.radius, rules.height,
+					playerHit := (shot.owner >= 0) & DoomProjectiles.Hit(shot, rules.radius, rules.height,
 						x, y, feet, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, limit);
 					target := -1;
 					FOR j := 0 TO count - 1 DO
@@ -311,13 +353,13 @@ TYPE
 					IF target >= 0 THEN
 						IF snapshot.hitpoints[target] > 0 THEN
 							IF snapshot = SELF THEN
-								snapshot := Damage(target, actors[shot.owner].behavior.damage)
+								snapshot := Damage(target, damage)
 							ELSE
-								snapshot.hitpoints[target] := MAX(0, snapshot.hitpoints[target] - actors[shot.owner].behavior.damage)
+								snapshot.hitpoints[target] := MAX(0, snapshot.hitpoints[target] - damage)
 							END
 						END
 					ELSIF playerHit THEN
-						DoomInventory.Hurt(player, actors[shot.owner].behavior.damage)
+						DoomInventory.Hurt(player, damage)
 					ELSIF limit >= travel THEN
 						shot.x := shot.x + shot.dx * travel;
 						shot.y := shot.y + shot.dy * travel;
@@ -452,10 +494,18 @@ TYPE
 			END;
 			FOR i := 0 TO projectileCount - 1 DO
 				shot := projectiles[i];
-				rules := actors[shot.owner].behavior.projectile;
+				IF shot.owner < 0 THEN
+					rules := DoomConfig.values.combat.weapons[shot.weapon].projectile
+				ELSE
+					rules := actors[shot.owner].behavior.projectile
+				END;
 				view := MathL.arctan2(shot.dy, shot.dx) - MathL.arctan2(y - shot.y, x - shot.x);
 				rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD DoomFormat.SpriteRotations;
-				sprite := actors[shot.owner].projectileImages.views[rotation];
+				IF shot.owner < 0 THEN
+					sprite := playerImages[shot.weapon].views[rotation]
+				ELSE
+					sprite := actors[shot.owner].projectileImages.views[rotation]
+				END;
 				sprite.x := shot.x;
 				sprite.y := shot.y;
 				sprite.z := shot.z - rules.height / 2;
@@ -706,6 +756,30 @@ BEGIN
 							END
 						END
 					END
+				END
+			END;
+			CASE kind OF
+			DoomThings.Shotgun:
+				j := DoomInventory.Shotgun
+			| DoomThings.Chaingun:
+				j := DoomInventory.Chaingun
+			| DoomThings.Launcher:
+				j := DoomInventory.Launcher
+			| DoomThings.Plasma:
+				j := DoomInventory.Plasma
+			| DoomThings.Bfg:
+				j := DoomInventory.Bfg
+			| DoomThings.Chainsaw:
+				j := DoomInventory.Chainsaw
+			| DoomThings.SuperShotgun:
+				j := DoomInventory.SuperShotgun
+			ELSE
+				j := -1
+			END;
+			IF (j >= 0) & (DoomConfig.values.combat.weapons[j].projectile # NIL) THEN
+				scene.playerImages[j] := Frame(archive, textures, DoomConfig.values.combat.weapons[j].projectile.frame, cache, work, error);
+				IF scene.playerImages[j] = NIL THEN
+					RETURN NIL
 				END
 			END;
 			scene.actors[scene.count] := actor;

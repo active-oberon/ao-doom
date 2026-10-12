@@ -1,10 +1,14 @@
 MODULE Doom;
 
-IMPORT DoomConfig, DoomCombat, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, KernelLog;
+IMPORT DoomConfig, DoomCombat, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
+
+VAR log-: Logging.Logger;
+	logWriter: Streams.Writer;
+	logContext: ARRAY 1 OF Logging.Attr;
 
 TYPE
 	Pose* = RECORD
-		x*, y*, angle*, eye*: FLOAT64
+		x*, y*, angle*, eye*, pitch*: FLOAT64
 	END;
 
 	Game* = OBJECT
@@ -15,7 +19,8 @@ TYPE
 		doors: DoomDoors.Controller;
 		sprites: DoomSprites.Scene;
 		inventory: DoomInventory.State;
-		use, firing: BOOLEAN;
+		use, firing, reloading, aiming: BOOLEAN;
+		viewFrame: GameSurface.Frame;
 		weapon: DoomCombat.Weapon;
 
 		PROCEDURE &Init*;
@@ -40,6 +45,7 @@ TYPE
 			pose.x := 2;
 			pose.y := 4;
 			pose.angle := 0;
+			pose.pitch := 0;
 			pose.eye := DoomConfig.values.demoEye;
 			ticks := 0;
 			forward := 0;
@@ -50,8 +56,9 @@ TYPE
 			DoomInventory.Reset(inventory);
 			use := FALSE;
 			firing := FALSE;
-			weapon.nextShot := 0;
-			weapon.flashUntil := 0;
+			reloading := FALSE;
+			aiming := FALSE;
+			DoomCombat.Reset(weapon, inventory);
 			ASSERT(world.Free(pose.x, pose.y, DoomConfig.values.playerRadius))
 		END Init;
 
@@ -90,13 +97,15 @@ TYPE
 			sprites := map.sprites;
 			use := FALSE;
 			firing := FALSE;
-			weapon.nextShot := 0;
-			weapon.flashUntil := 0;
+			reloading := FALSE;
+			aiming := FALSE;
 			pose.x := map.x;
 			pose.y := map.y;
 			pose.angle := map.angle;
+			pose.pitch := 0;
 			pose.eye := map.eye;
 			DoomInventory.Reset(inventory);
+			DoomCombat.Reset(weapon, inventory);
 			RETURN TRUE
 		END Load;
 
@@ -120,6 +129,48 @@ TYPE
 		BEGIN {EXCLUSIVE}
 			firing := held
 		END Fire;
+
+		PROCEDURE Aim*(held: BOOLEAN);
+		BEGIN {EXCLUSIVE}
+			aiming := held
+		END Aim;
+
+		PROCEDURE Look*(dx, dy: SIGNED32);
+		VAR sensitivity, vertical: FLOAT64;
+		BEGIN {EXCLUSIVE}
+			IF inventory.health <= 0 THEN
+				RETURN
+			END;
+			sensitivity := DoomConfig.values.mouseSensitivity;
+			IF aiming THEN
+				sensitivity := sensitivity * DoomConfig.values.aimSensitivity
+			END;
+			pose.angle := pose.angle + MAX(-DoomConfig.MaximumMouseDelta, MIN(DoomConfig.MaximumMouseDelta, dx)) * sensitivity;
+			pose.angle := pose.angle - 2 * MathL.pi * ENTIER((pose.angle + MathL.pi) / (2 * MathL.pi));
+			vertical := -MAX(-DoomConfig.MaximumMouseDelta, MIN(DoomConfig.MaximumMouseDelta, dy)) * sensitivity;
+			IF DoomConfig.values.invertMouse THEN
+				vertical := -vertical
+			END;
+			pose.pitch := MAX(-DoomConfig.values.pitchLimit, MIN(DoomConfig.values.pitchLimit, pose.pitch + vertical))
+		END Look;
+
+		PROCEDURE Reload*;
+		BEGIN {EXCLUSIVE}
+			reloading := TRUE
+		END Reload;
+
+		PROCEDURE SelectWeapon*(slot, cycle: SIGNED32);
+		BEGIN {EXCLUSIVE}
+			IF slot # 0 THEN
+				DoomCombat.Select(weapon, inventory, slot)
+			END;
+			DoomCombat.Cycle(weapon, inventory, MAX(-DoomConfig.MaximumWheelSteps, MIN(DoomConfig.MaximumWheelSteps, cycle)))
+		END SelectWeapon;
+
+		PROCEDURE Weapon*(): DoomCombat.Weapon;
+		BEGIN {EXCLUSIVE}
+			RETURN weapon
+		END Weapon;
 
 		PROCEDURE Step*(tick: SIGNED64);
 		VAR dx, dy, speed, feet: FLOAT64;
@@ -155,8 +206,12 @@ TYPE
 					pose.eye := feet + DoomConfig.values.playerEye
 				END;
 			END;
-			sprites := DoomCombat.Step(ticks, firing, weapon, world, sprites,
-				pose.x, pose.y, pose.angle, pose.eye, inventory);
+			IF reloading THEN
+				DoomCombat.Reload(ticks, weapon, inventory)
+			END;
+			reloading := FALSE;
+			sprites := DoomCombat.StepAim(ticks, firing, weapon, world, sprites,
+				pose.x, pose.y, pose.angle, pose.eye, MathL.sin(pose.pitch) / MathL.cos(pose.pitch), inventory);
 			IF sprites # NIL THEN
 				sprites := sprites.Step(world, ticks, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye, inventory);
 				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye,
@@ -181,13 +236,15 @@ TYPE
 		END Ticks;
 
 		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene;
-			VAR status: DoomInventory.State; VAR flashed: BOOLEAN);
+			VAR status: DoomInventory.State; VAR flashed, aimed: BOOLEAN; VAR equipped: DoomCombat.Weapon);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
 			geometry := world;
 			actors := sprites;
 			status := inventory;
-			flashed := ticks < weapon.flashUntil
+			flashed := ticks < weapon.flashUntil;
+			aimed := aiming;
+			equipped := weapon
 		END Capture;
 
 		PROCEDURE Render*(frame: GameSurface.Frame);
@@ -195,14 +252,42 @@ TYPE
 			geometry: GameGeometry.World;
 			actors: DoomSprites.Scene;
 			status: DoomInventory.State;
-			flashed: BOOLEAN;
+			flashed, aimed: BOOLEAN;
+			equipped: DoomCombat.Weapon;
+			target: GameSurface.Frame;
+			margin, x, y, sx, sy: SIGNED32;
+			zoom, center: FLOAT64;
 		BEGIN
-			Capture(snapshot, geometry, actors, status, flashed);
-			GameRenderer.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye);
+			Capture(snapshot, geometry, actors, status, flashed, aimed, equipped);
+			target := frame;
+			zoom := 1;
+			IF aimed THEN
+				zoom := DoomConfig.values.aimZoom
+			END;
+			IF (snapshot.pitch # 0) OR (zoom # 1) THEN
+				margin := ENTIER(frame.width / 1.32 * MathL.sin(DoomConfig.values.pitchLimit) / MathL.cos(DoomConfig.values.pitchLimit)) + 1;
+				IF (viewFrame = NIL) OR (viewFrame.width # frame.width) OR (viewFrame.height # frame.height + 2 * margin) THEN
+					NEW(viewFrame, frame.width, frame.height + 2 * margin)
+				END;
+				target := viewFrame
+			END;
+			GameRenderer.Render(geometry, target, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye);
 			IF actors # NIL THEN
-				actors.Render(geometry, frame, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye)
+				actors.Render(geometry, target, snapshot.x, snapshot.y, snapshot.angle, snapshot.eye)
+			END;
+			IF target # frame THEN
+				(* shortcut: pitch shears the existing 2.5D projection; replace with a 3D camera if steep look angles are needed. *)
+				center := target.height / 2.0 - MathL.sin(snapshot.pitch) / MathL.cos(snapshot.pitch) * target.width / 1.32;
+				FOR y := 0 TO frame.height - 1 DO
+					sy := ENTIER(center + (y + 0.5 - frame.height / 2.0) / zoom);
+					FOR x := 0 TO frame.width - 1 DO
+						sx := ENTIER(target.width / 2.0 + (x + 0.5 - frame.width / 2.0) / zoom);
+						frame.Span(x, y, y, target.Pixel(sx, sy))
+					END
+				END
 			END;
 			DoomHud.Draw(status, frame);
+			DoomCombat.DrawStatus(equipped, status, frame);
 			DoomCombat.DrawAim(frame, flashed)
 		END Render;
 	END Game;
@@ -269,8 +354,12 @@ BEGIN
 	ASSERT(~game.Load("bad-vertex.wad", "E1M1", error));
 	preserved := game.State();
 	ASSERT((preserved.x = pose.x) & (preserved.y = pose.y));
-	KernelLog.String("Doom: scene, movement, collision and WAD checks passed.");
-	KernelLog.Ln
+	ASSERT(log.Info("scene, movement, collision and WAD checks passed") = Streams.Ok)
 END Do;
 
+BEGIN
+	NEW(logWriter, KernelLog.Send, 4096);
+	NEW(log, Logging.NewJSONHandler(logWriter));
+	logContext[0] := Logging.String("component", "doom");
+	log := log.With(logContext)
 END Doom.
