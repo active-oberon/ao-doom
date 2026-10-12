@@ -204,6 +204,7 @@ things:
   - {kind: 3004, spawn_frame: POSSA, fullbright: false, ceiling: false, height: 56, radius: 20}
   - {kind: 3005, spawn_frame: HEADA, fullbright: false, ceiling: false, height: 56, radius: 31}
   - {kind: 3006, spawn_frame: SKULA, fullbright: true, ceiling: false, height: 56, radius: 16}
+  - {kind: 60000, spawn_frame: BAL1A, fullbright: true, ceiling: false, height: 8, radius: 6}
 combat:
   pistol:
     damage: 10
@@ -255,7 +256,23 @@ combat:
     - {kind: 66, health: 300, death_frame: SKELQ, behavior: static}
     - {kind: 67, health: 600, death_frame: FATTT, behavior: static}
     - {kind: 65, health: 70, death_frame: CPOSN, behavior: static}
-    - {kind: 3001, health: 60, death_frame: TROOM, behavior: static}
+    - kind: 3001
+      health: 60
+      death_frame: TROOM
+      behavior: projectile
+      projectile:
+        speed_per_tick: 8
+        step: 24
+        sight_range: 1024
+        range: 1024
+        damage: 12
+        windup_ticks: 8
+        cycle_ticks: 32
+        frame_ticks: 4
+        walk_frames: [TROOA, TROOB, TROOC, TROOD]
+        attack_frames: [TROOE, TROOF, TROOG]
+        thing: 60000
+        shot_speed_per_tick: 10
     - kind: 3002
       health: 150
       death_frame: SARGN

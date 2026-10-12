@@ -1,6 +1,43 @@
 # ao-doom session handoff
 
-Updated: 2026-10-11 22:58 UTC
+Updated: 2026-10-12
+
+## Delivery checkpoint: configurable imp fireballs
+
+The user requested a commit of the existing validated changes before modernizing
+the controls. This checkpoint accompanies `feat(combat): add configurable imp fireballs`.
+The commit includes the projectile continuation below; its earlier uncommitted
+status is historical. No push was requested or authorized for this delivery.
+The next task is WASD, mouse look/fire/aim, reload, weapon selection and E use;
+automatic pickups must remain enabled.
+
+## Current continuation: configurable imp fireballs
+
+The user asked to continue implementation. Started clean on main at `2078712`.
+Imps now launch visible projectiles with fixed trajectories, finite flight range,
+swept impacts, armor absorption and interception. Changes remain uncommitted;
+no new commit or push was requested, authorized or performed.
+
+- `behavior: projectile` reuses shared sight/chase/windup/frame settings and adds
+  `thing` plus `shot_speed_per_tick`. `things` supplies all projectile appearance
+  and dimensions; the standard profile adds local ID 60000 for the fireball.
+- `DoomProjectiles` provides flight direction and geometry/volume clipping.
+  `DoomSprites` publishes copied projectile state, renders it and resolves first
+  impacts. Fired shots survive owner death; player death freezes them. Failed
+  map replacement preserves flight, while successful replacement clears it.
+- Original 80-tick imp probe kept health 100 and failed its attack assertion.
+  Final task check passed 218 synthetic fixtures and 40 file-based {TEST}
+  procedures; five fresh A64 suites passed under QEMU. All 17 X11 scenarios and
+  all 132 original-map probes passed on final sources. Evidence and exact limits:
+  scratch/projectiles-check.md. No engine/SDK/registry source changes.
+- Projectiles have direct fixed damage and use a single configured flight frame.
+  No impact animation, splash, same-species immunity or monster retaliation.
+  Wall faces expand along the center ray; complete corner footprint sweeps are
+  still approximate. Zero-height legacy decorations have no projectile volume.
+  Active shots are capped at 256; excess launches are dropped.
+- CI, Windows, ARMhf, physical hardware, maximum-map stress and full playthroughs
+  remain unchecked. Next: route finding, other weapons, projectile refinement,
+  further monster types and map actions. Prior push approval is consumed.
 
 ## Delivery checkpoint: YAML entity definitions
 

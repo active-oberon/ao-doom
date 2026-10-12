@@ -59,6 +59,10 @@ movement flags. Each pellet hits the nearest damageable target: enemies and barr
 can intercept shots meant for the player. Killed enemies cannot attack later in
 the same tick. Soldier attacks use fixed damage and symmetric pellet spread;
 retaliation against another monster and original randomized AI are absent.
+Imps now launch visible fireballs after a configured windup. Flight aims at the
+player's position at launch, so movement can dodge it. Walls, openings and sector
+planes stop projectiles; other damageable actors can intercept them. Direct
+damage uses the existing armor rules, and fired projectiles survive owner death.
 Other unsupported actors retain their spawn positions. Movement, health and pickup snapshots
 preserve each other's state and keep previous render snapshots unchanged. Unknown
 types are skipped for previewing,
@@ -141,6 +145,8 @@ task run -- build/ai.wad E1M1
 task run -- build/hitscan.wad E1M1
 # A shotgun soldier fires three pellets with configured spread.
 task run -- build/hitscan-shotgun.wad E1M1
+# An imp launches visible fireballs; strafe to dodge and Ctrl to fire back.
+task run -- build/projectiles.wad E1M1
 # Walk toward a solid barrel, then strafe or move diagonally around it.
 task run -- build/actors-barrel.wad E1M1
 # Local base-game archives; quote paths containing spaces.
@@ -261,7 +267,7 @@ Ceiling objects require positive height. The table accepts at most 128 unique
 IDs from 1 to 65535; dimensions must lie between 0 and 1024. Spawn resources for
 objects used by a map are validated before replacing the live scene.
 `combat.actors` references `things` by `kind` and supplies starting health,
-five-character death frames and `behavior: static`, `melee` or `hitscan`.
+five-character death frames and `behavior: static`, `melee`, `hitscan` or `projectile`.
 Its height and radius come exclusively from `things` and must be at least one
 map unit;
 the old `combat.actors.height` and `radius` fields are rejected. Active rules require
@@ -275,22 +281,42 @@ the configured footprints. Ranged actors aim vertically at the player's center.
 Speeds and steps use Doom units; attack and animation intervals use simulation
 ticks. Each frame list contains 1-16 sprite prefixes with frame letters.
 Windup must be shorter than the attack cycle; step must fit actor height and
-attack range must fit sight range. Static rules reject attack settings; active
+attack range must fit sight range. Projectile rules also require `thing` and
+`shot_speed_per_tick`: the referenced `things` entry supplies the projectile's
+spawn frame, fullbright flag, height and radius. The standard profile uses the
+local entity ID 60000 for an imp fireball; this is not a classic WAD object ID.
+Projectile speed is total three-dimensional distance per tick, between 0.01 and
+1024 Doom units; the attack range also limits total flight distance. The flight
+aims at the player's center once at launch, allowing dodges, and starts at the
+attacker's center. Projectiles require positive dimensions and ground attachment.
+Static rules reject attack settings; active
 rules reject a mismatched or additional attack section.
 Actor health/height and terminal frame names follow
 [id Software's actor/state table](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/info.c).
 Each map validates its used corpse and animation resources before replacing
 the live scene. The standard profile enables melee for demons/spectres and
-hitscan for zombiemen/shotgun soldiers. Settings can enable other configured
+hitscan for zombiemen/shotgun soldiers and projectiles for imps. Settings can enable other configured
 ground actors with suitable sprite resources.
 `controls` lists integer X11-compatible key symbols for all nine actions; aliases
 must be unique across actions. Letters ignore Shift case so releasing Shift
 cannot leave a key held. Releasing one physical alias preserves another held alias.
 The pistol currently uses a horizontal shot with fixed damage. Chase moves
 directly toward the player and slides along obstacles; route finding, sound
-wake, original randomized attacks, projectile attacks, death animations, drops,
+wake, original randomized attacks, death animations, drops,
 barrel splash, boss actions, spread/autoaim, other weapons
 and sound remain later milestones.
+Imp fireballs have visible flight and direct fixed damage. Their swept actor
+tests prevent tunneling at high speeds; walls, sector openings, floors and
+ceilings clip flight. Movement-blocking grilles pass projectiles when their
+openings fit. Solid decorations intercept them when YAML supplies positive
+height/radius; legacy zero-height decorations currently have no projectile
+volume. A fired projectile survives its owner's death; map replacement clears
+all projectiles only after validating resources. Old render snapshots preserve
+flight positions, actor health, pickups and timing. The active-shot resource cap
+is 256; launches above it are dropped. Flight currently uses the configured
+spawn frame and disappears on impact, with no explosion animation or splash
+damage. Wall-face sweeps are expanded along the center ray; complete corner
+footprint collision remains a later physics refinement.
 `demo.colors` controls the procedural scene's outer walls, partitions and pillar,
 including their brick textures. `demo.eye` and `demo.wall_height` use Doom map
 units; the eye must not exceed the wall height. `demo.light` ranges from 0 to 255.
@@ -354,6 +380,8 @@ All spawn metadata and footprints come from `things`. `DoomActors` owns sight tr
 and attack timing. `DoomSprites` resolves melee/hitscan impacts, loads immutable metadata and images, chooses
 directional/animated/death frames and publishes collection/health/motion snapshots.
 `DoomCombat` owns pistol timing, ammunition use and the crosshair.
+`DoomProjectiles` owns fixed flight directions, volume clipping and sector traces;
+`DoomSprites` owns projectile state, rendering and impact damage.
 `DoomInventory` owns item effects; `DoomHud` owns the status panel layout.
 Game state uses a monitor; rendering captures camera, inventory,
 the sprite scene and the sealed world together before
@@ -391,12 +419,17 @@ Melee AI, armor damage, fifteen-window checks and the preceding 132-map regressi
 are recorded in [the AI report](scratch/ai-check.md). Active monster ticks copy
 the bounded motion array; static or sleeping scenes reuse the previous snapshot.
 
-Ranged soldiers, configurable pellet spread, sixteen-window checks and the latest
+Ranged soldiers, configurable pellet spread, sixteen-window checks and the preceding
 132-map regression are recorded in [the ranged-attack report](scratch/hitscan-check.md).
 Player and enemy shots share the same nearest-volume clipping; per-attack enemy
 health copies are bounded, and multiple pellets reuse the private health snapshot.
 
-Next: route finding, projectile attacks, other weapons and map actions. Door obstruction remains player-only;
+Imp fireballs, projectile collision/resource bounds, seventeen-window checks and
+the latest 132-map regression are recorded in
+[the projectile report](scratch/projectiles-check.md). Five A64 suites passed
+under QEMU. There is no complete-original-fidelity or full-playthrough claim.
+
+Next: route finding, other weapons, further projectile types and map actions. Door obstruction remains player-only;
 actor crushing and actor-triggered door reversal are not implemented.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;

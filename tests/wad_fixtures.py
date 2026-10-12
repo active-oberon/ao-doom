@@ -453,6 +453,30 @@ def fixtures(directory):
     files["hitscan-missing-walk.wad"] = wad([entry for entry in ranged if entry[0] != "POSSB0"])
     files["hitscan-bad-attack.wad"] = wad([(name, b"abc" if name == "POSSF0" else data) for name, data in ranged])
 
+    def projectile_lumps(lumps=None, things=None):
+        actors = [(128, 0, 0, 3001, 7)] if things is None else things
+        frames = [("TROO" + frame + "0", sprite_patch(color))
+                  for frame, color in zip("ABCDEFG", (5, 6, 7, 4, 6, 7, 5))]
+        return sprite_lumps(lumps, actors) + frames + [("TROOM0", corpse_patch()),
+                                                     ("BAL1A0", corpse_patch(6))]
+
+    projectiles = projectile_lumps()
+    files["projectiles.wad"] = wad(projectiles)
+    files["projectiles-hidden.wad"] = wad(projectile_lumps(hidden))
+    files["projectiles-grate.wad"] = wad(projectile_lumps(masked_lumps(flags=17)))
+    files["projectiles-door.wad"] = wad(projectile_lumps(door_lumps(), [(384, 0, 0, 3001, 7)]))
+    files["projectiles-high.wad"] = wad(projectile_lumps(sector_lumps(floor=64, ceiling=128), [(64, 0, 0, 3001, 7)]))
+    files["projectiles-low.wad"] = wad(projectile_lumps(sector_lumps(ceiling=32)))
+    files["projectiles-barrel.wad"] = wad(projectile_lumps(things=[(192, 0, 0, 3001, 7),
+                                                                (128, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
+    files["projectiles-pickup.wad"] = wad(projectile_lumps(things=[(128, 0, 0, 3001, 7),
+                                                                (0, 0, 0, 2015, 7)]))
+    files["projectiles-missing.wad"] = wad([entry for entry in projectiles if entry[0] != "BAL1A0"])
+    files["projectiles-bad.wad"] = wad([(name, b"abc" if name == "BAL1A0" else data) for name, data in projectiles])
+    files["projectiles-many.wad"] = wad(projectile_lumps(things=[(128, 0, 0, 3001, 7)] * 300))
+    files["projectiles-prop.wad"] = wad(projectile_lumps(things=[(192, 0, 0, 3001, 7),
+                                                              (128, 0, 0, 2028, 7)]) + [("COLUA0", sprite_patch())])
+
     sky = sky_lumps()
     files["sky.wad"] = wad(sky)
     for marker in ("E2M1", "E3M1", "E4M1", "MAP01", "MAP11", "MAP12", "MAP20", "MAP21", "MAP32"):

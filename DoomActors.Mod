@@ -79,7 +79,7 @@ PROCEDURE CanWake*(world: GameGeometry.World; CONST state: State; rules: DoomCon
 	height, x, y, feet: FLOAT64): BOOLEAN;
 BEGIN
 	RETURN (MathL.sqrt((x - state.x) * (x - state.x) + (y - state.y) * (y - state.y)) <= rules.sightRange) &
-		Visible(world, state, height, x, y, feet, rules.hitscan)
+		Visible(world, state, height, x, y, feet, rules.hitscan OR (rules.projectile # NIL))
 END CanWake;
 
 (* Step reports a ready attack so the scene can resolve its current nearest target. *)
@@ -101,7 +101,7 @@ BEGIN
 	IF distance > DoomFormat.TraceTolerance THEN
 		state.angle := MathL.arctan2(dy, dx)
 	END;
-	visible := Visible(world, state, height, x, y, feet, rules.hitscan);
+	visible := Visible(world, state, height, x, y, feet, rules.hitscan OR (rules.projectile # NIL));
 	attack := FALSE;
 	IF (state.attackAt > 0) & (tick >= state.attackAt) THEN
 		state.attackAt := 0;

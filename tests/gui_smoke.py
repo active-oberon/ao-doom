@@ -122,7 +122,7 @@ def focus(display, window, gained):
     X.XFlush(display)
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -151,12 +151,12 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
         key(display, window, root, ord("0"))
         key(display, window, root, ord("0"), release=True)
         time.sleep(0.05)
-        if hitscan:
+        if hitscan or projectiles:
             before = pixels(display, window, hud=True)
             deadline = time.monotonic() + 3
             while pixels(display, window, hud=True) == before and time.monotonic() < deadline:
                 time.sleep(0.05)
-            assert pixels(display, window, hud=True) != before, "Distant soldier did not damage the stationary player"
+            assert pixels(display, window, hud=True) != before, "Ranged actor did not damage the stationary player"
             key(display, window, root, 0xFFE3)
             time.sleep(0.2)
             key(display, window, root, 0xFFE3, release=True)
@@ -164,8 +164,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             dead = pixels(display, window)
             panel = pixels(display, window, hud=True)
             time.sleep(1.5)
-            assert pixels(display, window, hud=True) == panel, "Killed soldier continued firing"
-            assert pixels(display, window) == dead, "Killed soldier continued animating"
+            assert pixels(display, window, hud=True) == panel, "Killed ranged actor caused further damage"
+            assert pixels(display, window) == dead, "Killed ranged actor continued animating"
             initial = dead
         if ai:
             before = pixels(display, window, hud=True)
@@ -333,6 +333,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             print("AI GUI check passed: stationary-player chase, bite HUD, YAML damage, kill and stopped attacks")
         if hitscan:
             print("Hitscan GUI check passed: ranged damage HUD, YAML damage, kill and stopped enemy fire")
+        if projectiles:
+            print("Projectile GUI check passed: flight damage HUD, YAML damage, kill and stopped enemy attacks")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
     except Exception:
         if process.poll() is None:
@@ -362,12 +364,13 @@ def main():
     remapped = arguments[0] == "--remapped-combat"
     ai = arguments[0] == "--ai"
     hitscan = arguments[0] == "--hitscan"
-    if door or pickup or locked_door or actor or combat or ai or hitscan:
+    projectiles = arguments[0] == "--projectiles"
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
         shutil.copy2(arguments[0], executable)
-        if combat or ai or hitscan:
+        if combat or ai or hitscan or projectiles:
             config = pathlib.Path(directory) / "doom-test.yaml"
             profile = pathlib.Path("doom.yaml").read_text()
             if combat:
@@ -377,11 +380,11 @@ def main():
             if remapped:
                 profile = (profile.replace("forward: [0x77, 0x57, 0xff52]", "forward: [0x69, 0x49, 0xff52]")
                            .replace("fire: [0xffe3, 0xffe4]", "fire: [0x66, 0x46]"))
-            if ai or hitscan:
+            if ai or hitscan or projectiles:
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles)
 
 
 if __name__ == "__main__":

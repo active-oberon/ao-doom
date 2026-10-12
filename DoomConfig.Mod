@@ -63,13 +63,21 @@ END;
 SpriteName* = ARRAY 6 OF CHAR;
 SpriteFrames* = POINTER TO ARRAY OF SpriteName;
 
+ProjectileSettings* = POINTER TO RECORD
+	kind*: SIGNED32;
+	speed*, radius*, height*: FLOAT64;
+	frame*: SpriteName;
+	fullbright*: BOOLEAN
+END;
+
 BehaviorSettings* = POINTER TO RECORD
 	speed*, step*, sightRange*, range*: FLOAT64;
 	damage*, windup*, cycle*, frameTicks*: SIGNED32;
 	walk*, attack*: SpriteFrames;
 	hitscan*: BOOLEAN;
 	pellets*: SIGNED32;
-	spread*: FLOAT64
+	spread*: FLOAT64;
+	projectile*: ProjectileSettings
 END;
 
 ActorSettings* = RECORD
@@ -418,9 +426,11 @@ BEGIN
 	RETURN TRUE
 END ThingRules;
 
-PROCEDURE Behavior(rule: JSON.Object; VAR actor: ActorSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE Behavior(rule: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	VAR actor: ActorSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR value: JSON.Value;
 	object: JSON.Object;
+	info: DoomThings.Info;
 	name: ARRAY 16 OF CHAR;
 	keys: ARRAY 192 OF CHAR;
 BEGIN
@@ -431,26 +441,31 @@ BEGIN
 	END;
 	actor.behavior := NIL;
 	IF value(JSON.String).value^ = "static" THEN
-		IF (rule.Get("melee") # NIL) OR (rule.Get("hitscan") # NIL) THEN
+		IF (rule.Get("melee") # NIL) OR (rule.Get("hitscan") # NIL) OR (rule.Get("projectile") # NIL) THEN
 			COPY("Static behavior cannot have attack settings", error);
 			RETURN FALSE
 		END;
 		RETURN TRUE
-	ELSIF (value(JSON.String).value^ # "melee") & (value(JSON.String).value^ # "hitscan") THEN
+	ELSIF (value(JSON.String).value^ # "melee") & (value(JSON.String).value^ # "hitscan") &
+		(value(JSON.String).value^ # "projectile") THEN
 		COPY("Unsupported actor behavior", error);
 		RETURN FALSE
 	END;
 	COPY(value(JSON.String).value^, name);
-	IF ((name = "melee") & (rule.Get("hitscan") # NIL)) OR
-		((name = "hitscan") & (rule.Get("melee") # NIL)) THEN
-		COPY("Actor behavior cannot mix melee and hitscan settings", error);
+	IF ((name # "melee") & (rule.Get("melee") # NIL)) OR
+		((name # "hitscan") & (rule.Get("hitscan") # NIL)) OR
+		((name # "projectile") & (rule.Get("projectile") # NIL)) THEN
+		COPY("Actor behavior cannot mix attack settings", error);
 		RETURN FALSE
 	END;
 	NEW(actor.behavior);
 	actor.behavior.hitscan := name = "hitscan";
+	actor.behavior.projectile := NIL;
 	COPY("|speed_per_tick|step|sight_range|range|damage|windup_ticks|cycle_ticks|frame_ticks|walk_frames|attack_frames|", keys);
 	IF actor.behavior.hitscan THEN
 		Strings.AppendX(keys, "pellets|spread_radians|")
+	ELSIF name = "projectile" THEN
+		Strings.AppendX(keys, "thing|shot_speed_per_tick|")
 	END;
 	IF ~Section(rule, name, keys, object, error) OR
 		~Real(object, "speed_per_tick", 0, 64, DoomFormat.UnitsPerWorld, actor.behavior.speed, error) OR
@@ -474,6 +489,23 @@ BEGIN
 		(~Integer(object, "pellets", 1, MaximumPellets, actor.behavior.pellets, error) OR
 		~Real(object, "spread_radians", 0, 1, 1, actor.behavior.spread, error)) THEN
 		RETURN FALSE
+	END;
+	IF name = "projectile" THEN
+		NEW(actor.behavior.projectile);
+		IF ~Integer(object, "thing", 1, DoomFormat.MaximumRecords - 1, actor.behavior.projectile.kind, error) OR
+			~Real(object, "shot_speed_per_tick", 0.01, MaximumTargetHeight, DoomFormat.UnitsPerWorld,
+				actor.behavior.projectile.speed, error) THEN
+			RETURN FALSE
+		END;
+		IF ~DoomThings.Lookup(definitions, actor.behavior.projectile.kind, info) OR info.ceiling OR
+			(info.radius < 1) OR (info.height < 1) THEN
+			COPY("Projectile thing requires positive dimensions and ground attachment", error);
+			RETURN FALSE
+		END;
+		actor.behavior.projectile.radius := info.radius / DoomFormat.UnitsPerWorld;
+		actor.behavior.projectile.height := info.height / DoomFormat.UnitsPerWorld;
+		actor.behavior.projectile.fullbright := info.fullbright;
+		COPY(info.name, actor.behavior.projectile.frame)
 	END;
 	RETURN TRUE
 END Behavior;
@@ -504,7 +536,7 @@ BEGIN
 			RETURN FALSE
 		END;
 		rule := value(JSON.Object);
-		IF ~Keys(rule, "|kind|health|death_frame|behavior|melee|hitscan|", error) OR
+		IF ~Keys(rule, "|kind|health|death_frame|behavior|melee|hitscan|projectile|", error) OR
 			~Integer(rule, "kind", 1, DoomFormat.MaximumRecords - 1, settings.actors[i].kind, error) OR
 			~Integer(rule, "health", 1, MaximumActorHealth, settings.actors[i].health, error) THEN
 			RETURN FALSE
@@ -522,7 +554,7 @@ BEGIN
 			END
 		END;
 		IF ~FrameName(rule.Get("death_frame"), "death_frame", settings.actors[i].deathFrame, error) OR
-			~Behavior(rule, settings.actors[i], error) THEN
+			~Behavior(rule, definitions, settings.actors[i], error) THEN
 			RETURN FALSE
 		END;
 		IF (settings.actors[i].behavior # NIL) & info.ceiling THEN
@@ -1076,6 +1108,47 @@ BEGIN
 	RejectField(root, hitscan, "windup_ticks", JSON.NewNumber(35), settings);
 	ASSERT(Decode(root, settings, error))
 END HitscanBounds;
+
+PROCEDURE {TEST} ProjectileBounds*;
+VAR value: JSON.Value;
+	root, combat, rule, settingsObject, thing: JSON.Object;
+	actors, things: JSON.Array;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	value := root.Get("combat");
+	combat := value(JSON.Object);
+	value := combat.Get("actors");
+	actors := value(JSON.Array);
+	value := actors.At(6);
+	rule := value(JSON.Object);
+	ASSERT(rule.Get("kind")(JSON.Number).value = 3001);
+	value := rule.Get("projectile");
+	settingsObject := value(JSON.Object);
+	RejectField(root, rule, "behavior", JSON.NewString("static"), settings);
+	RejectField(root, rule, "behavior", JSON.NewString("hitscan"), settings);
+	RejectField(root, rule, "hitscan", JSON.NewObject(), settings);
+	RejectField(root, settingsObject, "thing", JSON.NewNumber(9999), settings);
+	RejectField(root, settingsObject, "thing", JSON.NewNumber(2015), settings);
+	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewNumber(MaximumTargetHeight + 1), settings);
+	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewString("10"), settings);
+	value := root.Get("things");
+	things := value(JSON.Array);
+	value := things.At(things.length - 1);
+	thing := value(JSON.Object);
+	ASSERT(thing.Get("kind")(JSON.Number).value = 60000);
+	RejectField(root, thing, "ceiling", JSON.NewBool(TRUE), settings);
+	RejectField(root, thing, "radius", JSON.NewNumber(0), settings);
+	RejectField(root, thing, "height", JSON.NewNumber(0), settings);
+	ASSERT(Decode(root, settings, error));
+	ASSERT(settings.combat.actors[6].behavior.projectile.speed = 10.0 / 64);
+	ASSERT(settings.combat.actors[6].behavior.projectile.fullbright)
+END ProjectileBounds;
 
 BEGIN
 	loaded := FALSE;

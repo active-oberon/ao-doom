@@ -1,8 +1,9 @@
 MODULE DoomSprites;
 
-IMPORT DoomActors, DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomThings, DoomInventory, GameBytes, GameGeometry, GameRenderer, GameSurface, MathL;
+IMPORT DoomActors, DoomProjectiles, DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomThings, DoomInventory, GameBytes, GameGeometry, GameRenderer, GameSurface, MathL;
 
 CONST MaximumWork = 64 * 1024 * 1024;
+	MaximumProjectiles = 256;
 
 TYPE
 	Images = POINTER TO RECORD
@@ -17,6 +18,7 @@ TYPE
 		kind, initialHealth: SIGNED32;
 		ceiling, fullbright: BOOLEAN;
 		images, deadImages: Images;
+		projectileImages: Images;
 		walkImages, attackImages: POINTER TO ARRAY OF Images;
 		behavior: DoomConfig.BehaviorSettings
 	END;
@@ -26,6 +28,8 @@ TYPE
 		collected: POINTER TO ARRAY OF SET32;
 		hitpoints: POINTER TO ARRAY OF SIGNED32;
 		states: POINTER TO ARRAY OF DoomActors.State;
+		projectiles: POINTER TO ARRAY OF DoomProjectiles.State;
+		projectileCount: SIGNED32;
 		count, remaining, movingActor: SIGNED32;
 		tick: SIGNED64;
 		playerX, playerY: FLOAT64;
@@ -40,6 +44,8 @@ TYPE
 			END;
 			count := 0;
 			remaining := 0;
+			projectileCount := 0;
+			projectiles := NIL;
 			tick := 0
 		END Init;
 
@@ -60,6 +66,17 @@ TYPE
 			RETURN states[index]
 		END State;
 
+		PROCEDURE ProjectileCount*(): SIGNED32;
+		BEGIN
+			RETURN projectileCount
+		END ProjectileCount;
+
+		PROCEDURE ProjectileState*(index: SIGNED32): DoomProjectiles.State;
+		BEGIN
+			ASSERT((index >= 0) & (index < projectileCount));
+			RETURN projectiles[index]
+		END ProjectileState;
+
 		PROCEDURE Copy(): Scene;
 		VAR snapshot: Scene;
 		BEGIN
@@ -71,6 +88,8 @@ TYPE
 			snapshot.count := count;
 			snapshot.remaining := remaining;
 			snapshot.tick := tick;
+			snapshot.projectiles := projectiles;
+			snapshot.projectileCount := projectileCount;
 			RETURN snapshot
 		END Copy;
 
@@ -133,9 +152,9 @@ TYPE
 					END;
 					near := 0;
 					far := limit;
-					IF Axis(x, dx, states[i].x - actors[i].radius, states[i].x + actors[i].radius, near, far) &
-						Axis(y, dy, states[i].y - actors[i].radius, states[i].y + actors[i].radius, near, far) &
-						Axis(eye, slope, bottom, bottom + actors[i].targetHeight, near, far) & (near < limit) THEN
+					IF DoomProjectiles.Axis(x, dx, states[i].x - actors[i].radius, states[i].x + actors[i].radius, near, far) &
+						DoomProjectiles.Axis(y, dy, states[i].y - actors[i].radius, states[i].y + actors[i].radius, near, far) &
+						DoomProjectiles.Axis(eye, slope, bottom, bottom + actors[i].targetHeight, near, far) & (near < limit) THEN
 						target := i;
 						limit := near
 					END
@@ -202,9 +221,9 @@ TYPE
 				limit := DoomActors.Trace(world, states[index].x, states[index].y, dx, dy, eye, slope, rules.range);
 				near := 0;
 				far := limit;
-				playerHit := Axis(states[index].x, dx, x - DoomConfig.values.playerRadius, x + DoomConfig.values.playerRadius, near, far) &
-					Axis(states[index].y, dy, y - DoomConfig.values.playerRadius, y + DoomConfig.values.playerRadius, near, far) &
-					Axis(eye, slope, feet, feet + DoomConfig.values.playerHeight, near, far) & (near < limit);
+				playerHit := DoomProjectiles.Axis(states[index].x, dx, x - DoomConfig.values.playerRadius, x + DoomConfig.values.playerRadius, near, far) &
+					DoomProjectiles.Axis(states[index].y, dy, y - DoomConfig.values.playerRadius, y + DoomConfig.values.playerRadius, near, far) &
+					DoomProjectiles.Axis(eye, slope, feet, feet + DoomConfig.values.playerHeight, near, far) & (near < limit);
 				IF playerHit THEN
 					limit := near
 				END;
@@ -221,6 +240,105 @@ TYPE
 			END;
 			RETURN snapshot
 		END EnemyShot;
+
+		PROCEDURE Launch(index: SIGNED32; x, y, feet: FLOAT64);
+		VAR expanded: POINTER TO ARRAY OF DoomProjectiles.State;
+			shot: DoomProjectiles.State;
+			i, capacity: SIGNED32;
+		BEGIN
+			(* shortcut: launches above the active-shot cap are dropped; revisit the budget for larger battles. *)
+			IF projectileCount = MaximumProjectiles THEN
+				RETURN
+			END;
+			capacity := 0;
+			IF projectiles # NIL THEN
+				capacity := SIGNED32(LEN(projectiles^))
+			END;
+			IF projectileCount = capacity THEN
+				NEW(expanded, MIN(MaximumProjectiles, MAX(4, capacity * 2)));
+				FOR i := 0 TO projectileCount - 1 DO
+					expanded[i] := projectiles[i]
+				END;
+				projectiles := expanded
+			END;
+			shot.owner := index;
+			shot.x := states[index].x;
+			shot.y := states[index].y;
+			shot.z := states[index].feet + actors[index].targetHeight / 2;
+			shot.remaining := actors[index].behavior.range;
+			DoomProjectiles.Aim(shot, x, y, feet + DoomConfig.values.playerHeight / 2, states[index].angle);
+			projectiles[projectileCount] := shot;
+			INC(projectileCount)
+		END Launch;
+
+		(* AdvanceProjectiles copies flight state and applies each first impact once. *)
+		PROCEDURE AdvanceProjectiles(world: GameGeometry.World; x, y, feet: FLOAT64;
+			VAR player: DoomInventory.State): Scene;
+		VAR snapshot: Scene;
+			previous: POINTER TO ARRAY OF DoomProjectiles.State;
+			shot: DoomProjectiles.State;
+			rules: DoomConfig.ProjectileSettings;
+			i, j, kept, target: SIGNED32;
+			travel, limit, bottom: FLOAT64;
+			playerHit: BOOLEAN;
+		BEGIN
+			snapshot := SELF;
+			previous := projectiles;
+			NEW(snapshot.projectiles, LEN(previous^));
+			kept := 0;
+			FOR i := 0 TO projectileCount - 1 DO
+				shot := previous[i];
+				rules := actors[shot.owner].behavior.projectile;
+				IF player.health > 0 THEN
+					travel := MIN(shot.remaining, rules.speed);
+					limit := DoomProjectiles.Trace(world, shot, rules.radius, rules.height, travel);
+					playerHit := DoomProjectiles.Hit(shot, rules.radius, rules.height,
+						x, y, feet, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, limit);
+					target := -1;
+					FOR j := 0 TO count - 1 DO
+						IF (j # shot.owner) & (actors[j].radius > 0) & (actors[j].height > 0) &
+							((actors[j].initialHealth = 0) OR (snapshot.hitpoints[j] > 0)) THEN
+							bottom := states[j].feet;
+							IF actors[j].ceiling THEN
+								bottom := world.Region(states[j].sector).ceiling - actors[j].height / DoomFormat.UnitsPerWorld
+							END;
+							IF DoomProjectiles.Hit(shot, rules.radius, rules.height,
+								states[j].x, states[j].y, bottom, actors[j].radius, actors[j].height / DoomFormat.UnitsPerWorld, limit) THEN
+								target := j
+							END
+						END
+					END;
+					IF target >= 0 THEN
+						IF snapshot.hitpoints[target] > 0 THEN
+							IF snapshot = SELF THEN
+								snapshot := Damage(target, actors[shot.owner].behavior.damage)
+							ELSE
+								snapshot.hitpoints[target] := MAX(0, snapshot.hitpoints[target] - actors[shot.owner].behavior.damage)
+							END
+						END
+					ELSIF playerHit THEN
+						DoomInventory.Hurt(player, actors[shot.owner].behavior.damage)
+					ELSIF limit >= travel THEN
+						shot.x := shot.x + shot.dx * travel;
+						shot.y := shot.y + shot.dy * travel;
+						shot.z := shot.z + shot.dz * travel;
+						shot.remaining := shot.remaining - travel;
+						IF shot.remaining > DoomFormat.TraceTolerance THEN
+							snapshot.projectiles[kept] := shot;
+							INC(kept)
+						END
+					END
+				ELSE
+					snapshot.projectiles[kept] := shot;
+					INC(kept)
+				END
+			END;
+			snapshot.projectileCount := kept;
+			IF kept = 0 THEN
+				snapshot.projectiles := NIL
+			END;
+			RETURN snapshot
+		END AdvanceProjectiles;
 
 		(* MoveFree uses the unpublished snapshot so later monsters see earlier accepted movement. *)
 		PROCEDURE MoveFree(x, y, radius: FLOAT64): BOOLEAN;
@@ -249,6 +367,17 @@ TYPE
 			attack: BOOLEAN;
 		BEGIN
 			snapshot := SELF;
+			IF (projectileCount > 0) & (player.health > 0) THEN
+				snapshot := Copy();
+				NEW(snapshot.states, count);
+				FOR j := 0 TO count - 1 DO
+					snapshot.states[j] := states[j]
+				END;
+				snapshot.tick := now;
+				snapshot.playerX := x;
+				snapshot.playerY := y;
+				snapshot := snapshot.AdvanceProjectiles(world, x, y, feet, player)
+			END;
 			FOR i := 0 TO count - 1 DO
 				IF (player.health > 0) & (snapshot.hitpoints[i] > 0) & (actors[i].behavior # NIL) &
 					(states[i].awake OR DoomActors.CanWake(world, states[i], actors[i].behavior,
@@ -267,7 +396,9 @@ TYPE
 					attack := DoomActors.Step(world, now, actors[i].behavior, actors[i].radius, actors[i].targetHeight,
 						x, y, feet, snapshot.states[i], player, snapshot.MoveFree);
 					IF attack THEN
-						IF actors[i].behavior.hitscan THEN
+						IF actors[i].behavior.projectile # NIL THEN
+							snapshot.Launch(i, x, y, feet)
+						ELSIF actors[i].behavior.hitscan THEN
 							snapshot := snapshot.EnemyShot(world, i, x, y, feet, player);
 							snapshot.playerX := x;
 							snapshot.playerY := y
@@ -282,8 +413,10 @@ TYPE
 
 		PROCEDURE Render*(world: GameGeometry.World; frame: GameSurface.Frame;
 			x, y, angle, eye: FLOAT64);
-		VAR i, rotation, phase: SIGNED32;
+		VAR i, rotation, phase, sector: SIGNED32;
 			view: FLOAT64;
+			shot: DoomProjectiles.State;
+			rules: DoomConfig.ProjectileSettings;
 			sprite: GameRenderer.Sprite;
 			region: GameGeometry.Sector;
 		BEGIN
@@ -316,22 +449,25 @@ TYPE
 					sprite.fullbright := actors[i].fullbright;
 					GameRenderer.DrawSprite(sprite, frame, x, y, angle, eye)
 				END
+			END;
+			FOR i := 0 TO projectileCount - 1 DO
+				shot := projectiles[i];
+				rules := actors[shot.owner].behavior.projectile;
+				view := MathL.arctan2(shot.dy, shot.dx) - MathL.arctan2(y - shot.y, x - shot.x);
+				rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD DoomFormat.SpriteRotations;
+				sprite := actors[shot.owner].projectileImages.views[rotation];
+				sprite.x := shot.x;
+				sprite.y := shot.y;
+				sprite.z := shot.z - rules.height / 2;
+				sector := world.Locate(shot.x, shot.y);
+				IF sector >= 0 THEN
+					sprite.light := world.Region(sector).light;
+					sprite.fullbright := rules.fullbright;
+					GameRenderer.DrawSprite(sprite, frame, x, y, angle, eye)
+				END
 			END
 		END Render;
 	END Scene;
-
-PROCEDURE Axis(origin, direction, low, high: FLOAT64; VAR near, far: FLOAT64): BOOLEAN;
-VAR a, b: FLOAT64;
-BEGIN
-	IF ABS(direction) <= DoomFormat.TraceTolerance THEN
-		RETURN (origin >= low) & (origin <= high)
-	END;
-	a := (low - origin) / direction;
-	b := (high - origin) / direction;
-	near := MAX(near, MIN(a, b));
-	far := MIN(far, MAX(a, b));
-	RETURN near <= far
-END Axis;
 
 PROCEDURE Reachable(world: GameGeometry.World; x, y, targetX, targetY, height: FLOAT64): BOOLEAN;
 VAR wall: GameGeometry.Wall;
@@ -525,6 +661,7 @@ BEGIN
 			actor.deadImages := NIL;
 			actor.walkImages := NIL;
 			actor.attackImages := NIL;
+			actor.projectileImages := NIL;
 			actor.behavior := NIL;
 			state.feet := world.Region(state.sector).floor;
 			state.awake := FALSE;
@@ -548,6 +685,12 @@ BEGIN
 						RETURN NIL
 					END;
 					IF actor.behavior # NIL THEN
+						IF actor.behavior.projectile # NIL THEN
+							actor.projectileImages := Frame(archive, textures, actor.behavior.projectile.frame, cache, work, error);
+							IF actor.projectileImages = NIL THEN
+								RETURN NIL
+							END
+						END;
 						NEW(actor.walkImages, LEN(actor.behavior.walk^));
 						NEW(actor.attackImages, LEN(actor.behavior.attack^));
 						FOR k := 0 TO SIGNED32(LEN(actor.walkImages^)) - 1 DO
