@@ -239,7 +239,7 @@ combat:
       reload_ticks: 35
       pellets: 1
       spread_radians: 0
-      projectile: {thing: 60001, speed_per_tick: 20}
+      projectile: {thing: 60001, speed_per_tick: 20, blast_damage: 128, blast_radius: 128}
     plasma:
       mode: projectile
       label: PLASMA
@@ -253,7 +253,7 @@ combat:
       reload_ticks: 45
       pellets: 1
       spread_radians: 0
-      projectile: {thing: 60002, speed_per_tick: 25}
+      projectile: {thing: 60002, speed_per_tick: 25, blast_damage: 0, blast_radius: 0}
     bfg:
       mode: projectile
       label: BFG
@@ -267,7 +267,7 @@ combat:
       reload_ticks: 70
       pellets: 1
       spread_radians: 0
-      projectile: {thing: 60003, speed_per_tick: 25}
+      projectile: {thing: 60003, speed_per_tick: 25, blast_damage: 0, blast_radius: 0}
     chainsaw: {mode: hitscan, label: CHAINSAW, ammo: none, damage: 10, cooldown_ticks: 4, ammo_cost: 0, range: 64, flash_ticks: 1, magazine: 0, reload_ticks: 1, pellets: 1, spread_radians: 0}
     super_shotgun: {mode: hitscan, label: SSG, ammo: shells, damage: 10, cooldown_ticks: 40, ammo_cost: 2, range: 2048, flash_ticks: 3, magazine: 2, reload_ticks: 50, pellets: 20, spread_radians: 0.18}
   aim:
@@ -330,6 +330,8 @@ combat:
         walk_frames: [TROOA, TROOB, TROOC, TROOD]
         attack_frames: [TROOE, TROOF, TROOG]
         thing: 60000
+        blast_damage: 0
+        blast_radius: 0
         shot_speed_per_tick: 10
     - kind: 3002
       health: 150

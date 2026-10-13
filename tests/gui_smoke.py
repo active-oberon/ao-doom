@@ -273,7 +273,7 @@ def check_logs(output, arguments):
     assert stopped["attrs"]["result"] == 0
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -312,6 +312,23 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             assert process.returncode == 0, output
             check_logs(output, arguments)
             return
+        if blast:
+            key(display, window, root, ord("5"))
+            key(display, window, root, ord("5"), release=True)
+            time.sleep(0.2)
+            before = pixels(display, window, hud=True)
+            health = tuple(before[row * 320 + 32:row * 320 + 44] for row in range(3, 8))
+            button(display, window, root, 1)
+            time.sleep(0.6)
+            button(display, window, root, 1, True)
+            time.sleep(0.2)
+            dead = pixels(display, window)
+            panel = pixels(display, window, hud=True)
+            assert tuple(panel[row * 320 + 32:row * 320 + 44] for row in range(3, 8)) != health, "Own rocket blast did not reduce health"
+            assert dead[:43 * 80] != initial[:43 * 80], "Rocket blast did not change the visible targets"
+            time.sleep(0.5)
+            assert pixels(display, window, hud=True) == panel, "Rocket blast caused repeated damage"
+            initial = dead
         if hitscan or projectiles:
             before = pixels(display, window, hud=True)
             deadline = time.monotonic() + 3
@@ -497,6 +514,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             print("Hitscan GUI check passed: ranged damage HUD, YAML damage, kill and stopped enemy fire")
         if projectiles:
             print("Projectile GUI check passed: flight damage HUD, YAML damage, kill and stopped enemy attacks")
+        if blast:
+            print("Blast GUI check passed: rocket selection, health/corpses, one impact and clean shutdown")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
     except Exception:
         if process.poll() is None:
@@ -533,7 +552,8 @@ def main():
     hitscan = arguments[0] == "--hitscan"
     projectiles = arguments[0] == "--projectiles"
     modern = arguments[0] == "--modern"
-    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern:
+    blast = arguments[0] == "--blast"
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
@@ -557,7 +577,7 @@ def main():
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast)
 
 
 if __name__ == "__main__":

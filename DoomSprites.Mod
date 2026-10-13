@@ -307,6 +307,37 @@ TYPE
 			INC(projectileCount)
 		END Launch;
 
+		(* Blast publishes independent hitpoints and uses normal armor protection even for the shooter's own rocket. *)
+		PROCEDURE Blast(world: GameGeometry.World; CONST shot: DoomProjectiles.State;
+			rules: DoomConfig.ProjectileSettings; x, y, feet: FLOAT64; VAR player: DoomInventory.State): Scene;
+		VAR snapshot: Scene;
+			i, damage: SIGNED32;
+			bottom: FLOAT64;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				IF snapshot.hitpoints[i] > 0 THEN
+					bottom := states[i].feet;
+					IF actors[i].ceiling THEN
+						bottom := world.Region(states[i].sector).ceiling - actors[i].height / DoomFormat.UnitsPerWorld
+					END;
+					damage := DoomProjectiles.BlastDamage(world, shot, rules.blastDamage, rules.blastRadius,
+						states[i].x, states[i].y, bottom, actors[i].radius, actors[i].targetHeight);
+					IF damage > 0 THEN
+						IF snapshot = SELF THEN
+							snapshot := Damage(i, damage)
+						ELSE
+							snapshot.hitpoints[i] := MAX(0, snapshot.hitpoints[i] - damage)
+						END
+					END
+				END
+			END;
+			damage := DoomProjectiles.BlastDamage(world, shot, rules.blastDamage, rules.blastRadius,
+				x, y, feet, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight);
+			DoomInventory.Hurt(player, damage);
+			RETURN snapshot
+		END Blast;
+
 		(* AdvanceProjectiles copies flight state and applies each first impact once. *)
 		PROCEDURE AdvanceProjectiles(world: GameGeometry.World; x, y, feet: FLOAT64;
 			VAR player: DoomInventory.State): Scene;
@@ -316,7 +347,7 @@ TYPE
 			rules: DoomConfig.ProjectileSettings;
 			i, j, kept, target, damage: SIGNED32;
 			travel, limit, bottom: FLOAT64;
-			playerHit: BOOLEAN;
+			playerHit, impact: BOOLEAN;
 		BEGIN
 			snapshot := SELF;
 			previous := projectiles;
@@ -332,6 +363,7 @@ TYPE
 					damage := actors[shot.owner].behavior.damage
 				END;
 				IF player.health > 0 THEN
+					impact := FALSE;
 					travel := MIN(shot.remaining, rules.speed);
 					limit := DoomProjectiles.Trace(world, shot, rules.radius, rules.height, travel);
 					playerHit := (shot.owner >= 0) & DoomProjectiles.Hit(shot, rules.radius, rules.height,
@@ -351,6 +383,7 @@ TYPE
 						END
 					END;
 					IF target >= 0 THEN
+						impact := TRUE;
 						IF snapshot.hitpoints[target] > 0 THEN
 							IF snapshot = SELF THEN
 								snapshot := Damage(target, damage)
@@ -359,6 +392,7 @@ TYPE
 							END
 						END
 					ELSIF playerHit THEN
+						impact := TRUE;
 						DoomInventory.Hurt(player, damage)
 					ELSIF limit >= travel THEN
 						shot.x := shot.x + shot.dx * travel;
@@ -369,6 +403,14 @@ TYPE
 							snapshot.projectiles[kept] := shot;
 							INC(kept)
 						END
+					ELSE
+						impact := TRUE
+					END;
+					IF impact & (rules.blastDamage > 0) THEN
+						shot.x := shot.x + shot.dx * limit;
+						shot.y := shot.y + shot.dy * limit;
+						shot.z := shot.z + shot.dz * limit;
+						snapshot := snapshot.Blast(world, shot, rules, x, y, feet, player)
 					END
 				ELSE
 					snapshot.projectiles[kept] := shot;

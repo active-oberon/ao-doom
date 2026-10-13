@@ -70,8 +70,8 @@ SpriteName* = ARRAY 6 OF CHAR;
 SpriteFrames* = POINTER TO ARRAY OF SpriteName;
 
 ProjectileSettings* = POINTER TO RECORD
-	kind*: SIGNED32;
-	speed*, radius*, height*: FLOAT64;
+	kind*, blastDamage*: SIGNED32;
+	speed*, radius*, height*, blastRadius*: FLOAT64;
 	frame*: SpriteName;
 	fullbright*: BOOLEAN
 END;
@@ -444,6 +444,20 @@ BEGIN
 	RETURN TRUE
 END ThingRules;
 
+(* BlastRules requires an explicit disabled or finite blast so profiles cannot acquire hidden damage. *)
+PROCEDURE BlastRules(object: JSON.Object; projectile: ProjectileSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+	IF ~Integer(object, "blast_damage", 0, MaximumActorHealth, projectile.blastDamage, error) OR
+		~Real(object, "blast_radius", 0, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, projectile.blastRadius, error) THEN
+		RETURN FALSE
+	END;
+	IF (projectile.blastDamage = 0) # (projectile.blastRadius = 0) THEN
+		COPY("Projectile blast damage and radius must both be zero or positive", error);
+		RETURN FALSE
+	END;
+	RETURN TRUE
+END BlastRules;
+
 PROCEDURE Behavior(rule: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
 	VAR actor: ActorSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR value: JSON.Value;
@@ -483,7 +497,7 @@ BEGIN
 	IF actor.behavior.hitscan THEN
 		Strings.AppendX(keys, "pellets|spread_radians|")
 	ELSIF name = "projectile" THEN
-		Strings.AppendX(keys, "thing|shot_speed_per_tick|")
+		Strings.AppendX(keys, "thing|shot_speed_per_tick|blast_damage|blast_radius|")
 	END;
 	IF ~Section(rule, name, keys, object, error) OR
 		~Real(object, "speed_per_tick", 0, 64, DoomFormat.UnitsPerWorld, actor.behavior.speed, error) OR
@@ -512,7 +526,8 @@ BEGIN
 		NEW(actor.behavior.projectile);
 		IF ~Integer(object, "thing", 1, DoomFormat.MaximumRecords - 1, actor.behavior.projectile.kind, error) OR
 			~Real(object, "shot_speed_per_tick", 0.01, MaximumTargetHeight, DoomFormat.UnitsPerWorld,
-				actor.behavior.projectile.speed, error) THEN
+				actor.behavior.projectile.speed, error) OR
+			~BlastRules(object, actor.behavior.projectile, error) THEN
 			RETURN FALSE
 		END;
 		IF ~DoomThings.Lookup(definitions, actor.behavior.projectile.kind, info) OR info.ceiling OR
@@ -664,7 +679,7 @@ BEGIN
 				COPY("Initial weapons must use hitscan mode", error);
 				RETURN FALSE
 			END;
-			IF ~Section(object, "projectile", "|thing|speed_per_tick|", flight, error) OR
+			IF ~Section(object, "projectile", "|thing|speed_per_tick|blast_damage|blast_radius|", flight, error) OR
 				~Integer(flight, "thing", 1, DoomFormat.MaximumRecords - 1, kind, error) THEN
 				RETURN FALSE
 			END;
@@ -678,7 +693,8 @@ BEGIN
 			settings.weapons[i].projectile.radius := info.radius / DoomFormat.UnitsPerWorld;
 			settings.weapons[i].projectile.fullbright := info.fullbright;
 			COPY(info.name, settings.weapons[i].projectile.frame);
-			IF ~Real(flight, "speed_per_tick", 0.01, 1024, DoomFormat.UnitsPerWorld, settings.weapons[i].projectile.speed, error) THEN
+			IF ~Real(flight, "speed_per_tick", 0.01, 1024, DoomFormat.UnitsPerWorld, settings.weapons[i].projectile.speed, error) OR
+				~BlastRules(flight, settings.weapons[i].projectile, error) THEN
 				RETURN FALSE
 			END
 		ELSIF (value(JSON.String).value^ # "hitscan") OR (object.Get("projectile") # NIL) THEN
@@ -1284,6 +1300,9 @@ BEGIN
 	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewNumber(0), settings);
 	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewNumber(MaximumTargetHeight + 1), settings);
 	RejectField(root, settingsObject, "shot_speed_per_tick", JSON.NewString("10"), settings);
+	RejectField(root, settingsObject, "blast_damage", JSON.NewNumber(1), settings);
+	RejectField(root, settingsObject, "blast_radius", JSON.NewNumber(1), settings);
+	RejectField(root, settingsObject, "blast_damage", JSON.NewNumber(-1), settings);
 	value := root.Get("things");
 	things := value(JSON.Array);
 	thing := NIL;
@@ -1350,6 +1369,14 @@ BEGIN
 	RejectField(root, flight, "thing", JSON.NewNumber(9999), settings);
 	RejectField(root, flight, "thing", JSON.NewNumber(2015), settings);
 	RejectField(root, flight, "speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, flight, "blast_damage", JSON.NewNumber(0), settings);
+	RejectField(root, flight, "blast_damage", JSON.NewNumber(-1), settings);
+	RejectField(root, flight, "blast_damage", JSON.NewNumber(MaximumActorHealth + 1), settings);
+	RejectField(root, flight, "blast_damage", JSON.NewNumber(1.5), settings);
+	RejectField(root, flight, "blast_radius", JSON.NewNumber(0), settings);
+	RejectField(root, flight, "blast_radius", JSON.NewNumber(-1), settings);
+	RejectField(root, flight, "blast_radius", JSON.NewNumber(DoomFormat.MaximumRecords), settings);
+	RejectField(root, flight, "blast_radius", JSON.NewString("128"), settings);
 	ASSERT(Decode(root, settings, error))
 END WeaponMouseBounds;
 

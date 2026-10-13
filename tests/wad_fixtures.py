@@ -2,6 +2,7 @@
 """wad_fixtures creates original test data without distributing Doom assets."""
 
 import pathlib
+import re
 import struct
 import sys
 
@@ -407,6 +408,11 @@ def fixtures(directory):
     files["weapons.wad"] = wad(arsenal)
     files["weapons-missing.wad"] = wad([entry for entry in arsenal if entry[0] != "MISLA0"])
     files["weapons-bad.wad"] = wad([(name, b"abc" if name == "PLSSA0" else data) for name, data in arsenal])
+    blast = sprite_lumps(things=[(128, 0, 0, 2035, 7), (128, 48, 0, 2035, 7),
+                                (0, 0, 0, 2003, 7), (0, 0, 0, 2004, 7)])
+    blast += [(name, sprite_patch(6)) for name in
+              ("BAR1A0", "LAUNA0", "MISLA0", "PLASA0", "PLSSA0")]
+    files["blast.wad"] = wad(blast)
     files["combat-nearest.wad"] = wad(combat_lumps(things=[(192, 0, 0, 3004, 7),
                                                           (128, 0, 0, 3004, 7)]))
     files["combat-off-axis.wad"] = wad(combat_lumps(things=[(128, 64, 0, 3004, 7)]))
@@ -596,6 +602,12 @@ def fixtures(directory):
     files["bad-two-sided.wad"] = wad(damaged)
     for name, data in files.items():
         (directory / name).write_bytes(data)
+    profile = (pathlib.Path(__file__).resolve().parent.parent / "doom.yaml").read_text()
+    start, marker, weapons = profile.partition("    launcher:\n")
+    launcher, separator, tail = weapons.partition("    plasma:\n")
+    assert marker and separator
+    launcher = re.sub(r"(?m)^      range: .*", "      range: 1", launcher)
+    (directory / "doom-blast-short.yaml").write_text(start + marker + launcher + separator + tail)
     print(f"Generated {len(files)} original WAD fixtures in {directory}")
 
 

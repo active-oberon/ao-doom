@@ -84,8 +84,11 @@ includes loaded rounds, so stowed magazines cannot duplicate shared bullets or s
 LMB fires the selected weapon; R reloads over configured ticks and firing pauses
 until completion. Empty magazines require R. Fist/chainsaw use close-range hits,
 pistol/chaingun use rays, shotguns use configured pellet fans, and rocket/plasma/BFG
-use visible projectiles. Damage is fixed; projectiles currently apply direct damage
-without rocket splash or the original BFG secondary effect. The selected weapon,
+use visible projectiles. Rockets add distance-attenuated blast damage on their
+first actor, decoration, wall or plane impact. The standard profile supplies
+128 damage over 128 Doom units, in addition to the fixed direct hit. Cover
+blocks the blast; open grilles pass it, and the shooter can be hurt through the
+normal armor rules. The original BFG secondary effect is absent. The selected weapon,
 loaded rounds/reserve or reload status appear above the status panel. Solid walls and closed openings stop shots; two-sided windows and
 grilles pass them when the shot fits the open height, even if movement is blocked.
 Dead targets remain visible and no longer block movement.
@@ -177,7 +180,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 221 original WAD fixtures, rejects
+`task check` runs engine checks, generates 222 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -205,10 +208,11 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies eighteen scenarios: corridor, single-sector,
+`task gui-check` additionally verifies nineteen scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
-pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier, an imp and the modern mouse controls.
+pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
+an imp, a rocket blast and the modern mouse controls.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
 The existing scenes check movement, release, focus loss, turning and Escape.
@@ -329,10 +333,19 @@ pitch limit (radians), aim zoom and fire/aim buttons (0 left, 1 middle, 2 right)
 `combat.pistol` and `combat.weapons` supply ammunition, magazine capacity,
 reload/cooldown ticks, damage/range, pellets/spread and display labels. Projectile
 weapons reference `things` for flight appearance/dimensions and configure speed.
+All projectile sections also require `blast_damage` and `blast_radius`; both
+must be zero to disable the blast, or both positive to enable it. Damage is an
+integer up to 65535 and radius is a finite value up to 65535 Doom units.
+Imp, plasma and BFG blasts are explicitly disabled in the standard profile.
+The blast uses maximum horizontal axis distance minus the target footprint,
+quantized to whole Doom units, with linear falloff and sight traces between
+impact and target centers. The distance model follows id Software's
+[radius-attack reference](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_map.c#L1097-L1126);
+center-ray cover is conservative and does not reproduce the original sight cone.
 Existing custom profiles need these new mandatory sections/fields. Chase moves
 directly toward the player and slides along obstacles; route finding, sound
 wake, original randomized attacks, death animations, drops,
-barrel/rocket splash, boss actions, randomized spread/autoaim, weapon view animations,
+barrel chain explosions, boss actions/immunity, randomized spread/autoaim, weapon view animations,
 full original BFG behavior and sound remain later milestones.
 Imp fireballs have visible flight and direct fixed damage. Their swept actor
 tests prevent tunneling at high speeds; walls, sector openings, floors and
@@ -343,8 +356,9 @@ volume. A fired projectile survives its owner's death; map replacement clears
 all projectiles only after validating resources. Old render snapshots preserve
 flight positions, actor health, pickups and timing. The active-shot resource cap
 is 256; launches above it are dropped. Flight currently uses the configured
-spawn frame and disappears on impact, with no explosion animation or splash
-damage. Wall-face sweeps are expanded along the center ray; complete corner
+spawn frame and disappears on impact, with no explosion animation. Blast damage
+is applied once at the clipped impact position; range exhaustion does not
+create a blast. Wall-face sweeps are expanded along the center ray; complete corner
 footprint collision remains a later physics refinement.
 `demo.colors` controls the procedural scene's outer walls, partitions and pillar,
 including their brick textures. `demo.eye` and `demo.wall_height` use Doom map
@@ -397,7 +411,11 @@ pellet spread/damage, sloped floor/ceiling occlusion, friendly interception,
 same-tick death, complete custom tuning and resource failures. Modern-control
 checks cover edge input, mouse focus clearing, pitch limits, aimed sensitivity,
 partial/timed/cancelled reloads, shared ammo conservation, classic slots, owned
-weapon cycling, melee/pellets/player projectiles, map reset and automatic pickups. These executables run in `build/`:
+weapon cycling, melee/pellets/player projectiles, map reset and automatic pickups.
+Rocket checks additionally cover footprint falloff/boundaries, diagonal distance,
+walls/closed portals, open grilles, height-changing openings, self-damage/armor,
+nearby victims, independent snapshots, no repeat damage, range expiry and custom YAML tuning.
+These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
 

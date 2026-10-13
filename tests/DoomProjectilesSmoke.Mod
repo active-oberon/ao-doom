@@ -1,7 +1,7 @@
 MODULE DoomProjectilesSmoke;
 
 IMPORT DoomConfig, DoomProjectiles, DoomSprites, DoomWad, DoomMap, DoomInventory,
-	Doom, GameSurface, GameRenderer, KernelLog;
+	Doom, GameSurface, GameRenderer, KernelLog, MathL;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -231,6 +231,119 @@ BEGIN
 	ASSERT(game.Inventory().health = 100)
 END ReplacementAndPickups;
 
+PROCEDURE {TEST} RocketBlastAndArmor*;
+VAR map: DoomMap.Map;
+	scene, old: DoomSprites.Scene;
+	player: DoomInventory.State;
+	i: SIGNED32;
+BEGIN
+	Load("blast.wad", map);
+	DoomInventory.Reset(player);
+	old := map.sprites.PlayerShot(DoomInventory.Launcher, 0, 0, map.eye, 0, 0);
+	scene := old;
+	FOR i := 1 TO 12 DO
+		scene := scene.Step(map.world, i, 0, 0, 0, player)
+	END;
+	ASSERT((scene.Health(0) = 0) & (scene.Health(1) = 0) & (scene.ProjectileCount() = 0));
+	ASSERT(player.health = 68);
+	ASSERT((old.Health(0) = 20) & (old.Health(1) = 20) & (old.ProjectileCount() = 1));
+	FOR i := 13 TO 20 DO
+		scene := scene.Step(map.world, i, 0, 0, 0, player)
+	END;
+	ASSERT(player.health = 68);
+	DoomInventory.Reset(player);
+	ASSERT(DoomInventory.Give(player, 2018));
+	scene := old;
+	FOR i := 1 TO 12 DO
+		scene := scene.Step(map.world, i, 0, 0, 0, player)
+	END;
+	ASSERT((player.health = 78) & (player.armor = 90));
+	DoomInventory.Reset(player);
+	scene := map.sprites.PlayerShot(DoomInventory.Plasma, 0, 0, map.eye, 0, 0);
+	FOR i := 1 TO 12 DO
+		scene := scene.Step(map.world, i, 0, 0, 0, player)
+	END;
+	ASSERT((scene.Health(0) = 0) & (scene.Health(1) = 20) & (player.health = 100))
+END RocketBlastAndArmor;
+
+PROCEDURE {TEST} BlastFalloffAndCover*;
+VAR map: DoomMap.Map;
+	shot: DoomProjectiles.State;
+BEGIN
+	Load("combat.wad", map);
+	shot.x := 0;
+	shot.y := 0;
+	shot.z := 41.0 / 64;
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 0, 0, 0, 0.25, 0.875) = 128);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 1.25, 0, 0, 0.25, 0.875) = 64);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 2.25, 0, 0, 0.25, 0.875) = 0);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 1.25, 1.25, 0, 0.25, 0.875) = 64);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 1.265625, 0, 0, 0.25, 0.875) = 63);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 0, 0, 0, 0, 0, 0.25, 0.875) = 0);
+	shot.x := -0.5;
+	Load("combat-grate.wad", map);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 0.5, 0, 0, 0.25, 0.875) = 80);
+	Load("combat-blocked.wad", map);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 0.5, 0, 0, 0.25, 0.875) = 0);
+	Load("combat-closed.wad", map);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 0.5, 0, 0, 0.25, 0.875) = 0);
+	Load("combat-step.wad", map);
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 0.5, 0, 0.75, 0.25, 0.875) = 80);
+	shot.z := 0.25;
+	ASSERT(DoomProjectiles.BlastDamage(map.world, shot, 128, 2, 0.5, 0, 0.75, 0.25, 0.875) = 0)
+END BlastFalloffAndCover;
+
+PROCEDURE {TEST} BlastWallAndRange*;
+VAR map: DoomMap.Map;
+	scene: DoomSprites.Scene;
+	player: DoomInventory.State;
+	i: SIGNED32;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	Load("blast.wad", map);
+	DoomInventory.Reset(player);
+	scene := map.sprites.PlayerShot(DoomInventory.Launcher, -3.5, 0, map.eye, MathL.pi, 0);
+	FOR i := 1 TO 4 DO
+		scene := scene.Step(map.world, i, -3.5, 0, 0, player)
+	END;
+	ASSERT((scene.ProjectileCount() = 0) & (player.health = 0));
+	ASSERT((scene.Health(0) = 20) & (scene.Health(1) = 20));
+	DoomInventory.Reset(player);
+	scene := map.sprites.PlayerShot(DoomInventory.Launcher, -3, 0, map.eye, 0, 0);
+	FOR i := 1 TO 18 DO
+		scene := scene.Step(map.world, i, -3, 0, 0, player)
+	END;
+	ASSERT((player.health = 100) & (scene.Health(0) = 0) & (scene.Health(1) = 0));
+	ASSERT(DoomConfig.Load("doom-blast-short.yaml", error));
+	Load("blast.wad", map);
+	DoomInventory.Reset(player);
+	scene := map.sprites.PlayerShot(DoomInventory.Launcher, 0, 0, map.eye, 0, 0);
+	scene := scene.Step(map.world, 1, 0, 0, 0, player);
+	ASSERT((scene.ProjectileCount() = 0) & (player.health = 100));
+	ASSERT((scene.Health(0) = 20) & (scene.Health(1) = 20));
+	ASSERT(DoomConfig.Load("doom.yaml", error))
+END BlastWallAndRange;
+
+PROCEDURE {TEST} CustomBlast*;
+VAR map: DoomMap.Map;
+	scene: DoomSprites.Scene;
+	player: DoomInventory.State;
+	i: SIGNED32;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(DoomConfig.Load("doom-custom.yaml", error));
+	ASSERT((DoomConfig.values.combat.weapons[4].projectile.blastDamage = 64) &
+		(DoomConfig.values.combat.weapons[4].projectile.blastRadius = 3));
+	Load("blast.wad", map);
+	DoomInventory.Reset(player);
+	scene := map.sprites.PlayerShot(DoomInventory.Launcher, 0, 0, map.eye, 0, 0);
+	FOR i := 1 TO 12 DO
+		scene := scene.Step(map.world, i, -3, 0, 0, player)
+	END;
+	ASSERT((scene.Health(0) = 0) & (scene.Health(1) = 0));
+	ASSERT(DoomConfig.Load("doom.yaml", error))
+END CustomBlast;
+
 PROCEDURE Do*;
 VAR error: ARRAY 256 OF CHAR;
 BEGIN
@@ -240,6 +353,10 @@ BEGIN
 	DoorsAndInterception;
 	CustomAndCapacity;
 	ReplacementAndPickups;
+	RocketBlastAndArmor;
+	BlastFalloffAndCover;
+	BlastWallAndRange;
+	CustomBlast;
 	KernelLog.String("DoomProjectilesSmoke: projectile {TEST} checks passed.");
 	KernelLog.Ln
 END Do;

@@ -116,6 +116,7 @@ tasks:
       - python3 tests/gui_smoke.py --ai build/ao-doom build/ai.wad E1M1
       - python3 tests/gui_smoke.py --hitscan build/ao-doom build/hitscan.wad E1M1
       - python3 tests/gui_smoke.py --projectiles build/ao-doom build/projectiles.wad E1M1
+      - python3 tests/gui_smoke.py --blast build/ao-doom build/blast.wad E1M1
       - python3 tests/gui_smoke.py --modern build/ao-doom build/combat.wad E1M1
       - python3 tests/gui_smoke.py --actor build/ao-doom build/actors-barrel.wad E1M1
       - python3 tests/gui_smoke.py --door build/ao-doom build/door.wad E1M1

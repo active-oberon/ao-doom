@@ -2,6 +2,51 @@
 
 Updated: 2026-10-13
 
+## Delivery checkpoint: configurable rocket blast damage
+
+The user explicitly requested committing and pushing the validated rocket-blast
+milestone, then continuing implementation. This checkpoint accompanies
+feat(combat): add configurable rocket blast damage. The uncommitted status in
+the continuation below is the historical pre-delivery state. Exact commit and
+remote verification are recorded in scratch/blast-check.md. This push approval
+is single-use; the following explosion-animation/barrel work needs a new approval
+before publication.
+
+## Current continuation: configurable rocket blast damage
+
+Started on main at 7443a89, already published together with 3913c9e after the
+user's explicit approval. That push used SSH port 443 after port 22 timed out;
+its approval is consumed. The user then requested a GIF and continued game
+implementation. The owned MAP01 GIF/MP4 and actual logs remain in build/demo.
+The existing untracked scene.ppm is preserved.
+
+- Original rocket probe killed the direct target but left its neighbor at
+  health 20; the new nearby-damage assertion failed with Trap 5.8. Rockets now
+  apply one distance-attenuated blast at their clipped first impact, including
+  decoration, wall and plane impacts. Range exhaustion has no blast.
+- All projectile profiles require blast_damage/blast_radius, both zero or both
+  positive. Standard rockets use 128 damage over 128 Doom units; imp/plasma/BFG
+  blasts are explicitly disabled. Complete default/custom/invalid profiles are
+  updated atomically. Entity appearance/dimensions still come only from things.
+- Damage uses quantized maximum horizontal axis distance minus target radius,
+  plus two center sight traces. Cover/closed portals protect; open grilles pass
+  the blast. Player self-damage uses normal armor. Actor hitpoints stay copied;
+  victims killed by an earlier impact cannot act later in the same tick.
+- Native task check passed 222 owned WAD fixtures, 51 file-based TEST procedures
+  and engine checks. The final projectile suite also passed the added expiry
+  case. Five A64/QEMU suites passed; the projectile suite was rebuilt/rerun with
+  its final test. All 19 isolated Xephyr scenarios, five logging cases and all
+  132 original-map start/walk/render probes passed. Exact evidence/source hashes:
+  scratch/blast-check.md and scratch/blast-verification.json.
+- Used the existing clean 890ac86 native SDK, read-only Logging-capable A64 SDK
+  and an isolated engine copy. No engine/MiniA2/installed SDK edits or original
+  asset copies. Changes remain uncommitted; no push was requested or performed.
+- Deliberate limits: no explosion/impact animation, barrel chain explosions,
+  boss blast immunity, original sight-cone equivalence or BFG secondary effect.
+  CI, Windows, ARMhf, physical hardware, full A2, maximum-scene stress and full
+  playthroughs remain unchecked. Next: visible explosions/barrel chains, route
+  finding and additional map actions.
+
 ## Resumed delivery: modern controls and structured game logs
 
 The previous session stopped before committing or pushing the delivery below.
