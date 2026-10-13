@@ -9,39 +9,10 @@ TYPE State* = RECORD
 	walkStart*, attackStart*, attackAt*, attackUntil*, deathAt*: SIGNED64
 END;
 
-(* Trace crosses two-sided windows only where the sloped ray fits their open height. *)
+(* Trace retains the actor API while shared world geometry owns ray clipping. *)
 PROCEDURE Trace*(world: GameGeometry.World; x, y, dx, dy, eye, slope, range: FLOAT64): FLOAT64;
-VAR wall: GameGeometry.Wall;
-	front, back: GameGeometry.Sector;
-	i, sector: SIGNED32;
-	near, distance, z: FLOAT64;
 BEGIN
-	sector := world.Locate(x + dx * DoomFormat.TraceTolerance, y + dy * DoomFormat.TraceTolerance);
-	IF sector < 0 THEN
-		RETURN 0
-	END;
-	front := world.Region(sector);
-	IF (eye <= front.floor) OR (eye >= front.ceiling) THEN
-		RETURN 0
-	END;
-	near := 0;
-	FOR i := 0 TO MIN(world.Count(), DoomFormat.MaximumTraceHits) - 1 DO
-		IF ~world.CastSector(sector, x, y, dx, dy, near, distance, wall) OR (distance > range) THEN
-			RETURN range
-		END;
-		IF wall.neighbor < 0 THEN
-			RETURN distance
-		END;
-		front := world.Region(sector);
-		back := world.Region(wall.neighbor);
-		z := eye + distance * slope;
-		IF (z <= MAX(front.floor, back.floor)) OR (z >= MIN(front.ceiling, back.ceiling)) THEN
-			RETURN distance
-		END;
-		sector := wall.neighbor;
-		near := distance
-	END;
-	RETURN 0
+	RETURN world.TraceRay(x, y, dx, dy, eye, slope, range)
 END Trace;
 
 PROCEDURE TraceLimit*(world: GameGeometry.World; x, y, dx, dy, eye, range: FLOAT64): FLOAT64;

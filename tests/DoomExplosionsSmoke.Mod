@@ -125,7 +125,7 @@ BEGIN
 		start := scene.EffectState(0).start;
 		impact := scene.Step(map.world, start + DoomConfig.values.combat.weapons[weapon].projectile.impact.ticks[0], -3, 0, 0, player);
 		ASSERT(impact.EffectPhase(0) = 1);
-		scene := impact.Step(map.world, start + DoomConfig.values.combat.weapons[weapon].projectile.impact.duration, -3, 0, 0, player);
+		scene := impact.Step(map.world, start + DoomConfig.values.combat.weapons[weapon].projectile.impact.timing.duration, -3, 0, 0, player);
 		ASSERT(scene.EffectCount() = 0)
 	END;
 	Load("projectiles.wad", map);

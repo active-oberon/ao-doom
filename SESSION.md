@@ -2,6 +2,55 @@
 
 Updated: 2026-10-14
 
+## Delivery checkpoint: common Doom engine mechanisms
+
+The user requested coordinated updates of the engine and game. This checkpoint
+accompanies feat(engine): use shared animation and world ray tracing. It requires
+ao-game-engine commit 96545948c43940116fbf5849ae0af94aaf53a42f,
+feat(engine): add shared animation and sloped ray tracing. Exact local commits,
+publication status and remote verification are recorded in scratch/engine-check.md.
+The uncommitted status below is the historical pre-delivery state. Publication
+requires explicit approval for each repository/branch/push under the personal
+AGENTS.md gate; prior approvals remain consumed.
+
+## Previous continuation: common Doom engine mechanisms
+
+The user asked to expand ao-game-engine with mechanisms used by Doom and
+confirmed the current target as complete classic Doom and Doom II in Active
+Oberon. Doom 3 and Doom 3: BFG Edition are deferred; the classic BFG weapon is
+still in scope. ROADMAP.md records ownership, remaining areas and completion
+evidence without claiming current full compatibility.
+
+- Game main remains at published 374b86b; engine main remains at 045c00e.
+  Both working trees now contain uncommitted changes. Previous push approvals
+  are consumed; this request authorized implementation, not publication.
+- Engine GameAnimation stores immutable tick clips, copied positive durations,
+  looping/last-frame hold and constant-rate playback. Doom walking, attacks and
+  impact/barrel effects now use it. Engine code has no Doom/YAML imports, frame
+  names, actor IDs or default balance. Game rules still own images, selection,
+  start time, expiry and damage. Current YAML authoring is unchanged.
+- Engine World.TraceRay supplies shared sloped center-ray clipping for sight,
+  player/enemy bullets and blast cover. The original probe crossed a floor and
+  returned 4 instead of 0.5, failing with Trap 5.8. The common implementation
+  clips floors/ceilings inside every sector as well as portal openings; that
+  exact probe now returns 0.5 and passes. Original DoomActors.Trace API remains
+  as a delegate for callers. Volume sweeps and original sight-cone fidelity
+  remain separate work.
+- Native task check passed five engine executables, 230 owned WAD fixtures and
+  57 game TEST procedures plus three new engine TEST procedures. Eight fresh
+  A64/QEMU suites passed: animation, sector geometry and six game suites. All
+  20 isolated Xephyr scenarios, five logging cases and 132 original-map probes
+  passed. Five captured fixture frame hashes match the pre-extraction output.
+- Six validated engine files were applied to the real sibling repository only
+  after checks, with clean-tree/base-commit guards. Game builds and SDK work
+  used isolated outputs; no MiniA2/installed SDK edits. The ordinary task build
+  against ../ao-game-engine also passed. Evidence: scratch/engine-check.md,
+  engine-verification.json and corresponding logs. scene.ppm and build/demo
+  captures remain preserved.
+- Full campaigns, compatibility, CI, Windows, ARMhf, full A2, physical hardware
+  and maximum-scene performance remain unchecked. Next milestones are classic
+  map progression and remaining combat/actor/game-flow behavior in ROADMAP.md.
+
 ## Delivery checkpoint: impact animations and barrel chains
 
 The user explicitly requested committing and pushing the validated impact and

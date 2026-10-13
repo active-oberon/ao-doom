@@ -1,6 +1,6 @@
 MODULE DoomConfig;
 
-IMPORT YAML, JSON, Strings, DoomFormat, DoomThings, MathL;
+IMPORT YAML, JSON, Strings, DoomFormat, DoomThings, GameAnimation, MathL;
 
 CONST HudCharacterAdvance* = 4;
 	HudGlyphHeight = 5;
@@ -34,7 +34,7 @@ CONST HudCharacterAdvance* = 4;
 	MaximumActorHealth = 65535;
 	MaximumTargetHeight = 1024;
 	MaximumAimRadius = 16;
-	MaximumAnimationFrames = 16;
+	MaximumAnimationFrames = GameAnimation.MaximumFrames;
 	MaximumPellets = 32;
 	MaximumMouseDelta* = 32768;
 	MaximumWheelSteps* = 64;
@@ -73,7 +73,7 @@ AnimationSettings* = POINTER TO RECORD
 	kind*: SIGNED32;
 	frames*: SpriteFrames;
 	ticks*: POINTER TO ARRAY OF SIGNED32;
-	duration*: SIGNED64;
+	timing*: GameAnimation.Clip;
 	height*: FLOAT64;
 	fullbright*: BOOLEAN
 END;
@@ -94,8 +94,9 @@ END;
 
 BehaviorSettings* = POINTER TO RECORD
 	speed*, step*, sightRange*, range*: FLOAT64;
-	damage*, windup*, cycle*, frameTicks*: SIGNED32;
+	damage*, windup*, cycle*: SIGNED32;
 	walk*, attack*: SpriteFrames;
+	walkTiming*, attackTiming*: GameAnimation.Clip;
 	hitscan*: BOOLEAN;
 	pellets*: SIGNED32;
 	spread*: FLOAT64;
@@ -514,7 +515,6 @@ BEGIN
 		RETURN FALSE
 	END;
 	NEW(animation.ticks, ticks.length);
-	animation.duration := 0;
 	FOR i := 0 TO SIGNED32(ticks.length) - 1 DO
 		value := ticks.At(i);
 		IF (value = NIL) OR ~(value IS JSON.Number) THEN
@@ -523,12 +523,16 @@ BEGIN
 		END;
 		number := value(JSON.Number).value;
 		IF (number >= 1) & (number <= MaximumClockValue) & (number = ENTIER(number)) THEN
-			animation.ticks[i] := SIGNED32(ENTIER(number));
-			animation.duration := animation.duration + animation.ticks[i]
+			animation.ticks[i] := SIGNED32(ENTIER(number))
 		ELSE
 			COPY("Animation ticks must be positive bounded integers", error);
 			RETURN FALSE
 		END
+	END;
+	animation.timing := GameAnimation.Read(animation.ticks^);
+	IF animation.timing = NIL THEN
+		COPY("Animation timing exceeds engine bounds", error);
+		RETURN FALSE
 	END;
 	animation.height := info.height / DoomFormat.UnitsPerWorld;
 	animation.fullbright := info.fullbright;
@@ -565,7 +569,7 @@ BEGIN
 		~Integer(object, "delay_ticks", 1, MaximumClockValue, explosion.delay, error) THEN
 		RETURN FALSE
 	END;
-	IF (explosion.blastDamage = 0) OR (explosion.delay >= explosion.animation.duration) THEN
+	IF (explosion.blastDamage = 0) OR (explosion.delay >= explosion.animation.timing.duration) THEN
 		COPY("Actor blast must be positive and its delay must fit the animation", error);
 		RETURN FALSE
 	END;
@@ -579,6 +583,7 @@ VAR value: JSON.Value;
 	info: DoomThings.Info;
 	name: ARRAY 16 OF CHAR;
 	keys: ARRAY 192 OF CHAR;
+	frameTicks: SIGNED32;
 BEGIN
 	value := rule.Get("behavior");
 	IF (value = NIL) OR ~(value IS JSON.String) THEN
@@ -621,7 +626,7 @@ BEGIN
 		~Integer(object, "damage", 1, MaximumActorHealth, actor.behavior.damage, error) OR
 		~Integer(object, "windup_ticks", 1, MaximumClockValue, actor.behavior.windup, error) OR
 		~Integer(object, "cycle_ticks", 1, MaximumClockValue, actor.behavior.cycle, error) OR
-		~Integer(object, "frame_ticks", 1, MaximumClockValue, actor.behavior.frameTicks, error) OR
+		~Integer(object, "frame_ticks", 1, MaximumClockValue, frameTicks, error) OR
 		~FrameList(object, "walk_frames", actor.behavior.walk, error) OR
 		~FrameList(object, "attack_frames", actor.behavior.attack, error) THEN
 		RETURN FALSE
@@ -629,6 +634,12 @@ BEGIN
 	IF (actor.behavior.step > actor.height) OR (actor.behavior.range > actor.behavior.sightRange) OR
 		(actor.behavior.windup >= actor.behavior.cycle) THEN
 		COPY("Actor step, range and windup must fit height, sight range and cycle", error);
+		RETURN FALSE
+	END;
+	actor.behavior.walkTiming := GameAnimation.Uniform(SIGNED32(LEN(actor.behavior.walk^)), frameTicks);
+	actor.behavior.attackTiming := GameAnimation.Uniform(SIGNED32(LEN(actor.behavior.attack^)), frameTicks);
+	IF (actor.behavior.walkTiming = NIL) OR (actor.behavior.attackTiming = NIL) THEN
+		COPY("Actor animation timing exceeds engine bounds", error);
 		RETURN FALSE
 	END;
 	IF actor.behavior.hitscan &
@@ -1502,7 +1513,7 @@ BEGIN
 	RejectField(root, impact, "thing", JSON.NewNumber(9999), settings);
 	RejectField(root, impact, "ticks", JSON.NewArray(), settings);
 	ASSERT(Decode(root, settings, error));
-	ASSERT(settings.combat.weapons[4].projectile.impact.duration = 18)
+	ASSERT(settings.combat.weapons[4].projectile.impact.timing.duration = 18)
 END ExplosionBounds;
 
 PROCEDURE {TEST} WeaponMouseBounds*;

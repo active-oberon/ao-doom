@@ -1,6 +1,6 @@
 MODULE DoomProjectiles;
 
-IMPORT DoomFormat, DoomActors, GameGeometry, MathL;
+IMPORT DoomFormat, GameGeometry, MathL;
 
 TYPE State* = RECORD
 	owner*, weapon*: SIGNED32;
@@ -76,8 +76,8 @@ BEGIN
 	center := feet + height / 2;
 	IF travel > DoomFormat.TraceTolerance THEN
 		slope := (center - shot.z) / travel;
-		IF (DoomActors.Trace(world, shot.x, shot.y, dx / travel, dy / travel, shot.z, slope, travel) < travel) OR
-			(DoomActors.Trace(world, x, y, -dx / travel, -dy / travel, center, -slope, travel) < travel) THEN
+		IF (world.TraceRay(shot.x, shot.y, dx / travel, dy / travel, shot.z, slope, travel) < travel) OR
+			(world.TraceRay(x, y, -dx / travel, -dy / travel, center, -slope, travel) < travel) THEN
 			RETURN 0
 		END
 	ELSE

@@ -2,6 +2,11 @@
 
 A Doom clone in Active Oberon built on the separate
 [ao-game-engine](../ao-game-engine) project.
+The target is a complete Active Oberon implementation of classic Doom and Doom II
+on a reusable sector-based engine. Current coverage is partial; the remaining
+work and acceptance criteria are in [ROADMAP.md](ROADMAP.md).
+These sources require ao-game-engine commit `9654594` or a compatible later
+revision providing `GameAnimation` and `GameGeometry.World.TraceRay`.
 
 ## Current state
 
@@ -446,12 +451,12 @@ isolated case directories.
 
 ## Project boundary and next milestones
 
-Reusable simulation, geometry, rendering, buffers, timing, display presentation,
+Reusable simulation, geometry, rendering, animation timing, buffers, display presentation,
 and bounded binary reads belong in `ao-game-engine`. Doom WAD interpretation,
 map semantics, player rules and compatibility belong here. `DoomWad` handles the
 archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scene.
 `DoomThings` owns object identifiers and searches the YAML entity definitions.
-All spawn metadata and footprints come from `things`. `DoomActors` owns sight traces, chase
+All spawn metadata and footprints come from `things`. `DoomActors` combines shared world sight traces with chase
 and attack timing. `DoomSprites` resolves melee/hitscan impacts, loads immutable metadata and images, chooses
 directional/animated/death frames and publishes collection/health/motion snapshots.
 `DoomInput` collects keyboard/mouse actions; `DoomMouse` owns Linux X11 capture.
@@ -462,6 +467,12 @@ directional/animated/death frames and publishes collection/health/motion snapsho
 Game state uses a monitor; rendering captures camera, inventory,
 the sprite scene and the sealed world together before
 working without the game lock.
+`GameAnimation` computes frame indices for walking, attacks and impact/barrel
+effects from immutable timing clips. The game chooses images, start times,
+looping, expiry and damage. `GameGeometry.World.TraceRay` supplies the shared
+sloped ray used by player/enemy bullets and blast cover. It also clips floors
+and ceilings within a sector, preventing rays from continuing through a plane
+before reaching the next wall. YAML authoring and gameplay tuning are unchanged.
 
 ## Application logging
 

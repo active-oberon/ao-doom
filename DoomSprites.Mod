@@ -105,18 +105,9 @@ TYPE
 		END EffectState;
 
 		PROCEDURE EffectPhase*(index: SIGNED32): SIGNED32;
-		VAR phase: SIGNED32;
-			elapsed: SIGNED64;
 		BEGIN
 			ASSERT((index >= 0) & (index < effectCount));
-			elapsed := MAX(0, tick - effects[index].start);
-			phase := 0;
-			WHILE (phase < LEN(effects[index].images^) - 1) &
-				(elapsed >= effects[index].animation.ticks[phase]) DO
-				DEC(elapsed, effects[index].animation.ticks[phase]);
-				INC(phase)
-			END;
-			RETURN phase
+			RETURN effects[index].animation.timing.Frame(tick - effects[index].start, FALSE)
 		END EffectPhase;
 
 		PROCEDURE Copy(): Scene;
@@ -190,7 +181,7 @@ TYPE
 			NEW(active, effectCount);
 			kept := 0;
 			FOR i := 0 TO effectCount - 1 DO
-				IF tick - effects[i].start < effects[i].animation.duration THEN
+				IF tick - effects[i].start < effects[i].animation.timing.duration THEN
 					active[kept] := effects[i];
 					INC(kept)
 				END
@@ -324,7 +315,7 @@ TYPE
 			ASSERT((range > 0) & (damage > 0));
 			dx := MathL.cos(angle);
 			dy := MathL.sin(angle);
-			limit := DoomActors.Trace(world, x, y, dx, dy, eye, slope, range);
+			limit := world.TraceRay(x, y, dx, dy, eye, slope, range);
 			target := Target(world, -1, x, y, dx, dy, eye, slope, limit);
 			IF target < 0 THEN
 				RETURN SELF
@@ -358,7 +349,7 @@ TYPE
 				END;
 				dx := MathL.cos(angle);
 				dy := MathL.sin(angle);
-				limit := DoomActors.Trace(world, states[index].x, states[index].y, dx, dy, eye, slope, rules.range);
+				limit := world.TraceRay(states[index].x, states[index].y, dx, dy, eye, slope, rules.range);
 				near := 0;
 				far := limit;
 				playerHit := DoomProjectiles.Axis(states[index].x, dx, x - DoomConfig.values.playerRadius, x + DoomConfig.values.playerRadius, near, far) &
@@ -671,12 +662,10 @@ TYPE
 						sprite := actors[i].deadImages.views[0]
 					ELSIF (actors[i].behavior # NIL) & states[i].awake THEN
 						IF tick < states[i].attackUntil THEN
-							phase := SIGNED32(MIN(LEN(actors[i].attackImages^) - 1,
-								(tick - states[i].attackStart) DIV actors[i].behavior.frameTicks));
+							phase := actors[i].behavior.attackTiming.Frame(tick - states[i].attackStart, FALSE);
 							sprite := actors[i].attackImages[phase].views[rotation]
 						ELSIF states[i].moving THEN
-							phase := SIGNED32((tick - states[i].walkStart) DIV actors[i].behavior.frameTicks MOD
-								LEN(actors[i].walkImages^));
+							phase := actors[i].behavior.walkTiming.Frame(tick - states[i].walkStart, TRUE);
 							sprite := actors[i].walkImages[phase].views[rotation]
 						END
 					END;
