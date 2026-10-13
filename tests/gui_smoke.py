@@ -273,7 +273,7 @@ def check_logs(output, arguments):
     assert stopped["attrs"]["result"] == 0
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -312,6 +312,21 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             assert process.returncode == 0, output
             check_logs(output, arguments)
             return
+        if explosions:
+            key(display, window, root, 0xFFE3)
+            time.sleep(0.7)
+            key(display, window, root, 0xFFE3, release=True)
+            first = pixels(display, window)
+            assert first[:43 * 80] != initial[:43 * 80], "Destroyed barrel did not start its explosion"
+            time.sleep(0.45)
+            second = pixels(display, window)
+            assert second[:43 * 80] != first[:43 * 80], "Barrel explosion did not animate or reach its neighbor"
+            time.sleep(2)
+            final = pixels(display, window)
+            assert final[:43 * 80] != second[:43 * 80], "Barrel chain did not finish and clear its effects"
+            time.sleep(0.3)
+            assert pixels(display, window) == final, "Completed barrel explosions continued changing the scene"
+            initial = final
         if blast:
             key(display, window, root, ord("5"))
             key(display, window, root, ord("5"), release=True)
@@ -338,7 +353,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             key(display, window, root, 0xFFE3)
             time.sleep(0.2)
             key(display, window, root, 0xFFE3, release=True)
-            time.sleep(0.2)
+            # A fired fireball and its impact finish independently of the owner's death.
+            time.sleep(0.75 if projectiles else 0.2)
             dead = pixels(display, window)
             panel = pixels(display, window, hud=True)
             time.sleep(1.5)
@@ -516,6 +532,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             print("Projectile GUI check passed: flight damage HUD, YAML damage, kill and stopped enemy attacks")
         if blast:
             print("Blast GUI check passed: rocket selection, health/corpses, one impact and clean shutdown")
+        if explosions:
+            print("Explosion GUI check passed: barrel death, changing frames, delayed chain and effect expiry")
         print("GUI check passed: visible scene, movement, release, focus loss, turn, Escape shutdown")
     except Exception:
         if process.poll() is None:
@@ -553,14 +571,17 @@ def main():
     projectiles = arguments[0] == "--projectiles"
     modern = arguments[0] == "--modern"
     blast = arguments[0] == "--blast"
-    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast:
+    explosions = arguments[0] == "--explosions"
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
         shutil.copy2(arguments[0], executable)
-        if combat or ai or hitscan or projectiles or modern:
+        if combat or ai or hitscan or projectiles or modern or blast:
             config = pathlib.Path(directory) / "doom-test.yaml"
             profile = pathlib.Path("doom.yaml").read_text()
+            if blast:
+                profile = re.sub(r"      explosion:\n(?:        .*\n)+", "      explosion: null\n", profile)
             if combat or modern:
                 # Isolate weapon/input checks from autonomous target attacks and animation.
                 profile = re.sub(r"      behavior: hitscan\n      hitscan:\n(?:        .*\n)+",
@@ -577,7 +598,7 @@ def main():
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions)
 
 
 if __name__ == "__main__":

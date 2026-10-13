@@ -208,6 +208,11 @@ def sprite_lumps(lumps=None, things=None, rotations=False):
         patches += [(prefix + frame + "0", sprite_patch(color))
                     for frame, color in zip("BCDEF", (6, 7, 4, 6, 7))]
     patches += [("SPOSA0", sprite_patch(5)), ("SPOSL0", corpse_patch())]
+    effects = ["MISLB0", "MISLC0", "MISLD0", "BAL1C0", "BAL1D0", "BAL1E0",
+               "PLSEA0", "PLSEB0", "PLSEC0", "PLSED0", "PLSEE0",
+               "BFE1A0", "BFE1B0", "BFE1C0", "BFE1D0", "BFE1E0", "BFE1F0",
+               "BEXPA0", "BEXPB0", "BEXPC0", "BEXPD0"]
+    patches += [(name, sprite_patch(5 + index % 3)) for index, name in enumerate(effects)]
     return lumps + [("S_START", b""), *patches, ("S_END", b"")]
 
 
@@ -413,6 +418,21 @@ def fixtures(directory):
     blast += [(name, sprite_patch(6)) for name in
               ("BAR1A0", "LAUNA0", "MISLA0", "PLASA0", "PLSSA0")]
     files["blast.wad"] = wad(blast)
+    barrels = sprite_lumps(things=[(64, 0, 0, 2035, 7), (144, 0, 0, 2035, 7),
+                                  (224, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))]
+    files["barrels-chain.wad"] = wad(barrels)
+    files["barrels-reversed.wad"] = wad(sprite_lumps(things=[(224, 0, 0, 2035, 7),
+                                                              (144, 0, 0, 2035, 7),
+                                                              (64, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
+    files["barrels-many.wad"] = wad(sprite_lumps(things=[(128, 0, 0, 2035, 7)] * 300) +
+                                     [("BAR1A0", sprite_patch(6))])
+    files["barrels-cover.wad"] = wad(sprite_lumps(hidden, [(-32, 0, 0, 2035, 7),
+                                                          (32, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
+    files["barrels-grate.wad"] = wad(sprite_lumps(masked_lumps(flags=17), [(-32, 0, 0, 2035, 7),
+                                                                          (32, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
+    files["barrels-missing.wad"] = wad([entry for entry in barrels if entry[0] != "BEXPC0"])
+    files["impact-missing.wad"] = wad([entry for entry in arsenal if entry[0] != "MISLD0"])
+    files["impact-bad.wad"] = wad([(name, b"abc" if name == "PLSEC0" else data) for name, data in arsenal])
     files["combat-nearest.wad"] = wad(combat_lumps(things=[(192, 0, 0, 3004, 7),
                                                           (128, 0, 0, 3004, 7)]))
     files["combat-off-axis.wad"] = wad(combat_lumps(things=[(128, 64, 0, 3004, 7)]))
@@ -603,6 +623,8 @@ def fixtures(directory):
     for name, data in files.items():
         (directory / name).write_bytes(data)
     profile = (pathlib.Path(__file__).resolve().parent.parent / "doom.yaml").read_text()
+    isolated = re.sub(r"      explosion:\n(?:        .*\n)+", "      explosion: null\n", profile)
+    (directory / "doom-blast-only.yaml").write_text(isolated)
     start, marker, weapons = profile.partition("    launcher:\n")
     launcher, separator, tail = weapons.partition("    plasma:\n")
     assert marker and separator

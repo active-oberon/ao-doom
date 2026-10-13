@@ -1,18 +1,59 @@
 # ao-doom session handoff
 
-Updated: 2026-10-13
+Updated: 2026-10-14
+
+## Delivery checkpoint: impact animations and barrel chains
+
+The user explicitly requested committing and pushing the validated impact and
+barrel-explosion milestone. This checkpoint accompanies
+feat(combat): animate impacts and chain barrel explosions. Exact commit and live
+remote verification are recorded in scratch/explosions-check.md. The uncommitted
+status below is the historical pre-delivery state. This push approval is single-use;
+subsequent publication requires a new explicit request.
+
+## Previous continuation: impact animations and barrel chains
+
+Started on main after publishing 049524d91a76269adbbf8c8bb11f22daaf78b600,
+feat(combat): add configurable rocket blast damage. The user explicitly asked
+for that commit/push, then continued implementation. Remote main was verified
+at the same commit after the normal push through SSH port 443. That single-use
+push approval is consumed; this continuation remains uncommitted.
+
+- The original barrel probe left its neighbor at health 20 after 45 ticks;
+  the chain assertion failed with Trap 5.8. Current barrels animate and detonate
+  once after the YAML delay; new deaths receive their own timers after the pass,
+  preserving chain timing even when THINGS order is reversed.
+- All projectile rules require impact: thing/frames/ticks. Every actor rule
+  requires explosion: explicit null or a complete positive-blast mapping. First
+  frames, height and fullbright come only from things. Standard barrel delay is
+  15 ticks, damage/radius 128/128, animation 5/5/5/10/10. Profiles now define 125
+  things, including owned effect IDs 60004-60008; all three full profiles agree.
+- Effects use a separate 256-entry list with immutable frame/timer snapshots.
+  Its visual cap cannot cancel damage: the 300-barrel regression passes. Frame
+  resources are validated/cached before replacement; failed loads preserve
+  current effects and health. Death freezes pending effects/blasts.
+- Native task check passed engine regressions, 230 owned WAD fixtures and 57
+  file-based TEST procedures. Six A64/QEMU suites and all 132 original-map
+  start/walk/render/fire probes passed. The first GUI run exposed an obsolete
+  immediate-static-frame assertion for imp impacts; its wait now lets surviving
+  flight/impact finish. The full repeat passed all 20 isolated Xephyr scenarios
+  and five structured-logging cases.
+- Evidence: scratch/explosions-check.md, explosions-verification.json and logs.
+  The clean MiniA2 890ac86 native SDK, read-only A64 SDK and isolated engine copy
+  remain unchanged. scene.ppm and build/demo GIF/MP4/logs are preserved.
+- Remaining: route finding, more monster attacks/map actions, monster death
+  animation/drops, boss blast immunity and BFG secondary effect. CI, Windows,
+  ARMhf, physical hardware, full A2, maximum-scene stress and full playthroughs
+  remain unchecked. Custom YAML files must adopt the new mandatory fields.
 
 ## Delivery checkpoint: configurable rocket blast damage
 
-The user explicitly requested committing and pushing the validated rocket-blast
-milestone, then continuing implementation. This checkpoint accompanies
-feat(combat): add configurable rocket blast damage. The uncommitted status in
-the continuation below is the historical pre-delivery state. Exact commit and
-remote verification are recorded in scratch/blast-check.md. This push approval
-is single-use; the following explosion-animation/barrel work needs a new approval
-before publication.
+Published 049524d91a76269adbbf8c8bb11f22daaf78b600 to origin/main after explicit
+user approval; the live remote matched. Exact evidence: scratch/blast-check.md.
+The continuation below retains its historical pre-delivery state. A new push
+approval is required for subsequent work.
 
-## Current continuation: configurable rocket blast damage
+## Previous continuation: configurable rocket blast damage
 
 Started on main at 7443a89, already published together with 3913c9e after the
 user's explicit approval. That push used SSH port 443 after port 22 timed out;

@@ -5,8 +5,8 @@ IMPORT DoomConfig, DoomInventory, DoomFormat, GameGeometry, MathL;
 TYPE State* = RECORD
 	x*, y*, angle*, feet*: FLOAT64;
 	sector*: SIGNED32;
-	awake*, moving*: BOOLEAN;
-	walkStart*, attackStart*, attackAt*, attackUntil*: SIGNED64
+	awake*, moving*, detonated*: BOOLEAN;
+	walkStart*, attackStart*, attackAt*, attackUntil*, deathAt*: SIGNED64
 END;
 
 (* Trace crosses two-sided windows only where the sloped ray fits their open height. *)

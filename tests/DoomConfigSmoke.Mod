@@ -195,6 +195,7 @@ BEGIN
 	DoomConfig.MeleeBounds;
 	DoomConfig.HitscanBounds;
 	DoomConfig.ProjectileBounds;
+	DoomConfig.ExplosionBounds;
 	DoomConfig.WeaponMouseBounds;
 	DoomConfig.ThingBounds;
 	DemoColors;

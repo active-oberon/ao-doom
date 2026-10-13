@@ -206,6 +206,11 @@ things:
   - {kind: 60001, spawn_frame: MISLA, fullbright: true, ceiling: false, height: 8, radius: 6}
   - {kind: 60002, spawn_frame: PLSSA, fullbright: true, ceiling: false, height: 8, radius: 6}
   - {kind: 60003, spawn_frame: BFS1A, fullbright: true, ceiling: false, height: 16, radius: 13}
+  - {kind: 60004, spawn_frame: MISLB, fullbright: true, ceiling: false, height: 8, radius: 0}
+  - {kind: 60005, spawn_frame: BAL1C, fullbright: true, ceiling: false, height: 8, radius: 0}
+  - {kind: 60006, spawn_frame: PLSEA, fullbright: true, ceiling: false, height: 8, radius: 0}
+  - {kind: 60007, spawn_frame: BFE1A, fullbright: true, ceiling: false, height: 16, radius: 0}
+  - {kind: 60008, spawn_frame: BEXPA, fullbright: true, ceiling: false, height: 42, radius: 0}
 combat:
   pistol:
     mode: hitscan
@@ -237,7 +242,7 @@ combat:
       reload_ticks: 35
       pellets: 1
       spread_radians: 0
-      projectile: {thing: 60001, speed_per_tick: 20, blast_damage: 64, blast_radius: 192}
+      projectile: {thing: 60001, speed_per_tick: 20, blast_damage: 64, blast_radius: 192, impact: {thing: 60004, frames: [MISLC, MISLD], ticks: [8, 6, 4]}}
     plasma:
       mode: projectile
       label: PLASMA
@@ -251,7 +256,7 @@ combat:
       reload_ticks: 45
       pellets: 1
       spread_radians: 0
-      projectile: {thing: 60002, speed_per_tick: 25, blast_damage: 0, blast_radius: 0}
+      projectile: {thing: 60002, speed_per_tick: 25, blast_damage: 0, blast_radius: 0, impact: {thing: 60006, frames: [PLSEB, PLSEC, PLSED, PLSEE], ticks: [4, 4, 4, 4, 4]}}
     bfg:
       mode: projectile
       label: BFG
@@ -265,7 +270,7 @@ combat:
       reload_ticks: 70
       pellets: 1
       spread_radians: 0
-      projectile: {thing: 60003, speed_per_tick: 25, blast_damage: 0, blast_radius: 0}
+      projectile: {thing: 60003, speed_per_tick: 25, blast_damage: 0, blast_radius: 0, impact: {thing: 60007, frames: [BFE1B, BFE1C, BFE1D, BFE1E, BFE1F], ticks: [8, 8, 8, 8, 8, 8]}}
     chainsaw: {mode: hitscan, label: CHAINSAW, ammo: none, damage: 10, cooldown_ticks: 4, ammo_cost: 0, range: 64, flash_ticks: 1, magazine: 0, reload_ticks: 1, pellets: 1, spread_radians: 0}
     super_shotgun: {mode: hitscan, label: SSG, ammo: shells, damage: 10, cooldown_ticks: 40, ammo_cost: 2, range: 2048, flash_ticks: 3, magazine: 2, reload_ticks: 50, pellets: 20, spread_radians: 0.18}
   aim:
@@ -277,6 +282,7 @@ combat:
     - kind: 3004
       health: 15
       death_frame: POSSL
+      explosion: null
       behavior: hitscan
       hitscan:
         speed_per_tick: 2
@@ -294,6 +300,7 @@ combat:
     - kind: 9
       health: 30
       death_frame: SPOSL
+      explosion: null
       behavior: hitscan
       hitscan:
         speed_per_tick: 2
@@ -308,13 +315,14 @@ combat:
         attack_frames: [SPOSE, SPOSF, SPOSE]
         pellets: 3
         spread_radians: 0.1
-    - {kind: 64, health: 700, death_frame: VILEZ, behavior: static}
-    - {kind: 66, health: 300, death_frame: SKELQ, behavior: static}
-    - {kind: 67, health: 600, death_frame: FATTT, behavior: static}
-    - {kind: 65, health: 70, death_frame: CPOSN, behavior: static}
+    - {kind: 64, health: 700, death_frame: VILEZ, behavior: static, explosion: null}
+    - {kind: 66, health: 300, death_frame: SKELQ, behavior: static, explosion: null}
+    - {kind: 67, health: 600, death_frame: FATTT, behavior: static, explosion: null}
+    - {kind: 65, health: 70, death_frame: CPOSN, behavior: static, explosion: null}
     - kind: 3001
       health: 60
       death_frame: TROOM
+      explosion: null
       behavior: projectile
       projectile:
         speed_per_tick: 8
@@ -330,10 +338,12 @@ combat:
         thing: 60000
         blast_damage: 0
         blast_radius: 0
+        impact: {thing: 60005, frames: [BAL1D, BAL1E], ticks: [6, 6, 6]}
         shot_speed_per_tick: 64
     - kind: 3002
       health: 150
       death_frame: SARGN
+      explosion: null
       behavior: melee
       melee:
         speed_per_tick: 2
@@ -349,6 +359,7 @@ combat:
     - kind: 58
       health: 150
       death_frame: SARGN
+      explosion: null
       behavior: melee
       melee:
         speed_per_tick: 2
@@ -361,18 +372,28 @@ combat:
         frame_ticks: 1
         walk_frames: [SARGA, SARGB, SARGC, SARGD]
         attack_frames: [SARGE, SARGF, SARGG]
-    - {kind: 3005, health: 400, death_frame: HEADL, behavior: static}
-    - {kind: 3003, health: 1000, death_frame: BOSSO, behavior: static}
-    - {kind: 69, health: 500, death_frame: BOS2O, behavior: static}
-    - {kind: 3006, health: 100, death_frame: SKULK, behavior: static}
-    - {kind: 7, health: 3000, death_frame: SPIDS, behavior: static}
-    - {kind: 68, health: 500, death_frame: BSPIP, behavior: static}
-    - {kind: 16, health: 4000, death_frame: CYBRP, behavior: static}
-    - {kind: 71, health: 400, death_frame: PAINM, behavior: static}
-    - {kind: 84, health: 50, death_frame: SSWVM, behavior: static}
-    - {kind: 72, health: 100, death_frame: KEENL, behavior: static}
-    - {kind: 88, health: 250, death_frame: BBRNA, behavior: static}
-    - {kind: 2035, health: 20, death_frame: BEXPE, behavior: static}
+    - {kind: 3005, health: 400, death_frame: HEADL, behavior: static, explosion: null}
+    - {kind: 3003, health: 1000, death_frame: BOSSO, behavior: static, explosion: null}
+    - {kind: 69, health: 500, death_frame: BOS2O, behavior: static, explosion: null}
+    - {kind: 3006, health: 100, death_frame: SKULK, behavior: static, explosion: null}
+    - {kind: 7, health: 3000, death_frame: SPIDS, behavior: static, explosion: null}
+    - {kind: 68, health: 500, death_frame: BSPIP, behavior: static, explosion: null}
+    - {kind: 16, health: 4000, death_frame: CYBRP, behavior: static, explosion: null}
+    - {kind: 71, health: 400, death_frame: PAINM, behavior: static, explosion: null}
+    - {kind: 84, health: 50, death_frame: SSWVM, behavior: static, explosion: null}
+    - {kind: 72, health: 100, death_frame: KEENL, behavior: static, explosion: null}
+    - {kind: 88, health: 250, death_frame: BBRNA, behavior: static, explosion: null}
+    - kind: 2035
+      health: 20
+      death_frame: BEXPE
+      behavior: static
+      explosion:
+        thing: 60008
+        frames: [BEXPB, BEXPC, BEXPD, BEXPE]
+        ticks: [5, 5, 5, 10, 10]
+        blast_damage: 64
+        blast_radius: 160
+        delay_ticks: 4
 controls:
   forward: [0x69, 0x49, 0xff52]
   backward: [0x73, 0x53, 0xff54]

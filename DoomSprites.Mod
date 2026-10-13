@@ -4,12 +4,20 @@ IMPORT DoomActors, DoomProjectiles, DoomConfig, DoomFormat, DoomWad, DoomTexture
 
 CONST MaximumWork = 64 * 1024 * 1024;
 	MaximumProjectiles = 256;
+	MaximumEffects = 256;
 
 TYPE
 	Images = POINTER TO RECORD
 		name: ARRAY 6 OF CHAR;
 		views: ARRAY DoomFormat.SpriteRotations OF GameRenderer.Sprite;
 		next: Images
+	END;
+	Frames = POINTER TO ARRAY OF Images;
+	Effect* = RECORD
+		x*, y*, z*: FLOAT64;
+		start*: SIGNED64;
+		animation: DoomConfig.AnimationSettings;
+		images: Frames
 	END;
 
 	(* shortcut: unsupported monster kinds retain spawn behavior until their attacks are implemented. *)
@@ -19,6 +27,8 @@ TYPE
 		ceiling, fullbright: BOOLEAN;
 		images, deadImages: Images;
 		projectileImages: Images;
+		impactImages, explosionImages: Frames;
+		explosion: DoomConfig.ExplosionSettings;
 		walkImages, attackImages: POINTER TO ARRAY OF Images;
 		behavior: DoomConfig.BehaviorSettings
 	END;
@@ -30,7 +40,10 @@ TYPE
 		states: POINTER TO ARRAY OF DoomActors.State;
 		projectiles: POINTER TO ARRAY OF DoomProjectiles.State;
 		projectileCount: SIGNED32;
+		effects: POINTER TO ARRAY OF Effect;
+		effectCount: SIGNED32;
 		playerImages: ARRAY DoomInventory.WeaponKinds OF Images;
+		playerImpacts: ARRAY DoomInventory.WeaponKinds OF Frames;
 		count, remaining, movingActor: SIGNED32;
 		tick: SIGNED64;
 		playerX, playerY: FLOAT64;
@@ -47,6 +60,8 @@ TYPE
 			remaining := 0;
 			projectileCount := 0;
 			projectiles := NIL;
+			effects := NIL;
+			effectCount := 0;
 			tick := 0
 		END Init;
 
@@ -78,6 +93,32 @@ TYPE
 			RETURN projectiles[index]
 		END ProjectileState;
 
+		PROCEDURE EffectCount*(): SIGNED32;
+		BEGIN
+			RETURN effectCount
+		END EffectCount;
+
+		PROCEDURE EffectState*(index: SIGNED32): Effect;
+		BEGIN
+			ASSERT((index >= 0) & (index < effectCount));
+			RETURN effects[index]
+		END EffectState;
+
+		PROCEDURE EffectPhase*(index: SIGNED32): SIGNED32;
+		VAR phase: SIGNED32;
+			elapsed: SIGNED64;
+		BEGIN
+			ASSERT((index >= 0) & (index < effectCount));
+			elapsed := MAX(0, tick - effects[index].start);
+			phase := 0;
+			WHILE (phase < LEN(effects[index].images^) - 1) &
+				(elapsed >= effects[index].animation.ticks[phase]) DO
+				DEC(elapsed, effects[index].animation.ticks[phase]);
+				INC(phase)
+			END;
+			RETURN phase
+		END EffectPhase;
+
 		PROCEDURE Copy(): Scene;
 		VAR snapshot: Scene;
 			i: SIGNED32;
@@ -92,11 +133,100 @@ TYPE
 			snapshot.tick := tick;
 			snapshot.projectiles := projectiles;
 			snapshot.projectileCount := projectileCount;
+			snapshot.effects := effects;
+			snapshot.effectCount := effectCount;
 			FOR i := 0 TO DoomInventory.WeaponKinds - 1 DO
-				snapshot.playerImages[i] := playerImages[i]
+				snapshot.playerImages[i] := playerImages[i];
+				snapshot.playerImpacts[i] := playerImpacts[i]
 			END;
 			RETURN snapshot
 		END Copy;
+
+		PROCEDURE CopyState(now: SIGNED64; x, y: FLOAT64): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+		BEGIN
+			snapshot := Copy();
+			NEW(snapshot.states, count);
+			FOR i := 0 TO count - 1 DO
+				snapshot.states[i] := states[i]
+			END;
+			snapshot.tick := now;
+			snapshot.playerX := x;
+			snapshot.playerY := y;
+			RETURN snapshot
+		END CopyState;
+
+		(* Emit bounds visuals independently from barrel damage so a full effect pool cannot cancel a detonation. *)
+		PROCEDURE Emit(animation: DoomConfig.AnimationSettings; images: Frames; x, y, z: FLOAT64): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+		BEGIN
+			IF effectCount >= MaximumEffects THEN
+				RETURN SELF
+			END;
+			snapshot := Copy();
+			NEW(snapshot.effects, effectCount + 1);
+			FOR i := 0 TO effectCount - 1 DO
+				snapshot.effects[i] := effects[i]
+			END;
+			snapshot.effects[effectCount].x := x;
+			snapshot.effects[effectCount].y := y;
+			snapshot.effects[effectCount].z := z;
+			snapshot.effects[effectCount].start := tick;
+			snapshot.effects[effectCount].animation := animation;
+			snapshot.effects[effectCount].images := images;
+			INC(snapshot.effectCount);
+			RETURN snapshot
+		END Emit;
+
+		PROCEDURE ExpireEffects;
+		VAR active: POINTER TO ARRAY OF Effect;
+			i, kept: SIGNED32;
+		BEGIN
+			IF effectCount = 0 THEN
+				RETURN
+			END;
+			NEW(active, effectCount);
+			kept := 0;
+			FOR i := 0 TO effectCount - 1 DO
+				IF tick - effects[i].start < effects[i].animation.duration THEN
+					active[kept] := effects[i];
+					INC(kept)
+				END
+			END;
+			effectCount := kept;
+			effects := active;
+			IF kept = 0 THEN
+				effects := NIL
+			END
+		END ExpireEffects;
+
+		PROCEDURE ExplosionPending(): BOOLEAN;
+		VAR i: SIGNED32;
+		BEGIN
+			FOR i := 0 TO count - 1 DO
+				IF (actors[i].explosion # NIL) & (hitpoints[i] = 0) & ~states[i].detonated THEN
+					RETURN TRUE
+				END
+			END;
+			RETURN FALSE
+		END ExplosionPending;
+
+		PROCEDURE StartDeaths(): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				IF (actors[i].explosion # NIL) & (snapshot.hitpoints[i] = 0) & (snapshot.states[i].deathAt < 0) THEN
+					snapshot.states[i].deathAt := tick;
+					snapshot := snapshot.Emit(actors[i].explosion.animation, actors[i].explosionImages,
+						states[i].x, states[i].y, states[i].feet + actors[i].targetHeight / 2)
+				END
+			END;
+			RETURN snapshot
+		END StartDeaths;
 
 		(* Free checks solid footprints on both axes regardless of height, as classic player collision does. *)
 		PROCEDURE Free*(x, y, radius: FLOAT64): BOOLEAN;
@@ -309,9 +439,9 @@ TYPE
 
 		(* Blast publishes independent hitpoints and uses normal armor protection even for the shooter's own rocket. *)
 		PROCEDURE Blast(world: GameGeometry.World; CONST shot: DoomProjectiles.State;
-			rules: DoomConfig.ProjectileSettings; x, y, feet: FLOAT64; VAR player: DoomInventory.State): Scene;
+			damage: SIGNED32; range, x, y, feet: FLOAT64; VAR player: DoomInventory.State): Scene;
 		VAR snapshot: Scene;
-			i, damage: SIGNED32;
+			i, amount: SIGNED32;
 			bottom: FLOAT64;
 		BEGIN
 			snapshot := SELF;
@@ -321,22 +451,45 @@ TYPE
 					IF actors[i].ceiling THEN
 						bottom := world.Region(states[i].sector).ceiling - actors[i].height / DoomFormat.UnitsPerWorld
 					END;
-					damage := DoomProjectiles.BlastDamage(world, shot, rules.blastDamage, rules.blastRadius,
+					amount := DoomProjectiles.BlastDamage(world, shot, damage, range,
 						states[i].x, states[i].y, bottom, actors[i].radius, actors[i].targetHeight);
-					IF damage > 0 THEN
+					IF amount > 0 THEN
 						IF snapshot = SELF THEN
-							snapshot := Damage(i, damage)
+							snapshot := Damage(i, amount)
 						ELSE
-							snapshot.hitpoints[i] := MAX(0, snapshot.hitpoints[i] - damage)
+							snapshot.hitpoints[i] := MAX(0, snapshot.hitpoints[i] - amount)
 						END
 					END
 				END
 			END;
-			damage := DoomProjectiles.BlastDamage(world, shot, rules.blastDamage, rules.blastRadius,
+			amount := DoomProjectiles.BlastDamage(world, shot, damage, range,
 				x, y, feet, DoomConfig.values.playerRadius, DoomConfig.values.playerHeight);
-			DoomInventory.Hurt(player, damage);
+			DoomInventory.Hurt(player, amount);
 			RETURN snapshot
 		END Blast;
+
+		(* Detonate marks each due barrel once before applying damage; new deaths start after the pass. *)
+		PROCEDURE Detonate(world: GameGeometry.World; x, y, feet: FLOAT64; VAR player: DoomInventory.State): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+			shot: DoomProjectiles.State;
+			rules: DoomConfig.ExplosionSettings;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				rules := actors[i].explosion;
+				IF (player.health > 0) & (rules # NIL) & (snapshot.hitpoints[i] = 0) &
+					(snapshot.states[i].deathAt >= 0) & ~snapshot.states[i].detonated &
+					(tick >= snapshot.states[i].deathAt + rules.delay) THEN
+					snapshot.states[i].detonated := TRUE;
+					shot.x := snapshot.states[i].x;
+					shot.y := snapshot.states[i].y;
+					shot.z := snapshot.states[i].feet + actors[i].targetHeight / 2;
+					snapshot := snapshot.Blast(world, shot, rules.blastDamage, rules.blastRadius, x, y, feet, player)
+				END
+			END;
+			RETURN snapshot
+		END Detonate;
 
 		(* AdvanceProjectiles copies flight state and applies each first impact once. *)
 		PROCEDURE AdvanceProjectiles(world: GameGeometry.World; x, y, feet: FLOAT64;
@@ -345,6 +498,7 @@ TYPE
 			previous: POINTER TO ARRAY OF DoomProjectiles.State;
 			shot: DoomProjectiles.State;
 			rules: DoomConfig.ProjectileSettings;
+			images: Frames;
 			i, j, kept, target, damage: SIGNED32;
 			travel, limit, bottom: FLOAT64;
 			playerHit, impact: BOOLEAN;
@@ -357,9 +511,11 @@ TYPE
 				shot := previous[i];
 				IF shot.owner < 0 THEN
 					rules := DoomConfig.values.combat.weapons[shot.weapon].projectile;
+					images := playerImpacts[shot.weapon];
 					damage := DoomConfig.values.combat.weapons[shot.weapon].damage
 				ELSE
 					rules := actors[shot.owner].behavior.projectile;
+					images := actors[shot.owner].impactImages;
 					damage := actors[shot.owner].behavior.damage
 				END;
 				IF player.health > 0 THEN
@@ -406,11 +562,14 @@ TYPE
 					ELSE
 						impact := TRUE
 					END;
-					IF impact & (rules.blastDamage > 0) THEN
+					IF impact THEN
 						shot.x := shot.x + shot.dx * limit;
 						shot.y := shot.y + shot.dy * limit;
 						shot.z := shot.z + shot.dz * limit;
-						snapshot := snapshot.Blast(world, shot, rules, x, y, feet, player)
+						IF rules.blastDamage > 0 THEN
+							snapshot := snapshot.Blast(world, shot, rules.blastDamage, rules.blastRadius, x, y, feet, player)
+						END;
+						snapshot := snapshot.Emit(rules.impact, images, shot.x, shot.y, shot.z)
 					END
 				ELSE
 					snapshot.projectiles[kept] := shot;
@@ -447,34 +606,29 @@ TYPE
 		PROCEDURE Step*(world: GameGeometry.World; now: SIGNED64; x, y, feet: FLOAT64;
 			VAR player: DoomInventory.State): Scene;
 		VAR snapshot: Scene;
-			i, j: SIGNED32;
+			i: SIGNED32;
 			attack: BOOLEAN;
 		BEGIN
+			IF player.health <= 0 THEN
+				RETURN SELF
+			END;
 			snapshot := SELF;
-			IF (projectileCount > 0) & (player.health > 0) THEN
-				snapshot := Copy();
-				NEW(snapshot.states, count);
-				FOR j := 0 TO count - 1 DO
-					snapshot.states[j] := states[j]
+			IF (projectileCount > 0) OR (effectCount > 0) OR ExplosionPending() THEN
+				snapshot := CopyState(now, x, y);
+				snapshot.ExpireEffects;
+				IF projectileCount > 0 THEN
+					snapshot := snapshot.AdvanceProjectiles(world, x, y, feet, player)
 				END;
-				snapshot.tick := now;
-				snapshot.playerX := x;
-				snapshot.playerY := y;
-				snapshot := snapshot.AdvanceProjectiles(world, x, y, feet, player)
+				snapshot := snapshot.StartDeaths();
+				snapshot := snapshot.Detonate(world, x, y, feet, player);
+				snapshot := snapshot.StartDeaths()
 			END;
 			FOR i := 0 TO count - 1 DO
 				IF (player.health > 0) & (snapshot.hitpoints[i] > 0) & (actors[i].behavior # NIL) &
 					(states[i].awake OR DoomActors.CanWake(world, states[i], actors[i].behavior,
 						actors[i].targetHeight, x, y, feet)) THEN
 					IF snapshot = SELF THEN
-						snapshot := Copy();
-						NEW(snapshot.states, count);
-						FOR j := 0 TO count - 1 DO
-							snapshot.states[j] := states[j]
-						END;
-						snapshot.tick := now;
-						snapshot.playerX := x;
-						snapshot.playerY := y
+						snapshot := CopyState(now, x, y)
 					END;
 					snapshot.movingActor := i;
 					attack := DoomActors.Step(world, now, actors[i].behavior, actors[i].radius, actors[i].targetHeight,
@@ -492,6 +646,9 @@ TYPE
 					END
 				END
 			END;
+			IF snapshot # SELF THEN
+				snapshot := snapshot.StartDeaths()
+			END;
 			RETURN snapshot
 		END Step;
 
@@ -505,7 +662,8 @@ TYPE
 			region: GameGeometry.Sector;
 		BEGIN
 			FOR i := 0 TO count - 1 DO
-				IF ~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) THEN
+				IF ~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) &
+					~((actors[i].explosion # NIL) & (hitpoints[i] = 0) & (states[i].deathAt >= 0)) THEN
 					view := states[i].angle - MathL.arctan2(y - states[i].y, x - states[i].x);
 					rotation := ENTIER((view + MathL.pi / 8) * 4 / MathL.pi) MOD DoomFormat.SpriteRotations;
 					sprite := actors[i].images.views[rotation];
@@ -555,6 +713,18 @@ TYPE
 				IF sector >= 0 THEN
 					sprite.light := world.Region(sector).light;
 					sprite.fullbright := rules.fullbright;
+					GameRenderer.DrawSprite(sprite, frame, x, y, angle, eye)
+				END
+			END;
+			FOR i := 0 TO effectCount - 1 DO
+				sprite := effects[i].images[EffectPhase(i)].views[0];
+				sprite.x := effects[i].x;
+				sprite.y := effects[i].y;
+				sprite.z := effects[i].z - effects[i].animation.height / 2;
+				sector := world.Locate(sprite.x, sprite.y);
+				IF sector >= 0 THEN
+					sprite.light := world.Region(sector).light;
+					sprite.fullbright := effects[i].animation.fullbright;
 					GameRenderer.DrawSprite(sprite, frame, x, y, angle, eye)
 				END
 			END
@@ -706,6 +876,21 @@ BEGIN
 	RETURN found
 END Frame;
 
+PROCEDURE AnimationImages(archive: DoomWad.Archive; textures: DoomTextures.Library;
+	animation: DoomConfig.AnimationSettings; VAR cache: Images; VAR work: SIGNED32; VAR error: ARRAY OF CHAR): Frames;
+VAR images: Frames;
+	i: SIGNED32;
+BEGIN
+	NEW(images, LEN(animation.frames^));
+	FOR i := 0 TO SIGNED32(LEN(images^)) - 1 DO
+		images[i] := Frame(archive, textures, animation.frames[i], cache, work, error);
+		IF images[i] = NIL THEN
+			RETURN NIL
+		END
+	END;
+	RETURN images
+END AnimationImages;
+
 PROCEDURE Read*(archive: DoomWad.Archive; CONST things: DoomWad.Lump;
 	textures: DoomTextures.Library; world: GameGeometry.World;
 	VAR error: ARRAY OF CHAR): Scene;
@@ -754,6 +939,9 @@ BEGIN
 			actor.walkImages := NIL;
 			actor.attackImages := NIL;
 			actor.projectileImages := NIL;
+			actor.impactImages := NIL;
+			actor.explosionImages := NIL;
+			actor.explosion := NIL;
 			actor.behavior := NIL;
 			state.feet := world.Region(state.sector).floor;
 			state.awake := FALSE;
@@ -762,6 +950,8 @@ BEGIN
 			state.attackStart := 0;
 			state.attackAt := 0;
 			state.attackUntil := 0;
+			state.deathAt := -1;
+			state.detonated := FALSE;
 			actor.images := Frame(archive, textures, info.name, cache, work, error);
 			IF actor.images = NIL THEN
 				RETURN NIL
@@ -772,14 +962,25 @@ BEGIN
 					actor.targetHeight := DoomConfig.values.combat.actors[j].height;
 					actor.radius := DoomConfig.values.combat.actors[j].radius;
 					actor.behavior := DoomConfig.values.combat.actors[j].behavior;
+					actor.explosion := DoomConfig.values.combat.actors[j].explosion;
 					actor.deadImages := Frame(archive, textures, DoomConfig.values.combat.actors[j].deathFrame, cache, work, error);
 					IF actor.deadImages = NIL THEN
 						RETURN NIL
+					END;
+					IF actor.explosion # NIL THEN
+						actor.explosionImages := AnimationImages(archive, textures, actor.explosion.animation, cache, work, error);
+						IF actor.explosionImages = NIL THEN
+							RETURN NIL
+						END
 					END;
 					IF actor.behavior # NIL THEN
 						IF actor.behavior.projectile # NIL THEN
 							actor.projectileImages := Frame(archive, textures, actor.behavior.projectile.frame, cache, work, error);
 							IF actor.projectileImages = NIL THEN
+								RETURN NIL
+							END;
+							actor.impactImages := AnimationImages(archive, textures, actor.behavior.projectile.impact, cache, work, error);
+							IF actor.impactImages = NIL THEN
 								RETURN NIL
 							END
 						END;
@@ -821,6 +1022,10 @@ BEGIN
 			IF (j >= 0) & (DoomConfig.values.combat.weapons[j].projectile # NIL) THEN
 				scene.playerImages[j] := Frame(archive, textures, DoomConfig.values.combat.weapons[j].projectile.frame, cache, work, error);
 				IF scene.playerImages[j] = NIL THEN
+					RETURN NIL
+				END;
+				scene.playerImpacts[j] := AnimationImages(archive, textures, DoomConfig.values.combat.weapons[j].projectile.impact, cache, work, error);
+				IF scene.playerImpacts[j] = NIL THEN
 					RETURN NIL
 				END
 			END;

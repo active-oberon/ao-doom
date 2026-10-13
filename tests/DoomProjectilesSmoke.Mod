@@ -236,7 +236,9 @@ VAR map: DoomMap.Map;
 	scene, old: DoomSprites.Scene;
 	player: DoomInventory.State;
 	i: SIGNED32;
+	error: ARRAY 256 OF CHAR;
 BEGIN
+	ASSERT(DoomConfig.Load("doom-blast-only.yaml", error));
 	Load("blast.wad", map);
 	DoomInventory.Reset(player);
 	old := map.sprites.PlayerShot(DoomInventory.Launcher, 0, 0, map.eye, 0, 0);
@@ -263,7 +265,8 @@ BEGIN
 	FOR i := 1 TO 12 DO
 		scene := scene.Step(map.world, i, 0, 0, 0, player)
 	END;
-	ASSERT((scene.Health(0) = 0) & (scene.Health(1) = 20) & (player.health = 100))
+	ASSERT((scene.Health(0) = 0) & (scene.Health(1) = 20) & (player.health = 100));
+	ASSERT(DoomConfig.Load("doom.yaml", error))
 END RocketBlastAndArmor;
 
 PROCEDURE {TEST} BlastFalloffAndCover*;

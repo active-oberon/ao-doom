@@ -69,11 +69,27 @@ END;
 SpriteName* = ARRAY 6 OF CHAR;
 SpriteFrames* = POINTER TO ARRAY OF SpriteName;
 
+AnimationSettings* = POINTER TO RECORD
+	kind*: SIGNED32;
+	frames*: SpriteFrames;
+	ticks*: POINTER TO ARRAY OF SIGNED32;
+	duration*: SIGNED64;
+	height*: FLOAT64;
+	fullbright*: BOOLEAN
+END;
+
+ExplosionSettings* = POINTER TO RECORD
+	blastDamage*, delay*: SIGNED32;
+	blastRadius*: FLOAT64;
+	animation*: AnimationSettings
+END;
+
 ProjectileSettings* = POINTER TO RECORD
 	kind*, blastDamage*: SIGNED32;
 	speed*, radius*, height*, blastRadius*: FLOAT64;
 	frame*: SpriteName;
-	fullbright*: BOOLEAN
+	fullbright*: BOOLEAN;
+	impact*: AnimationSettings
 END;
 
 BehaviorSettings* = POINTER TO RECORD
@@ -90,7 +106,8 @@ ActorSettings* = RECORD
 	kind*, health*: SIGNED32;
 	height*, radius*: FLOAT64;
 	deathFrame*: SpriteName;
-	behavior*: BehaviorSettings
+	behavior*: BehaviorSettings;
+	explosion*: ExplosionSettings
 END;
 
 WeaponSettings* = RECORD
@@ -445,18 +462,115 @@ BEGIN
 END ThingRules;
 
 (* BlastRules requires an explicit disabled or finite blast so profiles cannot acquire hidden damage. *)
-PROCEDURE BlastRules(object: JSON.Object; projectile: ProjectileSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE BlastRules(object: JSON.Object; VAR damage: SIGNED32; VAR radius: FLOAT64; VAR error: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-	IF ~Integer(object, "blast_damage", 0, MaximumActorHealth, projectile.blastDamage, error) OR
-		~Real(object, "blast_radius", 0, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, projectile.blastRadius, error) THEN
+	IF ~Integer(object, "blast_damage", 0, MaximumActorHealth, damage, error) OR
+		~Real(object, "blast_radius", 0, DoomFormat.MaximumRecords - 1, DoomFormat.UnitsPerWorld, radius, error) THEN
 		RETURN FALSE
 	END;
-	IF (projectile.blastDamage = 0) # (projectile.blastRadius = 0) THEN
-		COPY("Projectile blast damage and radius must both be zero or positive", error);
+	IF (damage = 0) # (radius = 0) THEN
+		COPY("Blast damage and radius must both be zero or positive", error);
 		RETURN FALSE
 	END;
 	RETURN TRUE
 END BlastRules;
+
+(* AnimationRules keeps the first frame in things and validates one duration for every authored frame. *)
+PROCEDURE AnimationRules(object: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	VAR animation: AnimationSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR info: DoomThings.Info;
+	extra: SpriteFrames;
+	value: JSON.Value;
+	ticks: JSON.Array;
+	i: SIGNED32;
+	number: FLOAT64;
+BEGIN
+	NEW(animation);
+	IF ~Integer(object, "thing", 1, DoomFormat.MaximumRecords - 1, animation.kind, error) OR
+		~DoomThings.Lookup(definitions, animation.kind, info) OR info.ceiling OR (info.height < 1) THEN
+		COPY("Animation requires a finite ground thing with positive height", error);
+		RETURN FALSE
+	END;
+	IF ~FrameList(object, "frames", extra, error) THEN
+		RETURN FALSE
+	END;
+	IF LEN(extra^) >= MaximumAnimationFrames THEN
+		COPY("Animation frame count includes the thing's first frame", error);
+		RETURN FALSE
+	END;
+	NEW(animation.frames, LEN(extra^) + 1);
+	COPY(info.name, animation.frames[0]);
+	FOR i := 0 TO SIGNED32(LEN(extra^)) - 1 DO
+		COPY(extra[i], animation.frames[i + 1])
+	END;
+	value := object.Get("ticks");
+	IF (value = NIL) OR ~(value IS JSON.Array) THEN
+		COPY("Animation requires a ticks sequence", error);
+		RETURN FALSE
+	END;
+	ticks := value(JSON.Array);
+	IF ticks.length # LEN(animation.frames^) THEN
+		COPY("Animation ticks must match its complete frame count", error);
+		RETURN FALSE
+	END;
+	NEW(animation.ticks, ticks.length);
+	animation.duration := 0;
+	FOR i := 0 TO SIGNED32(ticks.length) - 1 DO
+		value := ticks.At(i);
+		IF (value = NIL) OR ~(value IS JSON.Number) THEN
+			COPY("Animation ticks must be positive integers", error);
+			RETURN FALSE
+		END;
+		number := value(JSON.Number).value;
+		IF (number >= 1) & (number <= MaximumClockValue) & (number = ENTIER(number)) THEN
+			animation.ticks[i] := SIGNED32(ENTIER(number));
+			animation.duration := animation.duration + animation.ticks[i]
+		ELSE
+			COPY("Animation ticks must be positive bounded integers", error);
+			RETURN FALSE
+		END
+	END;
+	animation.height := info.height / DoomFormat.UnitsPerWorld;
+	animation.fullbright := info.fullbright;
+	RETURN TRUE
+END AnimationRules;
+
+PROCEDURE ImpactRules(object: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	projectile: ProjectileSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR impact: JSON.Object;
+BEGIN
+	RETURN Section(object, "impact", "|thing|frames|ticks|", impact, error) &
+		AnimationRules(impact, definitions, projectile.impact, error)
+END ImpactRules;
+
+PROCEDURE ExplosionRules(rule: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
+	VAR explosion: ExplosionSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+	object: JSON.Object;
+BEGIN
+	explosion := NIL;
+	value := rule.Get("explosion");
+	IF value = NIL THEN
+		COPY("Actor requires explosion mapping or explicit null", error);
+		RETURN FALSE
+	ELSIF value IS JSON.Null THEN
+		RETURN TRUE
+	END;
+	IF ~Section(rule, "explosion", "|thing|frames|ticks|blast_damage|blast_radius|delay_ticks|", object, error) THEN
+		RETURN FALSE
+	END;
+	NEW(explosion);
+	IF ~AnimationRules(object, definitions, explosion.animation, error) OR
+		~BlastRules(object, explosion.blastDamage, explosion.blastRadius, error) OR
+		~Integer(object, "delay_ticks", 1, MaximumClockValue, explosion.delay, error) THEN
+		RETURN FALSE
+	END;
+	IF (explosion.blastDamage = 0) OR (explosion.delay >= explosion.animation.duration) THEN
+		COPY("Actor blast must be positive and its delay must fit the animation", error);
+		RETURN FALSE
+	END;
+	RETURN TRUE
+END ExplosionRules;
 
 PROCEDURE Behavior(rule: JSON.Object; CONST definitions: ARRAY OF DoomThings.Info;
 	VAR actor: ActorSettings; VAR error: ARRAY OF CHAR): BOOLEAN;
@@ -497,7 +611,7 @@ BEGIN
 	IF actor.behavior.hitscan THEN
 		Strings.AppendX(keys, "pellets|spread_radians|")
 	ELSIF name = "projectile" THEN
-		Strings.AppendX(keys, "thing|shot_speed_per_tick|blast_damage|blast_radius|")
+		Strings.AppendX(keys, "thing|shot_speed_per_tick|blast_damage|blast_radius|impact|")
 	END;
 	IF ~Section(rule, name, keys, object, error) OR
 		~Real(object, "speed_per_tick", 0, 64, DoomFormat.UnitsPerWorld, actor.behavior.speed, error) OR
@@ -527,7 +641,8 @@ BEGIN
 		IF ~Integer(object, "thing", 1, DoomFormat.MaximumRecords - 1, actor.behavior.projectile.kind, error) OR
 			~Real(object, "shot_speed_per_tick", 0.01, MaximumTargetHeight, DoomFormat.UnitsPerWorld,
 				actor.behavior.projectile.speed, error) OR
-			~BlastRules(object, actor.behavior.projectile, error) THEN
+			~BlastRules(object, actor.behavior.projectile.blastDamage, actor.behavior.projectile.blastRadius, error) OR
+			~ImpactRules(object, definitions, actor.behavior.projectile, error) THEN
 			RETURN FALSE
 		END;
 		IF ~DoomThings.Lookup(definitions, actor.behavior.projectile.kind, info) OR info.ceiling OR
@@ -569,7 +684,7 @@ BEGIN
 			RETURN FALSE
 		END;
 		rule := value(JSON.Object);
-		IF ~Keys(rule, "|kind|health|death_frame|behavior|melee|hitscan|projectile|", error) OR
+		IF ~Keys(rule, "|kind|health|death_frame|behavior|melee|hitscan|projectile|explosion|", error) OR
 			~Integer(rule, "kind", 1, DoomFormat.MaximumRecords - 1, settings.actors[i].kind, error) OR
 			~Integer(rule, "health", 1, MaximumActorHealth, settings.actors[i].health, error) THEN
 			RETURN FALSE
@@ -587,11 +702,12 @@ BEGIN
 			END
 		END;
 		IF ~FrameName(rule.Get("death_frame"), "death_frame", settings.actors[i].deathFrame, error) OR
-			~Behavior(rule, definitions, settings.actors[i], error) THEN
+			~Behavior(rule, definitions, settings.actors[i], error) OR
+			~ExplosionRules(rule, definitions, settings.actors[i].explosion, error) THEN
 			RETURN FALSE
 		END;
-		IF (settings.actors[i].behavior # NIL) & info.ceiling THEN
-			COPY("Active behavior requires a ground actor", error);
+		IF ((settings.actors[i].behavior # NIL) OR (settings.actors[i].explosion # NIL)) & info.ceiling THEN
+			COPY("Active behavior and explosions require a ground actor", error);
 			RETURN FALSE
 		END
 	END;
@@ -679,7 +795,7 @@ BEGIN
 				COPY("Initial weapons must use hitscan mode", error);
 				RETURN FALSE
 			END;
-			IF ~Section(object, "projectile", "|thing|speed_per_tick|blast_damage|blast_radius|", flight, error) OR
+			IF ~Section(object, "projectile", "|thing|speed_per_tick|blast_damage|blast_radius|impact|", flight, error) OR
 				~Integer(flight, "thing", 1, DoomFormat.MaximumRecords - 1, kind, error) THEN
 				RETURN FALSE
 			END;
@@ -694,7 +810,8 @@ BEGIN
 			settings.weapons[i].projectile.fullbright := info.fullbright;
 			COPY(info.name, settings.weapons[i].projectile.frame);
 			IF ~Real(flight, "speed_per_tick", 0.01, 1024, DoomFormat.UnitsPerWorld, settings.weapons[i].projectile.speed, error) OR
-				~BlastRules(flight, settings.weapons[i].projectile, error) THEN
+				~BlastRules(flight, settings.weapons[i].projectile.blastDamage, settings.weapons[i].projectile.blastRadius, error) OR
+				~ImpactRules(flight, definitions, settings.weapons[i].projectile, error) THEN
 				RETURN FALSE
 			END
 		ELSIF (value(JSON.String).value^ # "hitscan") OR (object.Get("projectile") # NIL) THEN
@@ -1321,6 +1438,72 @@ BEGIN
 	ASSERT(settings.combat.actors[6].behavior.projectile.speed = 10.0 / 64);
 	ASSERT(settings.combat.actors[6].behavior.projectile.fullbright)
 END ProjectileBounds;
+
+PROCEDURE {TEST} ExplosionBounds*;
+VAR value: JSON.Value;
+	root, combat, rule, explosion, impact: JSON.Object;
+	actors, sequence: JSON.Array;
+	i: SIGNED32;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	combat := root.Get("combat")(JSON.Object);
+	actors := combat.Get("actors")(JSON.Array);
+	rule := NIL;
+	FOR i := 0 TO SIGNED32(actors.length) - 1 DO
+		value := actors.At(i);
+		IF value(JSON.Object).Get("kind")(JSON.Number).value = 2035 THEN
+			rule := value(JSON.Object)
+		END
+	END;
+	ASSERT(rule # NIL);
+	explosion := rule.Get("explosion")(JSON.Object);
+	RejectField(root, rule, "explosion", JSON.NewNumber(1), settings);
+	RejectField(root, explosion, "thing", JSON.NewNumber(9999), settings);
+	RejectField(root, explosion, "thing", JSON.NewNumber(49), settings);
+	RejectField(root, explosion, "frames", JSON.NewArray(), settings);
+	sequence := JSON.NewArray();
+	FOR i := 1 TO MaximumAnimationFrames DO
+		sequence.Add(JSON.NewString("BEXPB"))
+	END;
+	RejectField(root, explosion, "frames", sequence, settings);
+	RejectField(root, explosion, "ticks", JSON.NewString("5"), settings);
+	RejectField(root, explosion, "ticks", JSON.NewArray(), settings);
+	FOR i := 0 TO 4 DO
+		sequence := JSON.NewArray();
+		CASE i OF
+			0:
+				sequence.Add(JSON.NewNumber(0))
+			| 1:
+				sequence.Add(JSON.NewNumber(-1))
+			| 2:
+				sequence.Add(JSON.NewNumber(1.5))
+			| 3:
+				sequence.Add(JSON.NewNumber(MaximumClockValue + 1))
+			| 4:
+				sequence.Add(JSON.NewString("5"))
+		END;
+		sequence.Add(JSON.NewNumber(5));
+		sequence.Add(JSON.NewNumber(5));
+		sequence.Add(JSON.NewNumber(10));
+		sequence.Add(JSON.NewNumber(10));
+		RejectField(root, explosion, "ticks", sequence, settings)
+	END;
+	RejectField(root, explosion, "delay_ticks", JSON.NewNumber(0), settings);
+	RejectField(root, explosion, "delay_ticks", JSON.NewNumber(35), settings);
+	RejectField(root, explosion, "delay_ticks", JSON.NewNumber(1.5), settings);
+	RejectField(root, explosion, "blast_damage", JSON.NewNumber(0), settings);
+	RejectField(root, explosion, "blast_radius", JSON.NewNumber(0), settings);
+	impact := combat.Get("weapons")(JSON.Object).Get("launcher")(JSON.Object).Get("projectile")(JSON.Object).Get("impact")(JSON.Object);
+	RejectField(root, impact, "thing", JSON.NewNumber(9999), settings);
+	RejectField(root, impact, "ticks", JSON.NewArray(), settings);
+	ASSERT(Decode(root, settings, error));
+	ASSERT(settings.combat.weapons[4].projectile.impact.duration = 18)
+END ExplosionBounds;
 
 PROCEDURE {TEST} WeaponMouseBounds*;
 VAR value: JSON.Value;

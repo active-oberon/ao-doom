@@ -63,6 +63,9 @@ Imps now launch visible fireballs after a configured windup. Flight aims at the
 player's position at launch, so movement can dodge it. Walls, openings and sector
 planes stop projectiles; other damageable actors can intercept them. Direct
 damage uses the existing armor rules, and fired projectiles survive owner death.
+Rocket, fireball, plasma and BFG impacts animate their configured frames. Destroyed
+barrels animate, detonate after a configured delay and can ignite nearby barrels;
+they disappear when their animation ends. Cover and armor also apply to these blasts.
 Other unsupported actors retain their spawn positions. Movement, health and pickup snapshots
 preserve each other's state and keep previous render snapshots unchanged. Unknown
 types are skipped for previewing,
@@ -91,7 +94,7 @@ blocks the blast; open grilles pass it, and the shooter can be hurt through the
 normal armor rules. The original BFG secondary effect is absent. The selected weapon,
 loaded rounds/reserve or reload status appear above the status panel. Solid walls and closed openings stop shots; two-sided windows and
 grilles pass them when the shot fits the open height, even if movement is blocked.
-Dead targets remain visible and no longer block movement.
+Dead monsters remain visible and no longer block movement.
 The bottom 20 pixels show health, armor, four ammo stocks, total pickups,
 weapon count and colored key indicators (`C` card, `S` skull; blue/yellow/red).
 Trying a locked manual door without its key shows the required color in the panel.
@@ -167,6 +170,8 @@ task run -- build/hitscan-shotgun.wad E1M1
 task run -- build/projectiles.wad E1M1
 # Walk toward a solid barrel, then strafe or move diagonally around it.
 task run -- build/actors-barrel.wad E1M1
+# Shoot the first barrel twice; watch the delayed chain clear all three barrels.
+task run -- build/barrels-chain.wad E1M1
 # Local base-game archives; quote paths containing spaces.
 task run -- '/path/to/DOOM.WAD' E1M1
 task run -- '/path/to/doom2.wad' MAP01
@@ -180,7 +185,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 222 original WAD fixtures, rejects
+`task check` runs engine checks, generates 230 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -190,6 +195,7 @@ Actor checks cover solid monsters/barrels/decorations, tangent and corner
 contact, long movement, sliding, steps, passable corpses/hanging variants/items,
 spawn flags, overlapping starts and successful/failed replacement loads.
 They export `build/actors-blocked.ppm` and `build/actors-sliding.ppm`.
+Explosion checks export `build/explosion-first.ppm` and `build/explosion-second.ppm`.
 It exports `build/locked-door-missing.ppm`, `build/locked-door-key.ppm` and
 `build/locked-door-open.ppm`, plus
 `build/pickups-before.ppm`, `build/pickups-after.ppm` and `build/pickups-hud.ppm`, plus
@@ -208,11 +214,11 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies nineteen scenarios: corridor, single-sector,
+`task gui-check` additionally verifies twenty scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
-an imp, a rocket blast and the modern mouse controls.
+an imp, a rocket blast, a barrel explosion chain and the modern mouse controls.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
 The existing scenes check movement, release, focus loss, turning and Escape.
@@ -295,7 +301,13 @@ IDs from 1 to 65535; dimensions must lie between 0 and 1024. Spawn resources for
 objects used by a map are validated before replacing the live scene.
 `combat.actors` references `things` by `kind` and supplies starting health,
 five-character death frames and `behavior: static`, `melee`, `hitscan` or `projectile`.
-Its height and radius come exclusively from `things` and must be at least one
+Every actor rule also requires `explosion`: explicit `null` disables it; a mapping
+supplies `thing`, `frames`, `ticks`, `blast_damage`, `blast_radius` and `delay_ticks`.
+The standard barrel uses 128 damage over 128 Doom units after 15 ticks. Its five
+frames last 5, 5, 5, 10 and 10 ticks; the delay must be positive and shorter than
+the complete animation. Newly destroyed neighbors start their own delay,
+independently of their order in THINGS. Dead players freeze pending explosions.
+Actor height and radius come exclusively from `things` and must be at least one
 map unit;
 the old `combat.actors.height` and `radius` fields are rejected. Active rules require
 `speed_per_tick`, `step`, `sight_range`, `range`, `damage`, `windup_ticks`,
@@ -337,6 +349,14 @@ All projectile sections also require `blast_damage` and `blast_radius`; both
 must be zero to disable the blast, or both positive to enable it. Damage is an
 integer up to 65535 and radius is a finite value up to 65535 Doom units.
 Imp, plasma and BFG blasts are explicitly disabled in the standard profile.
+Every projectile also requires an `impact` mapping with `thing`, `frames` and
+`ticks`. Impact and barrel animations take their first frame, height and
+fullbright flag exclusively from the referenced `things` entry. `frames` lists
+the following 1-15 frames; `ticks` provides one positive integer (1-1000) for
+each complete frame, including the first. The standard effect IDs are 60004-60008.
+The standard frame names and timing follow
+[id Software's state table](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/info.c).
+All used frames are validated and cached before a map replaces the live scene.
 The blast uses maximum horizontal axis distance minus the target footprint,
 quantized to whole Doom units, with linear falloff and sight traces between
 impact and target centers. The distance model follows id Software's
@@ -344,8 +364,8 @@ impact and target centers. The distance model follows id Software's
 center-ray cover is conservative and does not reproduce the original sight cone.
 Existing custom profiles need these new mandatory sections/fields. Chase moves
 directly toward the player and slides along obstacles; route finding, sound
-wake, original randomized attacks, death animations, drops,
-barrel chain explosions, boss actions/immunity, randomized spread/autoaim, weapon view animations,
+wake, original randomized attacks, monster death animations, drops,
+boss actions/immunity, randomized spread/autoaim, weapon view animations,
 full original BFG behavior and sound remain later milestones.
 Imp fireballs have visible flight and direct fixed damage. Their swept actor
 tests prevent tunneling at high speeds; walls, sector openings, floors and
@@ -353,10 +373,12 @@ ceilings clip flight. Movement-blocking grilles pass projectiles when their
 openings fit. Solid decorations intercept them when YAML supplies positive
 height/radius; legacy zero-height decorations currently have no projectile
 volume. A fired projectile survives its owner's death; map replacement clears
-all projectiles only after validating resources. Old render snapshots preserve
-flight positions, actor health, pickups and timing. The active-shot resource cap
-is 256; launches above it are dropped. Flight currently uses the configured
-spawn frame and disappears on impact, with no explosion animation. Blast damage
+all projectiles and effects only after validating resources. Old render snapshots preserve
+flight positions, effect frames, actor health, pickups and detonation timing. The active-shot resource cap
+is 256; launches above it are dropped. Visible impact/barrel effects have a separate
+256-entry limit; exceeding it drops only the animation, preserving blast damage
+and chain timing. Flight uses the configured spawn frame and switches to its
+impact animation on collision. Blast damage
 is applied once at the clipped impact position; range exhaustion does not
 create a blast. Wall-face sweeps are expanded along the center ray; complete corner
 footprint collision remains a later physics refinement.
@@ -399,7 +421,7 @@ scene data.
 
 `task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
 `DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
-`DoomHitscanSmoke`, `DoomControlsSmoke` and `DoomInput`
+`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomControlsSmoke` and `DoomInput`
 in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
@@ -415,6 +437,9 @@ weapon cycling, melee/pellets/player projectiles, map reset and automatic pickup
 Rocket checks additionally cover footprint falloff/boundaries, diagonal distance,
 walls/closed portals, open grilles, height-changing openings, self-damage/armor,
 nearby victims, independent snapshots, no repeat damage, range expiry and custom YAML tuning.
+Explosion checks cover frame boundaries and expiry, delayed and reversed chains,
+cover, armor, frozen death, retained snapshots, custom delays, resource failure
+preservation and 300 barrels exceeding the visual-effect limit.
 These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
@@ -508,7 +533,11 @@ the latest 132-map regression are recorded in
 [the projectile report](scratch/projectiles-check.md). Five A64 suites passed
 under QEMU. There is no complete-original-fidelity or full-playthrough claim.
 
-Next: route finding, other weapons, further projectile types and map actions. Door obstruction remains player-only;
+Rocket blasts and visible impact/barrel explosions are recorded in
+[the blast report](scratch/blast-check.md) and
+[the explosion report](scratch/explosions-check.md).
+
+Next: route finding, further monster attacks and map actions. Door obstruction remains player-only;
 actor crushing and actor-triggered door reversal are not implemented.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floors remain fixed;
