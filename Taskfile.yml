@@ -41,6 +41,7 @@ tasks:
       - cp tests/DoomAISmoke.Mod tests/DoomHitscanSmoke.Mod build/
       - cp tests/DoomProjectilesSmoke.Mod build/
       - cp tests/DoomExplosionsSmoke.Mod build/
+      - cp tests/DoomExitsSmoke.Mod build/
       - cp tests/DoomControlsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
       - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml tests/doom-incomplete.yaml build/
@@ -70,6 +71,8 @@ tasks:
       - cd build && timeout 10 ./projectiles-check
       - cd build && ob build DoomExplosionsSmoke.Mod -o explosions-check
       - cd build && timeout 10 ./explosions-check
+      - cd build && ob build DoomExitsSmoke.Mod -o exits-check
+      - cd build && timeout 10 ./exits-check
       - cd build && ob build DoomInputSmoke.Mod -o input-check
       - cd build && timeout 10 ./input-check
       - cd build && ob build DoomControlsSmoke.Mod -o controls-check
@@ -125,6 +128,10 @@ tasks:
       - python3 tests/gui_smoke.py --actor build/ao-doom build/actors-barrel.wad E1M1
       - python3 tests/gui_smoke.py --door build/ao-doom build/door.wad E1M1
       - python3 tests/gui_smoke.py --locked-door build/ao-doom build/door-key.wad E1M1
+      - python3 tests/gui_smoke.py --exit build/ao-doom build/exits-use.wad E1M1
+      - python3 tests/gui_smoke.py --secret-exit build/ao-doom build/exits-secret.wad E1M3
+      - python3 tests/gui_smoke.py --complete build/ao-doom build/exits-end.wad E1M8
+      - python3 tests/gui_smoke.py --failed-exit build/ao-doom build/exits-missing.wad E1M1
       - cd build && ob build Doom.Mod -o doom-check
       - python3 tests/logging_smoke.py build/doom-check build/ao-doom
 

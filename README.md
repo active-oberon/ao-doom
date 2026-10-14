@@ -5,8 +5,9 @@ A Doom clone in Active Oberon built on the separate
 The target is a complete Active Oberon implementation of classic Doom and Doom II
 on a reusable sector-based engine. Current coverage is partial; the remaining
 work and acceptance criteria are in [ROADMAP.md](ROADMAP.md).
-These sources require ao-game-engine commit `9654594` or a compatible later
-revision providing `GameAnimation` and `GameGeometry.World.TraceRay`.
+These sources require ao-game-engine commit `63c04e5` or a compatible later
+revision providing `GameAnimation`, `World.TraceRay`, `World.MovePlayerObserved`
+and `GameGeometry.Crossing`.
 
 ## Current state
 
@@ -122,7 +123,7 @@ task run
 
 Default controls: WASD moves/strafes, mouse motion turns/pitches the view, LMB
 fires, RMB aims while held, R reloads, digits 1–7 or the wheel select weapons,
-E uses nearby manual doors, and Escape exits. Pickups are automatic on contact.
+E uses nearby manual doors and exit switches; Escape closes the window. Pickups are automatic on contact.
 Up/Down, Left/Right and Ctrl remain secondary keyboard bindings in YAML.
 Holding E issues one action until release. Losing focus clears held buttons,
 keys and pending input, restores normal aim and releases pointer confinement.
@@ -190,7 +191,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 230 original WAD fixtures, rejects
+`task check` runs engine checks, generates 242 original WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -219,11 +220,12 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies twenty scenarios: corridor, single-sector,
+`task gui-check` additionally verifies twenty-four scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
-an imp, a rocket blast, a barrel explosion chain and the modern mouse controls.
+an imp, a rocket blast, a barrel explosion chain and the modern mouse controls,
+plus normal/secret exits, campaign completion and a missing next map.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
 The existing scenes check movement, release, focus loss, turning and Escape.
@@ -426,7 +428,7 @@ scene data.
 
 `task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
 `DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
-`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomControlsSmoke` and `DoomInput`
+`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomExitsSmoke`, `DoomControlsSmoke` and `DoomInput`
 in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
@@ -445,6 +447,9 @@ nearby victims, independent snapshots, no repeat damage, range expiry and custom
 Explosion checks cover frame boundaries and expiry, delayed and reversed chains,
 cover, armor, frozen death, retained snapshots, custom delays, resource failure
 preservation and 300 barrels exceeding the visual-effect limit.
+Exit checks cover normal/secret use and accepted crossings, front-side/range
+checks, episode/Doom II routes, carried inventory/projectile images, missing or
+invalid next maps, retries, completion input freeze and authored custom routes.
 These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
@@ -472,7 +477,33 @@ effects from immutable timing clips. The game chooses images, start times,
 looping, expiry and damage. `GameGeometry.World.TraceRay` supplies the shared
 sloped ray used by player/enemy bullets and blast cover. It also clips floors
 and ceilings within a sector, preventing rays from continuing through a plane
-before reaching the next wall. YAML authoring and gameplay tuning are unchanged.
+before reaching the next wall. `MovePlayerObserved` reports accepted axis
+substeps; `Crossing` detects finite segment side changes. `DoomExits` queues the
+first exit, and `DoomCampaign` resolves authored routes after movement finishes.
+
+## Level exits and campaigns
+
+Use E on front-facing exit lines 11/51, or cross lines 52/124, for normal/secret
+exits. A mandatory `campaign` YAML section supplies `routes`, `status_x`,
+`status_y`, `status_color`, `complete_text` and `error_text`. Each route requires
+`name`, `normal` and `secret`; targets name another configured route, or use
+explicit null to end the campaign. Names are case-insensitive WAD names of
+1-8 letters/digits/underscores; duplicate names and invalid targets are rejected.
+The standard profile covers all 68 Doom episode and Doom II map routes,
+including secret-map returns. Custom complete YAML files must add this section.
+
+The next map comes from the resident WAD archive. Its geometry, start and all
+required images, including carried projectile weapons, validate before the
+current level changes. Health, armor, weapons, ammunition, backpack capacities,
+selected weapon and loaded magazines persist. Keys, pickup counters and hints
+reset; active firing/reload/effects and camera pitch reset for the new spawn.
+Failure keeps the current level and inventory, displays `error_text`, and allows
+a new attempt. A null target freezes gameplay and displays `complete_text`.
+Transitions are immediate: intermission statistics, original finale scenes,
+exit switch texture changes and the missing-MAP31 secret fallback remain open.
+
+For an owned two-map demonstration, run `./build/ao-doom build/exits-use.wad E1M1`
+after `task check`, then press E. Evidence: [the exit report](scratch/exits-check.md).
 
 ## Application logging
 
@@ -483,6 +514,9 @@ The SDK must include MiniA2 `Logging` (`std/logging`, introduced in commit
 start/stop, and ERROR for startup/resource/display failures. Records carry UTC
 timestamps and typed path/map/error, dimensions, tick rate and final tick/result
 fields. No synchronous logging is added to simulation ticks or rendering.
+The window drains rare transition events and logs `level transitioned`,
+`campaign completed` or `level transition failed`, with typed previous/target,
+kind, linedef index and error fields. Successful events use INFO, failures ERROR.
 Kernel/driver diagnostics and test summaries can still use their existing output.
 
 ## Full A2 port assessment
@@ -555,8 +589,8 @@ rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
-Tagged switches (including locked switches), walk-over triggers, lifts and sound
-are unsupported.
+Tagged switches (including locked switches), walk-over actions beyond exits,
+lifts and sound are unsupported.
 Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references

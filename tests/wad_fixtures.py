@@ -245,6 +245,20 @@ def door_lumps(special=1, flags=0):
     return lumps
 
 
+def exit_lumps(special=11, marker="E1M1", crossing=False):
+    lumps = (sector_lumps(floor=0, ceiling=128) if crossing else map_lumps())[:11]
+    lumps[0] = (marker, b"")
+    lumps[1] = ("THINGS", struct.pack("<5h", -32 if crossing else 224, 0, 0, 1, 7))
+    lines = bytearray(lumps[2][1])
+    index = 8 if crossing else 1
+    if not crossing:
+        a, b = struct.unpack_from("<2H", lines, index * 14)
+        struct.pack_into("<2H", lines, index * 14, b, a)
+    struct.pack_into("<H", lines, index * 14 + 6, special)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -421,6 +435,34 @@ def fixtures(directory):
     barrels = sprite_lumps(things=[(64, 0, 0, 2035, 7), (144, 0, 0, 2035, 7),
                                   (224, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))]
     files["barrels-chain.wad"] = wad(barrels)
+    for name, special, marker, crossing in [
+            ("exits-use.wad", 11, "E1M1", False),
+            ("exits-secret.wad", 51, "E1M3", False),
+            ("exits-walk.wad", 52, "E1M1", True),
+            ("exits-walk-secret.wad", 124, "E1M3", True)]:
+        target = "E1M9" if special in (51, 124) else "E1M2"
+        next_map = map_lumps()[:11]
+        next_map[0] = (target, b"")
+        files[name] = wad(exit_lumps(special, marker, crossing) + next_map + resources())
+    files["exits-end.wad"] = wad(exit_lumps(marker="E1M8") + resources())
+    files["exits-missing.wad"] = wad(exit_lumps() + resources())
+    invalid = map_lumps()[:11]
+    invalid[0] = ("E1M2", b"")
+    invalid[4] = ("VERTEXES", b"abc")
+    files["exits-bad.wad"] = wad(exit_lumps() + invalid + resources())
+    next_map = map_lumps()[:11]
+    next_map[0] = ("E1M2", b"")
+    carry = sprite_lumps(exit_lumps() + resources(),
+                         [(224, 0, 0, kind, 7) for kind in (2003, 2018, 5, 8)])
+    carry += [(name, sprite_patch(6)) for name in ("LAUNA0", "MISLA0", "ARM1A0", "BKEYA0", "BPAKA0")]
+    files["exits-carry.wad"] = wad(carry + next_map)
+    missing = list(next_map)
+    missing[1] = ("THINGS", next_map[1][1] + struct.pack("<5h", 128, 0, 0, 3004, 7))
+    files["exits-resource-missing.wad"] = wad(exit_lumps() + missing + resources())
+    files["exits-no-resources.wad"] = wad(exit_lumps() + next_map)
+    next_map[0] = ("E1M3", b"")
+    files["exits-custom.wad"] = wad(exit_lumps() + next_map + resources())
+    files["exits-end-ii.wad"] = wad(exit_lumps(marker="MAP30") + resources())
     files["barrels-reversed.wad"] = wad(sprite_lumps(things=[(224, 0, 0, 2035, 7),
                                                               (144, 0, 0, 2035, 7),
                                                               (64, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])

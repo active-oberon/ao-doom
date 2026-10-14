@@ -42,6 +42,10 @@ VAR game: Doom.Game;
 	errorFields: ARRAY 2 OF Logging.Attr;
 	mapFields, startupFields: ARRAY 3 OF Logging.Attr;
 	stopFields: ARRAY 2 OF Logging.Attr;
+	transitionFields: ARRAY 5 OF Logging.Attr;
+	transition: Doom.Transition;
+	transitionMessage: ARRAY 32 OF CHAR;
+	transitionLevel: SIGNED32;
 	path: ARRAY 512 OF CHAR;
 	map: ARRAY 9 OF CHAR;
 	error: ARRAY 256 OF CHAR;
@@ -147,6 +151,24 @@ BEGIN
 		END;
 		IF ticks > 0 THEN
 			ASSERT(simulation.Advance(ticks))
+		END;
+		transition := game.TakeTransition();
+		IF transition # NIL THEN
+			transitionFields[0] := Logging.String("previous", transition.previous);
+			transitionFields[1] := Logging.String("target", transition.target);
+			transitionFields[2] := Logging.Int("kind", transition.kind);
+			transitionFields[3] := Logging.Int("line", transition.line);
+			transitionFields[4] := Logging.String("error", transition.error);
+			transitionLevel := Logging.LevelInfo;
+			IF transition.result = Doom.LevelChanged THEN
+				COPY("level transitioned", transitionMessage)
+			ELSIF transition.result = Doom.CampaignComplete THEN
+				COPY("campaign completed", transitionMessage)
+			ELSE
+				COPY("level transition failed", transitionMessage);
+				transitionLevel := Logging.LevelError
+			END;
+			logResult := Doom.log.Log(transitionLevel, transitionMessage, transitionFields)
 		END;
 		IF (ticks > 0) OR firstFrame THEN
 			game.Render(frame);

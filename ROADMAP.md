@@ -16,15 +16,30 @@ Move a mechanism when the running game supplies a concrete caller and tests;
 keep game formats, authored data, actor rules, damage and progression in ao-doom.
 Existing YAML remains the sole authored source for tuning and entity appearance.
 
-This step adds immutable animation playback and shared sloped ray clipping.
-Walking, attacks and impact/barrel animations use the same engine timing.
-Sight, player/enemy bullets and blast cover use shared world ray geometry.
-The game still owns which animation runs and what a collision or frame means.
+Implemented shared mechanisms include immutable animation playback, sloped ray
+clipping and observations of accepted movement. Walking, attacks and effects
+use engine timing; sight, bullets and blast cover use engine ray geometry.
+Exit crossings follow accepted axis substeps, including collision sliding.
+The game owns activation, routes, inventory policy and resource validation.
+
+## Delivered progression stage
+
+Normal and secret exits work through use actions (11/51) and line crossings
+(52/124). Mandatory YAML routes cover Doom episodes 1-4 and Doom II, including
+secret-map returns. A transition validates the next map and carried projectile
+images before replacement, preserves health/armor/weapons/ammo/backpack, and
+clears keys and level pickup state. Failed transitions preserve the active map
+and inventory. Terminal routes freeze gameplay and show an authored completion
+label. Typed transition events are logged outside simulation and rendering.
+This stage uses immediate transitions; original intermissions, finales, switch
+texture changes and secret-exit fallback for editions without MAP31 remain open.
+Evidence and exact limits are recorded in scratch/exits-check.md.
 
 ## Remaining delivery areas
 
 - Map progression: tagged doors and switches, floor/ceiling actions, lifts,
-  crushers, teleporters, exits, secret exits, sector damage and secrets.
+  crushers, teleporters, sector damage and secrets, plus original exit visuals
+  and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,
   attack/pain/death states, projectiles, infighting, drops and boss actions.
 - Classic combat and inventory: all weapon states including BFG spray, damage
@@ -34,7 +49,7 @@ The game still owns which animation runs and what a collision or frame means.
 - Presentation and audio: weapon view animation, HUD/status face, automap,
   effects, sound playback/mixing, music and suitable platform adapters.
 - Game flow: title/menu, episodes and skill selection, new/restarted games,
-  pause, saves/loads, intermission statistics, campaign transitions and endings.
+  pause, saves/loads, intermission statistics and original campaign endings.
 - Compatibility: remaining map/object semantics, simulation timing, movement,
   demo recording/playback and multiplayer behavior. Split delivery into tested
   stages; these items remain open until implemented and validated.
@@ -42,7 +57,7 @@ The game still owns which animation runs and what a collision or frame means.
 Expand generic volume sweeps, animation/state scheduling, moving geometry and
 audio mechanisms in the engine as the corresponding classic game features
 need them. Prioritize playable map progression and remaining classic behavior
-after the current engine extraction is validated. Further projects are reviewed
+after the current progression stage. Further projects are reviewed
 after the classic game target is achieved.
 
 ## Completion evidence

@@ -2,6 +2,53 @@
 
 Updated: 2026-10-14
 
+## Delivery checkpoint: level exits and campaign transitions
+
+The user requested local commits and explicitly deferred pushes. This checkpoint
+accompanies feat(game): add level exits and campaign transitions. It requires
+ao-game-engine commit 63c04e5dccfd68b76e3b92585a062430a1f58341,
+feat(geometry): observe accepted movement and line crossings. Exact game/engine
+commits and verification are recorded in scratch/exits-check.md and
+scratch/exits-delivery.json. No push is authorized or performed. The continuation
+below is the historical pre-delivery state.
+
+## Previous continuation: level exits and campaign transitions
+
+The user explicitly deferred pushes and requested continued work on ROADMAP.md.
+Local game main is b19fd8f3bca45ccc7afedb0ed1702afa2d009aaa; local engine main
+is 96545948c43940116fbf5849ae0af94aaf53a42f. Both have one unpublished commit
+from the previous delivery. This progression work remains uncommitted, and no
+push is authorized. Previous checkpoint descriptions below are historical.
+
+- DoomExits supports normal/secret use lines 11/51 and crossing lines 52/124.
+  GameGeometry.MovePlayerObserved reports accepted nonzero axis substeps;
+  Crossing detects finite segment side changes. The game queues the first exit
+  and resolves it after movement, without replacing geometry inside callbacks.
+- Mandatory campaign YAML supplies 68 classic Doom/Doom II routes, explicit
+  null terminal targets and authored completion/failure label layout. Route
+  names/targets/duplicates/counts and label bounds validate before replacement.
+- Next-map geometry, spawn and images validate before publication, including
+  projectile resources for weapons carried from a previous map with no pickup.
+  Health, armor, weapons, ammunition, backpack capacities and loaded magazines
+  persist. Keys, pickup counters and hints clear; controls/reload/flash reset.
+  Failed transitions preserve the active level and inventory and allow retry.
+  The existing direct Load API retains its movement-control behavior.
+- Terminal routes freeze gameplay and display a completion label. DoomWindow
+  consumes rare transition events and writes typed INFO/ERROR records through
+  Doom.log outside Step/Render. Original intermissions/finales/switch texture
+  changes and the secret-exit fallback when MAP31 is absent remain open.
+- Native task check passed six engine executables, 242 WAD fixtures and 63
+  game TEST procedures. Ten A64/QEMU suites, 24 isolated Xephyr scenarios, five
+  logging cases and 132 original-map start/walk/turn/fire probes passed. Four
+  tested engine files were promoted with clean-tree/base/hash guards; ordinary
+  sibling-engine task build passed. scene.ppm and build/demo are preserved.
+- Verification paths and setup are in scratch/exits-state.json. Final evidence,
+  test results, hashes and remaining limits are saved in scratch/exits-check.md
+  and scratch/exits-verification.json. Preserve scene.ppm and build/demo media.
+- Next: tagged switches/doors and other map actions, then remaining classic
+  actor/combat/game-flow behavior. Full campaigns and original compatibility
+  are not established by synthetic exits or short original-map probes.
+
 ## Delivery checkpoint: common Doom engine mechanisms
 
 The user requested coordinated updates of the engine and game. This checkpoint

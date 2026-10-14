@@ -188,6 +188,7 @@ PROCEDURE Do*;
 BEGIN
 	RequiredFile;
 	DoomConfig.CompleteAndRequired;
+	DoomConfig.CampaignBounds;
 	DoomConfig.PaletteBounds;
 	DoomConfig.DemoAppearanceBounds;
 	DoomConfig.RejectInvalidAndPreserve;

@@ -882,7 +882,7 @@ END AnimationImages;
 
 PROCEDURE Read*(archive: DoomWad.Archive; CONST things: DoomWad.Lump;
 	textures: DoomTextures.Library; world: GameGeometry.World;
-	VAR error: ARRAY OF CHAR): Scene;
+	weapons: SET; VAR error: ARRAY OF CHAR): Scene;
 VAR scene: Scene;
 	cache: Images;
 	info: DoomThings.Info;
@@ -1022,6 +1022,23 @@ BEGIN
 			scene.states[scene.count] := state;
 			scene.hitpoints[scene.count] := actor.initialHealth;
 			INC(scene.count)
+		END
+	END;
+	FOR j := 0 TO DoomInventory.WeaponKinds - 1 DO
+		IF (j IN weapons) & (scene.playerImages[j] = NIL) &
+			(DoomConfig.values.combat.weapons[j].projectile # NIL) THEN
+			IF textures = NIL THEN
+				COPY("Carried projectile weapons require sprite resources", error);
+				RETURN NIL
+			END;
+			scene.playerImages[j] := Frame(archive, textures, DoomConfig.values.combat.weapons[j].projectile.frame, cache, work, error);
+			IF scene.playerImages[j] = NIL THEN
+				RETURN NIL
+			END;
+			scene.playerImpacts[j] := AnimationImages(archive, textures, DoomConfig.values.combat.weapons[j].projectile.impact, cache, work, error);
+			IF scene.playerImpacts[j] = NIL THEN
+				RETURN NIL
+			END
 		END
 	END;
 	scene.remaining := scene.count;

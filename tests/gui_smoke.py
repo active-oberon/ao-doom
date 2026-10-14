@@ -256,24 +256,36 @@ def mouse_controls(display, window, root):
         X.XFlush(display)
 
 
-def check_logs(output, arguments):
+def check_logs(output, arguments, exit_mode=None):
     records = [json.loads(line) for line in output.splitlines() if line.startswith('{"time":')]
     assert records, "Game emitted no structured logs"
     for record in records:
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", record["time"])
         assert record["attrs"]["component"] == "doom"
-        assert record["level"] == "INFO", record
-    assert [record["msg"] for record in records] == ["configuration loaded",
+        assert record["level"] == ("ERROR" if record["msg"] == "level transition failed" else "INFO"), record
+    expected = ["configuration loaded",
             "map loaded" if any(arg.lower().endswith(".wad") for arg in arguments) else "demo loaded",
-            "window started", "window stopped"], records
-    started, stopped = records[-2:]
+            "window started"]
+    if exit_mode:
+        expected.append("campaign completed" if exit_mode == "complete" else
+                        "level transition failed" if exit_mode == "failed" else "level transitioned")
+    expected.append("window stopped")
+    assert [record["msg"] for record in records] == expected, records
+    if exit_mode:
+        attrs = records[3]["attrs"]
+        assert attrs["previous"] == arguments[-1], attrs
+        assert attrs["target"] == {"normal": "E1M2", "secret": "E1M9", "complete": "", "failed": "E1M2"}[exit_mode], attrs
+        assert attrs["kind"] == (2 if exit_mode == "secret" else 1), attrs
+        assert attrs["line"] == 1, attrs
+        assert isinstance(attrs["error"], str) and bool(attrs["error"]) == (exit_mode == "failed"), attrs
+    started, stopped = records[2], records[-1]
     assert started["attrs"]["width"] == 320 and started["attrs"]["height"] == 200
     assert started["attrs"]["ticks_per_second"] == 35
     assert isinstance(stopped["attrs"]["ticks"], int) and stopped["attrs"]["ticks"] > 0
     assert stopped["attrs"]["result"] == 0
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -305,6 +317,28 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
         key(display, window, root, ord("0"))
         key(display, window, root, ord("0"), release=True)
         time.sleep(0.05)
+        if exit_mode:
+            key(display, window, root, ord("e"))
+            time.sleep(0.4)
+            key(display, window, root, ord("e"), release=True)
+            time.sleep(0.15)
+            changed = pixels(display, window)
+            assert changed != initial, "Exit did not change the scene or show its status"
+            time.sleep(0.2)
+            assert pixels(display, window) == changed, "Exit repeated or terminal scene kept changing"
+            if exit_mode == "complete":
+                key(display, window, root, ord("w"))
+                button(display, window, root, 1)
+                time.sleep(0.2)
+                key(display, window, root, ord("w"), release=True)
+                button(display, window, root, 1, True)
+                assert pixels(display, window) == changed, "Completed campaign still accepted gameplay input"
+            shutdown(display, window, root)
+            output, _ = process.communicate(timeout=5)
+            assert process.returncode == 0, output
+            check_logs(output, arguments, exit_mode)
+            print(f"Exit GUI check passed: {exit_mode}, frame/status, one typed transition record and shutdown")
+            return
         if modern:
             mouse_controls(display, window, root)
             shutdown(display, window, root)
@@ -572,7 +606,8 @@ def main():
     modern = arguments[0] == "--modern"
     blast = arguments[0] == "--blast"
     explosions = arguments[0] == "--explosions"
-    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions:
+    exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
@@ -598,7 +633,7 @@ def main():
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode)
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ CONST HudCharacterAdvance* = 4;
 	InputActions* = 18;
 	MaximumBindings = 8;
 	MaximumActorRules = 128;
+	MaximumRoutes = 128;
 	MaximumThingRules = 128;
 	MaximumHudStat = 999;
 	MaximumPickupMultiplier = 8;
@@ -125,6 +126,16 @@ CombatSettings* = RECORD
 	weapons*: ARRAY DoomFormat.WeaponKinds OF WeaponSettings
 END;
 
+Route* = RECORD
+	name*, normal*, secret*: ARRAY DoomFormat.NameLength + 1 OF CHAR
+END;
+
+CampaignSettings* = RECORD
+	routes*: POINTER TO ARRAY OF Route;
+	statusX*, statusY*, statusColor*: SIGNED32;
+	completeText*, errorText*: ARRAY 32 OF CHAR
+END;
+
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
@@ -134,6 +145,7 @@ Settings* = RECORD
 	fireButton*, aimButton*: SIGNED32;
 	pickupRadius*, pickupBelowFeet*: FLOAT64;
 	hud*: HudSettings;
+	campaign*: CampaignSettings;
 	demoColors*: DemoPalette;
 	demoEye*, demoWallHeight*: FLOAT64;
 	demoLight*: SIGNED32;
@@ -860,6 +872,138 @@ BEGIN
 	RETURN TRUE
 END Combat;
 
+PROCEDURE RouteName(value: JSON.Value; CONST key: ARRAY OF CHAR; allowEnd: BOOLEAN;
+	VAR name, error: ARRAY OF CHAR): BOOLEAN;
+VAR i: SIGNED32;
+	length: SIZE;
+	c: CHAR;
+BEGIN
+	IF value = NIL THEN
+		COPY("Missing required campaign key: ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	ELSIF allowEnd & (value IS JSON.Null) THEN
+		name[0] := 0X;
+		RETURN TRUE
+	ELSIF ~(value IS JSON.String) THEN
+		COPY("Expected map name for ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	length := Strings.Length(value(JSON.String).value^);
+	IF (length < 1) OR (length > DoomFormat.NameLength) THEN
+		COPY("Campaign map name length is invalid: ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	FOR i := 0 TO SIGNED32(length) - 1 DO
+		c := CAP(value(JSON.String).value[i]);
+		IF ~(((c >= "A") & (c <= "Z")) OR ((c >= "0") & (c <= "9")) OR (c = "_")) THEN
+			COPY("Invalid campaign map name: ", error);
+			Strings.AppendX(error, key);
+			RETURN FALSE
+		END;
+		name[i] := c
+	END;
+	name[length] := 0X;
+	RETURN TRUE
+END RouteName;
+
+PROCEDURE CampaignLabel(object: JSON.Object; CONST key: ARRAY OF CHAR; VAR text, error: ARRAY OF CHAR): BOOLEAN;
+VAR value: JSON.Value;
+	i: SIGNED32;
+	length: SIZE;
+BEGIN
+	value := object.Get(key);
+	IF (value = NIL) OR ~(value IS JSON.String) THEN
+		COPY("Expected campaign label: ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	length := Strings.Length(value(JSON.String).value^);
+	IF (length < 1) OR (length >= LEN(text)) THEN
+		COPY("Invalid campaign label length: ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	END;
+	FOR i := 0 TO SIGNED32(length) - 1 DO
+		IF (value(JSON.String).value[i] < " ") OR (value(JSON.String).value[i] > "~") THEN
+			COPY("Invalid campaign label: ", error);
+			Strings.AppendX(error, key);
+			RETURN FALSE
+		END
+	END;
+	COPY(value(JSON.String).value^, text);
+	RETURN TRUE
+END CampaignLabel;
+
+PROCEDURE Campaign(root: JSON.Object; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR object, route: JSON.Object;
+	value: JSON.Value;
+	routes: JSON.Array;
+	i, j: SIGNED32;
+	normal, secret: BOOLEAN;
+BEGIN
+	IF ~Section(root, "campaign", "|routes|status_x|status_y|status_color|complete_text|error_text|", object, error) OR
+		~Integer(object, "status_x", 0, settings.width - 1, settings.campaign.statusX, error) OR
+		~Integer(object, "status_y", 0, settings.height - 1, settings.campaign.statusY, error) OR
+		~Integer(object, "status_color", 0, 0FFFFFFH, settings.campaign.statusColor, error) OR
+		~CampaignLabel(object, "complete_text", settings.campaign.completeText, error) OR
+		~CampaignLabel(object, "error_text", settings.campaign.errorText, error) THEN
+		RETURN FALSE
+	END;
+	IF (settings.campaign.statusY + HudGlyphHeight > settings.height - settings.hud.height) OR
+		(settings.campaign.statusX + MAX(Strings.Length(settings.campaign.completeText),
+			Strings.Length(settings.campaign.errorText)) * HudCharacterAdvance > settings.width) THEN
+		COPY("Campaign labels must fit the frame", error);
+		RETURN FALSE
+	END;
+	value := object.Get("routes");
+	IF (value = NIL) OR ~(value IS JSON.Array) THEN
+		COPY("Expected campaign routes sequence", error);
+		RETURN FALSE
+	END;
+	routes := value(JSON.Array);
+	IF (routes.length < 1) OR (routes.length > MaximumRoutes) THEN
+		COPY("Campaign routes count is outside bounds", error);
+		RETURN FALSE
+	END;
+	NEW(settings.campaign.routes, routes.length);
+	FOR i := 0 TO SIGNED32(routes.length) - 1 DO
+		value := routes.At(i);
+		IF ~(value IS JSON.Object) THEN
+			COPY("Expected campaign route mapping", error);
+			RETURN FALSE
+		END;
+		route := value(JSON.Object);
+		IF ~Keys(route, "|name|normal|secret|", error) OR
+			~RouteName(route.Get("name"), "name", FALSE, settings.campaign.routes[i].name, error) OR
+			~RouteName(route.Get("normal"), "normal", TRUE, settings.campaign.routes[i].normal, error) OR
+			~RouteName(route.Get("secret"), "secret", TRUE, settings.campaign.routes[i].secret, error) THEN
+			RETURN FALSE
+		END;
+		FOR j := 0 TO i - 1 DO
+			IF settings.campaign.routes[i].name = settings.campaign.routes[j].name THEN
+				COPY("Duplicate campaign route name", error);
+				RETURN FALSE
+			END
+		END
+	END;
+	FOR i := 0 TO SIGNED32(routes.length) - 1 DO
+		normal := settings.campaign.routes[i].normal[0] = 0X;
+		secret := settings.campaign.routes[i].secret[0] = 0X;
+		FOR j := 0 TO SIGNED32(routes.length) - 1 DO
+			normal := normal OR (settings.campaign.routes[i].normal = settings.campaign.routes[j].name);
+			secret := secret OR (settings.campaign.routes[i].secret = settings.campaign.routes[j].name)
+		END;
+		IF ~normal OR ~secret THEN
+			COPY("Campaign route target is not configured", error);
+			RETURN FALSE
+		END
+	END;
+	RETURN TRUE
+END Campaign;
+
 (* Decode validates the complete schema before replacing settings, so failed reads preserve the caller's state. *)
 PROCEDURE Decode(value: JSON.Value; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR root, object, hud, demo: JSON.Object;
@@ -872,7 +1016,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|things|combat|controls|mouse|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -969,7 +1113,7 @@ BEGIN
 		COPY("Player eye and step must not exceed player height", error);
 		RETURN FALSE
 	END;
-	IF ~ThingRules(root, candidate.things, error) OR
+	IF ~Campaign(root, candidate, error) OR ~ThingRules(root, candidate.things, error) OR
 		~Inventory(root, candidate.inventory, error) OR
 		~Combat(root, candidate.things^, candidate.combat, error) OR ~Controls(root, candidate, error) OR
 		~Section(root, "mouse", "|sensitivity|aim_sensitivity|invert_y|pitch_limit|aim_zoom|fire_button|aim_button|", object, error) OR
@@ -1080,6 +1224,53 @@ BEGIN
 	ASSERT(settings.width = 640);
 	object.Set(key, original)
 END RejectField;
+
+PROCEDURE {TEST} CampaignBounds*;
+VAR value: JSON.Value;
+	root, campaign, route, other: JSON.Object;
+	routes, oversized: JSON.Array;
+	settings: Settings;
+	i: SIGNED32;
+	control: ARRAY 2 OF CHAR;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	ASSERT(LEN(settings.campaign.routes) = 68);
+	settings.width := 640;
+	value := root.Get("campaign");
+	campaign := value(JSON.Object);
+	value := campaign.Get("routes");
+	routes := value(JSON.Array);
+	value := routes.At(0);
+	route := value(JSON.Object);
+	value := routes.At(1);
+	other := value(JSON.Object);
+	RejectField(root, campaign, "routes", JSON.NewArray(), settings);
+	RejectField(root, campaign, "routes", JSON.NewString("routes"), settings);
+	oversized := JSON.NewArray();
+	FOR i := 0 TO MaximumRoutes DO
+		oversized.Add(route)
+	END;
+	RejectField(root, campaign, "routes", oversized, settings);
+	RejectField(root, route, "name", JSON.NewNull(), settings);
+	RejectField(root, route, "name", JSON.NewString(""), settings);
+	RejectField(root, route, "name", JSON.NewString("TOO_LONG_NAME"), settings);
+	RejectField(root, route, "name", JSON.NewString("E1-M1"), settings);
+	RejectField(root, other, "name", JSON.NewString("e1m1"), settings);
+	RejectField(root, route, "normal", JSON.NewString("UNKNOWN"), settings);
+	RejectField(root, route, "secret", JSON.NewNumber(9), settings);
+	RejectField(root, campaign, "status_x", JSON.NewNumber(319), settings);
+	RejectField(root, campaign, "status_y", JSON.NewNumber(settings.height - settings.hud.height), settings);
+	RejectField(root, campaign, "status_color", JSON.NewNumber(01000000H), settings);
+	RejectField(root, campaign, "complete_text", JSON.NewString(""), settings);
+	RejectField(root, campaign, "error_text", JSON.NewString("01234567890123456789012345678901"), settings);
+	control[0] := 09X;
+	control[1] := 0X;
+	RejectField(root, campaign, "error_text", JSON.NewString(control), settings);
+	ASSERT(Decode(root, settings, error))
+END CampaignBounds;
 
 PROCEDURE {TEST} ThingBounds*;
 VAR value: JSON.Value;

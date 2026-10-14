@@ -421,3 +421,79 @@ mouse:
   aim_zoom: 2.0
   fire_button: 2
   aim_button: 0
+
+campaign:
+  status_x: 4
+  status_y: 4
+  status_color: 0xffffff
+  complete_text: CAMPAIGN COMPLETE
+  error_text: CANNOT LOAD NEXT MAP
+  routes:
+    - {name: E1M1, normal: E1M3, secret: E1M9}
+    - {name: E1M2, normal: E1M3, secret: E1M9}
+    - {name: E1M3, normal: E1M4, secret: E1M9}
+    - {name: E1M4, normal: E1M5, secret: E1M9}
+    - {name: E1M5, normal: E1M6, secret: E1M9}
+    - {name: E1M6, normal: E1M7, secret: E1M9}
+    - {name: E1M7, normal: E1M8, secret: E1M9}
+    - {name: E1M8, normal: null, secret: null}
+    - {name: E1M9, normal: E1M4, secret: E1M9}
+    - {name: E2M1, normal: E2M2, secret: E2M9}
+    - {name: E2M2, normal: E2M3, secret: E2M9}
+    - {name: E2M3, normal: E2M4, secret: E2M9}
+    - {name: E2M4, normal: E2M5, secret: E2M9}
+    - {name: E2M5, normal: E2M6, secret: E2M9}
+    - {name: E2M6, normal: E2M7, secret: E2M9}
+    - {name: E2M7, normal: E2M8, secret: E2M9}
+    - {name: E2M8, normal: null, secret: null}
+    - {name: E2M9, normal: E2M6, secret: E2M9}
+    - {name: E3M1, normal: E3M2, secret: E3M9}
+    - {name: E3M2, normal: E3M3, secret: E3M9}
+    - {name: E3M3, normal: E3M4, secret: E3M9}
+    - {name: E3M4, normal: E3M5, secret: E3M9}
+    - {name: E3M5, normal: E3M6, secret: E3M9}
+    - {name: E3M6, normal: E3M7, secret: E3M9}
+    - {name: E3M7, normal: E3M8, secret: E3M9}
+    - {name: E3M8, normal: null, secret: null}
+    - {name: E3M9, normal: E3M7, secret: E3M9}
+    - {name: E4M1, normal: E4M2, secret: E4M9}
+    - {name: E4M2, normal: E4M3, secret: E4M9}
+    - {name: E4M3, normal: E4M4, secret: E4M9}
+    - {name: E4M4, normal: E4M5, secret: E4M9}
+    - {name: E4M5, normal: E4M6, secret: E4M9}
+    - {name: E4M6, normal: E4M7, secret: E4M9}
+    - {name: E4M7, normal: E4M8, secret: E4M9}
+    - {name: E4M8, normal: null, secret: null}
+    - {name: E4M9, normal: E4M3, secret: E4M9}
+    - {name: MAP01, normal: MAP02, secret: MAP02}
+    - {name: MAP02, normal: MAP03, secret: MAP03}
+    - {name: MAP03, normal: MAP04, secret: MAP04}
+    - {name: MAP04, normal: MAP05, secret: MAP05}
+    - {name: MAP05, normal: MAP06, secret: MAP06}
+    - {name: MAP06, normal: MAP07, secret: MAP07}
+    - {name: MAP07, normal: MAP08, secret: MAP08}
+    - {name: MAP08, normal: MAP09, secret: MAP09}
+    - {name: MAP09, normal: MAP10, secret: MAP10}
+    - {name: MAP10, normal: MAP11, secret: MAP11}
+    - {name: MAP11, normal: MAP12, secret: MAP12}
+    - {name: MAP12, normal: MAP13, secret: MAP13}
+    - {name: MAP13, normal: MAP14, secret: MAP14}
+    - {name: MAP14, normal: MAP15, secret: MAP15}
+    - {name: MAP15, normal: MAP16, secret: MAP31}
+    - {name: MAP16, normal: MAP17, secret: MAP17}
+    - {name: MAP17, normal: MAP18, secret: MAP18}
+    - {name: MAP18, normal: MAP19, secret: MAP19}
+    - {name: MAP19, normal: MAP20, secret: MAP20}
+    - {name: MAP20, normal: MAP21, secret: MAP21}
+    - {name: MAP21, normal: MAP22, secret: MAP22}
+    - {name: MAP22, normal: MAP23, secret: MAP23}
+    - {name: MAP23, normal: MAP24, secret: MAP24}
+    - {name: MAP24, normal: MAP25, secret: MAP25}
+    - {name: MAP25, normal: MAP26, secret: MAP26}
+    - {name: MAP26, normal: MAP27, secret: MAP27}
+    - {name: MAP27, normal: MAP28, secret: MAP28}
+    - {name: MAP28, normal: MAP29, secret: MAP29}
+    - {name: MAP29, normal: MAP30, secret: MAP30}
+    - {name: MAP30, normal: null, secret: null}
+    - {name: MAP31, normal: MAP16, secret: MAP32}
+    - {name: MAP32, normal: MAP16, secret: MAP16}

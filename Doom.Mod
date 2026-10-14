@@ -1,12 +1,22 @@
 MODULE Doom;
 
-IMPORT DoomConfig, DoomCombat, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
+IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
+
+CONST LevelChanged* = 1;
+	CampaignComplete* = 2;
+	TransitionFailed* = 3;
 
 VAR log-: Logging.Logger;
 	logWriter: Streams.Writer;
 	logContext: ARRAY 1 OF Logging.Attr;
 
 TYPE
+	Transition* = POINTER TO RECORD
+		result*, kind*, line*: SIGNED32;
+		previous*, target*: ARRAY DoomFormat.NameLength + 1 OF CHAR;
+		error*: ARRAY 256 OF CHAR
+	END;
+
 	Pose* = RECORD
 		x*, y*, angle*, eye*, pitch*: FLOAT64
 	END;
@@ -17,6 +27,11 @@ TYPE
 		ticks: SIGNED64;
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
+		exits: DoomExits.Controller;
+		archive: DoomWad.Archive;
+		mapName: ARRAY DoomFormat.NameLength + 1 OF CHAR;
+		transition: Transition;
+		completed, transitionFailed: BOOLEAN;
 		sprites: DoomSprites.Scene;
 		inventory: DoomInventory.State;
 		use, firing, reloading, aiming: BOOLEAN;
@@ -52,6 +67,12 @@ TYPE
 			strafe := 0;
 			turn := 0;
 			doors := NIL;
+			exits := NIL;
+			archive := NIL;
+			mapName[0] := 0X;
+			transition := NIL;
+			completed := FALSE;
+			transitionFailed := FALSE;
 			sprites := NIL;
 			DoomInventory.Reset(inventory);
 			use := FALSE;
@@ -82,32 +103,112 @@ TYPE
 		END Wall;
 
 		PROCEDURE Load*(CONST path, name: ARRAY OF CHAR; VAR error: ARRAY OF CHAR): BOOLEAN;
-		VAR archive: DoomWad.Archive;
+		VAR candidate: DoomWad.Archive;
 			map: DoomMap.Map;
+			i: SIGNED32;
 		BEGIN {EXCLUSIVE}
-			archive := DoomWad.Open(path, error);
-			IF archive = NIL THEN
+			candidate := DoomWad.Open(path, error);
+			IF candidate = NIL THEN
 				RETURN FALSE
 			END;
-			IF ~DoomMap.LoadMap(archive, name, map, error) THEN
+			IF ~DoomMap.LoadMap(candidate, name, map, error) THEN
 				RETURN FALSE
 			END;
+			Publish(map);
+			archive := candidate;
+			COPY(name, mapName);
+			FOR i := 0 TO LEN(mapName) - 1 DO
+				mapName[i] := CAP(mapName[i])
+			END;
+			transition := NIL;
+			DoomInventory.Reset(inventory);
+			DoomCombat.Reset(weapon, inventory);
+			RETURN TRUE
+		END Load;
+
+		(* Publish replaces a fully validated level without exposing a partially loaded world to rendering. *)
+		PROCEDURE Publish(CONST map: DoomMap.Map);
+		BEGIN
 			world := map.world;
 			doors := map.doors;
+			exits := map.exits;
 			sprites := map.sprites;
 			use := FALSE;
 			firing := FALSE;
 			reloading := FALSE;
 			aiming := FALSE;
+			completed := FALSE;
+			transitionFailed := FALSE;
 			pose.x := map.x;
 			pose.y := map.y;
 			pose.angle := map.angle;
 			pose.pitch := 0;
-			pose.eye := map.eye;
-			DoomInventory.Reset(inventory);
-			DoomCombat.Reset(weapon, inventory);
-			RETURN TRUE
-		END Load;
+			pose.eye := map.eye
+		END Publish;
+
+		(* Finish validates the next map and carried weapon resources before changing inventory or the current level. *)
+		PROCEDURE Finish(kind, line: SIGNED32);
+		VAR event: Transition;
+			map: DoomMap.Map;
+		BEGIN
+			(* shortcut: transitions are immediate; add original intermissions and finales during game-flow delivery. *)
+			NEW(event);
+			event.kind := kind;
+			event.line := line;
+			COPY(mapName, event.previous);
+			event.result := TransitionFailed;
+			IF DoomCampaign.Target(mapName, kind = DoomExits.Secret, event.target, event.error) THEN
+				IF event.target[0] = 0X THEN
+					completed := TRUE;
+					transitionFailed := FALSE;
+					forward := 0;
+					strafe := 0;
+					turn := 0;
+					firing := FALSE;
+					reloading := FALSE;
+					aiming := FALSE;
+					inventory.keys := {};
+					inventory.neededKey := -1;
+					weapon.flashUntil := 0;
+					weapon.reloadUntil := 0;
+					event.result := CampaignComplete
+				ELSIF DoomMap.LoadWithWeapons(archive, event.target, inventory.weapons, map, event.error) THEN
+					Publish(map);
+					forward := 0;
+					strafe := 0;
+					turn := 0;
+					COPY(event.target, mapName);
+					inventory.keys := {};
+					inventory.neededKey := -1;
+					inventory.pickups := 0;
+					weapon.reloadUntil := 0;
+					weapon.flashUntil := 0;
+					weapon.nextShot := ticks;
+					event.result := LevelChanged
+				END
+			END;
+			transitionFailed := event.result = TransitionFailed;
+			transition := event
+		END Finish;
+
+		PROCEDURE MapName*(VAR name: ARRAY OF CHAR);
+		BEGIN {EXCLUSIVE}
+			COPY(mapName, name)
+		END MapName;
+
+		PROCEDURE Finished*(): BOOLEAN;
+		BEGIN {EXCLUSIVE}
+			RETURN completed
+		END Finished;
+
+		(* TakeTransition lets the window log rare level events outside simulation and rendering. *)
+		PROCEDURE TakeTransition*(): Transition;
+		VAR event: Transition;
+		BEGIN {EXCLUSIVE}
+			event := transition;
+			transition := NIL;
+			RETURN event
+		END TakeTransition;
 
 		PROCEDURE Controls*(move, sidestep, rotate: SIGNED32);
 		BEGIN {EXCLUSIVE}
@@ -122,23 +223,23 @@ TYPE
 		(* Use queues one interaction so input is consumed on the simulation tick. *)
 		PROCEDURE Use*;
 		BEGIN {EXCLUSIVE}
-			use := TRUE
+			use := ~completed
 		END Use;
 
 		PROCEDURE Fire*(held: BOOLEAN);
 		BEGIN {EXCLUSIVE}
-			firing := held
+			firing := held & ~completed
 		END Fire;
 
 		PROCEDURE Aim*(held: BOOLEAN);
 		BEGIN {EXCLUSIVE}
-			aiming := held
+			aiming := held & ~completed
 		END Aim;
 
 		PROCEDURE Look*(dx, dy: SIGNED32);
 		VAR sensitivity, vertical: FLOAT64;
 		BEGIN {EXCLUSIVE}
-			IF inventory.health <= 0 THEN
+			IF (inventory.health <= 0) OR completed THEN
 				RETURN
 			END;
 			sensitivity := DoomConfig.values.mouseSensitivity;
@@ -156,11 +257,14 @@ TYPE
 
 		PROCEDURE Reload*;
 		BEGIN {EXCLUSIVE}
-			reloading := TRUE
+			reloading := ~completed
 		END Reload;
 
 		PROCEDURE SelectWeapon*(slot, cycle: SIGNED32);
 		BEGIN {EXCLUSIVE}
+			IF completed THEN
+				RETURN
+			END;
 			IF slot # 0 THEN
 				DoomCombat.Select(weapon, inventory, slot)
 			END;
@@ -175,9 +279,15 @@ TYPE
 		PROCEDURE Step*(tick: SIGNED64);
 		VAR dx, dy, speed, feet: FLOAT64;
 			used: BOOLEAN;
+			kind, line: SIGNED32;
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
+			IF completed THEN
+				use := FALSE;
+				reloading := FALSE;
+				RETURN
+			END;
 			IF inventory.health > 0 THEN
 				pose.angle := pose.angle + turn * DoomConfig.values.turnSpeed;
 				IF pose.angle > MathL.pi THEN
@@ -198,12 +308,24 @@ TYPE
 				ELSE
 					feet := pose.eye - DoomConfig.values.playerEye;
 					IF use THEN
-						used := doors.Use(world, pose.x, pose.y, pose.angle, inventory)
+						used := doors.Use(world, pose.x, pose.y, pose.angle, inventory);
+						IF ~used & exits.Use(world, pose.x, pose.y, pose.angle) THEN
+							kind := exits.Take(line);
+							Finish(kind, line);
+							use := FALSE;
+							RETURN
+						END
 					END;
 					doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
-					ASSERT(world.MovePlayerChecked(pose.x, pose.y, feet, dx, dy,
-						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free));
-					pose.eye := feet + DoomConfig.values.playerEye
+					ASSERT(world.MovePlayerObserved(pose.x, pose.y, feet, dx, dy,
+						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free, exits.Crossed));
+					pose.eye := feet + DoomConfig.values.playerEye;
+					kind := exits.Take(line);
+					IF kind # DoomExits.None THEN
+						Finish(kind, line);
+						use := FALSE;
+						RETURN
+					END
 				END;
 			END;
 			IF reloading THEN
@@ -236,7 +358,7 @@ TYPE
 		END Ticks;
 
 		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene;
-			VAR status: DoomInventory.State; VAR flashed, aimed: BOOLEAN; VAR equipped: DoomCombat.Weapon);
+			VAR status: DoomInventory.State; VAR flashed, aimed, finished, failed: BOOLEAN; VAR equipped: DoomCombat.Weapon);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
 			geometry := world;
@@ -244,6 +366,8 @@ TYPE
 			status := inventory;
 			flashed := ticks < weapon.flashUntil;
 			aimed := aiming;
+			finished := completed;
+			failed := transitionFailed;
 			equipped := weapon
 		END Capture;
 
@@ -252,13 +376,13 @@ TYPE
 			geometry: GameGeometry.World;
 			actors: DoomSprites.Scene;
 			status: DoomInventory.State;
-			flashed, aimed: BOOLEAN;
+			flashed, aimed, finished, failed: BOOLEAN;
 			equipped: DoomCombat.Weapon;
 			target: GameSurface.Frame;
 			margin, x, y, sx, sy: SIGNED32;
 			zoom, center: FLOAT64;
 		BEGIN
-			Capture(snapshot, geometry, actors, status, flashed, aimed, equipped);
+			Capture(snapshot, geometry, actors, status, flashed, aimed, finished, failed, equipped);
 			target := frame;
 			zoom := 1;
 			IF aimed THEN
@@ -288,7 +412,14 @@ TYPE
 			END;
 			DoomHud.Draw(status, frame);
 			DoomCombat.DrawStatus(equipped, status, frame);
-			DoomCombat.DrawAim(frame, flashed)
+			DoomCombat.DrawAim(frame, flashed);
+			IF finished THEN
+				GameText.Draw(frame, DoomConfig.values.campaign.statusX, DoomConfig.values.campaign.statusY,
+					DoomConfig.values.campaign.statusColor, DoomConfig.values.campaign.completeText)
+			ELSIF failed THEN
+				GameText.Draw(frame, DoomConfig.values.campaign.statusX, DoomConfig.values.campaign.statusY,
+					DoomConfig.values.campaign.statusColor, DoomConfig.values.campaign.errorText)
+			END
 		END Render;
 	END Game;
 

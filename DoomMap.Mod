@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomSprites, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomExits, DoomSprites, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -8,6 +8,7 @@ TYPE
 	Map* = RECORD
 		world*: GameGeometry.World;
 		doors*: DoomDoors.Controller;
+		exits*: DoomExits.Controller;
 		sprites*: DoomSprites.Scene;
 		x*, y*, angle*, eye*: FLOAT64
 	END;
@@ -141,7 +142,7 @@ BEGIN
 	RETURN TRUE
 END Side;
 
-PROCEDURE LoadMap*(archive: DoomWad.Archive; CONST name: ARRAY OF CHAR;
+PROCEDURE LoadWithWeapons*(archive: DoomWad.Archive; CONST name: ARRAY OF CHAR; weapons: SET;
 	VAR map: Map; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	vertexCount, sideCount, sectorCount, lineCount, sector, frontSector, backSector, result, edges: SIGNED32;
@@ -158,6 +159,7 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 BEGIN
 	map.world := NIL;
 	map.doors := NIL;
+	map.exits := NIL;
 	map.sprites := NIL;
 	error[0] := 0X;
 	IF ~DoomConfig.loaded THEN
@@ -354,17 +356,24 @@ BEGIN
 	IF angle < -MathL.pi THEN
 		angle := angle + MathL.pi * 2
 	END;
-	map.sprites := DoomSprites.Read(archive, things, textures, world, error);
+	map.sprites := DoomSprites.Read(archive, things, textures, world, weapons, error);
 	IF map.sprites = NIL THEN
 		RETURN FALSE
 	END;
 	map.world := world;
 	map.doors := doors;
+	NEW(map.exits, archive, lines, vertices);
 	map.x := x;
 	map.y := y;
 	map.angle := angle;
 	map.eye := floor + DoomConfig.values.playerEye;
 	RETURN TRUE
+END LoadWithWeapons;
+
+PROCEDURE LoadMap*(archive: DoomWad.Archive; CONST name: ARRAY OF CHAR;
+	VAR map: Map; VAR error: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+	RETURN LoadWithWeapons(archive, name, {}, map, error)
 END LoadMap;
 
 END DoomMap.
