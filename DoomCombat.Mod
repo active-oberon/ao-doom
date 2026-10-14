@@ -120,6 +120,14 @@ END Reload;
 PROCEDURE StepAim*(tick: SIGNED64; held: BOOLEAN; VAR weapon: Weapon;
 	world: GameGeometry.World; scene: DoomSprites.Scene; x, y, angle, eye, slope: FLOAT64;
 	VAR player: DoomInventory.State): DoomSprites.Scene;
+BEGIN
+	RETURN StepAimObserved(tick, held, weapon, world, scene, x, y, angle, eye, slope, player, NIL)
+END StepAim;
+
+(* StepAimObserved reports lines only for fired hitscan pellets, after ammunition and cooldown checks. *)
+PROCEDURE StepAimObserved*(tick: SIGNED64; held: BOOLEAN; VAR weapon: Weapon;
+	world: GameGeometry.World; scene: DoomSprites.Scene; x, y, angle, eye, slope: FLOAT64;
+	VAR player: DoomInventory.State; onLine: DoomSprites.LineHit): DoomSprites.Scene;
 VAR rules: DoomConfig.WeaponSettings;
 	i: SIGNED32;
 	direction: FLOAT64;
@@ -160,10 +168,10 @@ BEGIN
 		IF rules.pellets > 1 THEN
 			direction := angle + rules.spread * (2.0 * i / (rules.pellets - 1) - 1)
 		END;
-		scene := scene.ShootAim(world, x, y, direction, eye, slope, rules.range, rules.damage)
+		scene := scene.ShootAimObserved(world, x, y, direction, eye, slope, rules.range, rules.damage, onLine)
 	END;
 	RETURN scene
-END StepAim;
+END StepAimObserved;
 
 PROCEDURE Step*(tick: SIGNED64; held: BOOLEAN; VAR weapon: Weapon;
 	world: GameGeometry.World; scene: DoomSprites.Scene; x, y, angle, eye: FLOAT64;

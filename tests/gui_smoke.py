@@ -285,7 +285,7 @@ def check_logs(output, arguments, exit_mode=None):
     assert stopped["attrs"]["result"] == 0
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None, tagged_mode=None):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -338,6 +338,34 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             assert process.returncode == 0, output
             check_logs(output, arguments, exit_mode)
             print(f"Exit GUI check passed: {exit_mode}, frame/status, one typed transition record and shutdown")
+            return
+        if tagged_mode:
+            if tagged_mode == "gun":
+                button(display, window, root, 1)
+            else:
+                key(display, window, root, ord("w" if tagged_mode == "walk" else "e"))
+            time.sleep(0.3)
+            if tagged_mode == "walk":
+                key(display, window, root, ord("w"), release=True)
+            time.sleep(2)
+            if tagged_mode == "gun":
+                button(display, window, root, 1, True)
+            elif tagged_mode == "use":
+                key(display, window, root, ord("e"), release=True)
+            time.sleep(0.2)
+            opened = pixels(display, window)
+            assert opened[:43 * 80] != initial[:43 * 80], "Tagged door did not change visible geometry"
+            time.sleep(0.2)
+            assert pixels(display, window) == opened, "Tagged door did not reach its open position"
+            key(display, window, root, ord("w"))
+            time.sleep(2)
+            key(display, window, root, ord("w"), release=True)
+            assert pixels(display, window) != opened, "Player did not advance through the open passage"
+            shutdown(display, window, root)
+            output, _ = process.communicate(timeout=5)
+            assert process.returncode == 0, output
+            check_logs(output, arguments)
+            print(f"Tagged door GUI check passed: {tagged_mode}, visible opening, movement and shutdown")
             return
         if modern:
             mouse_controls(display, window, root)
@@ -607,7 +635,8 @@ def main():
     blast = arguments[0] == "--blast"
     explosions = arguments[0] == "--explosions"
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
-    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode:
+    tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
@@ -633,7 +662,7 @@ def main():
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode, tagged_mode)
 
 
 if __name__ == "__main__":

@@ -137,7 +137,7 @@ CampaignSettings* = RECORD
 END;
 
 Settings* = RECORD
-	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*: SIGNED32;
+	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*, doorCloseWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
 	mouseSensitivity*, aimSensitivity*, pitchLimit*, aimZoom*: FLOAT64;
@@ -1033,10 +1033,11 @@ BEGIN
 		~Real(object, "turn_per_tick", 0, 1, 1, candidate.turnSpeed, error) OR
 		~Real(object, "pickup_radius", 0, 128, DoomFormat.UnitsPerWorld, candidate.pickupRadius, error) OR
 		~Real(object, "pickup_below_feet", 0, 128, DoomFormat.UnitsPerWorld, candidate.pickupBelowFeet, error) OR
-		~Section(root, "doors", "|speed_per_tick|fast_speed_per_tick|wait_ticks|use_range|top_gap|", object, error) OR
+		~Section(root, "doors", "|speed_per_tick|fast_speed_per_tick|wait_ticks|close_wait_ticks|use_range|top_gap|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.doorSpeed, error) OR
 		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastDoorSpeed, error) OR
 		~Integer(object, "wait_ticks", 1, MAX(SIGNED32), candidate.doorWait, error) OR
+		~Integer(object, "close_wait_ticks", 1, MAX(SIGNED32), candidate.doorCloseWait, error) OR
 		~Real(object, "use_range", 1, 1024, DoomFormat.UnitsPerWorld, candidate.useRange, error) OR
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) THEN
 		RETURN FALSE
@@ -1438,6 +1439,11 @@ BEGIN
 	value := root.Get("simulation");
 	object := value(JSON.Object);
 	RejectField(root, object, "ticks_per_second", JSON.NewString("35"), settings);
+	value := root.Get("doors");
+	object := value(JSON.Object);
+	RejectField(root, object, "close_wait_ticks", JSON.NewNumber(0), settings);
+	RejectField(root, object, "close_wait_ticks", JSON.NewNumber(1.5), settings);
+	RejectField(root, object, "close_wait_ticks", JSON.NewNumber(MAX(SIGNED32) + 1.0), settings);
 	value := root.Get("player");
 	object := value(JSON.Object);
 	RejectField(root, object, "radius", JSON.NewNumber(0), settings);

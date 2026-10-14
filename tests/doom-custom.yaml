@@ -18,6 +18,7 @@ doors:
   speed_per_tick: 4
   fast_speed_per_tick: 8
   wait_ticks: 10
+  close_wait_ticks: 7
   use_range: 32
   top_gap: 8
 demo:

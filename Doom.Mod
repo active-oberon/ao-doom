@@ -318,7 +318,8 @@ TYPE
 					END;
 					doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
 					ASSERT(world.MovePlayerObserved(pose.x, pose.y, feet, dx, dy,
-						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free, exits.Crossed));
+						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free, Crossed));
+					doors.ApplyCrossings(world);
 					pose.eye := feet + DoomConfig.values.playerEye;
 					kind := exits.Take(line);
 					IF kind # DoomExits.None THEN
@@ -332,8 +333,8 @@ TYPE
 				DoomCombat.Reload(ticks, weapon, inventory)
 			END;
 			reloading := FALSE;
-			sprites := DoomCombat.StepAim(ticks, firing, weapon, world, sprites,
-				pose.x, pose.y, pose.angle, pose.eye, MathL.sin(pose.pitch) / MathL.cos(pose.pitch), inventory);
+			sprites := DoomCombat.StepAimObserved(ticks, firing, weapon, world, sprites,
+				pose.x, pose.y, pose.angle, pose.eye, MathL.sin(pose.pitch) / MathL.cos(pose.pitch), inventory, Shot);
 			IF sprites # NIL THEN
 				sprites := sprites.Step(world, ticks, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye, inventory);
 				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye,
@@ -341,6 +342,19 @@ TYPE
 			END;
 			use := FALSE
 		END Step;
+
+		PROCEDURE Crossed(x0, y0, x1, y1: FLOAT64);
+		BEGIN
+			doors.Crossed(x0, y0, x1, y1);
+			exits.Crossed(x0, y0, x1, y1)
+		END Crossed;
+
+		PROCEDURE Shot(geometry: GameGeometry.World; line: SIGNED32);
+		BEGIN
+			IF doors # NIL THEN
+				doors.Shot(geometry, line)
+			END
+		END Shot;
 
 		PROCEDURE State*(): Pose;
 		BEGIN {EXCLUSIVE}

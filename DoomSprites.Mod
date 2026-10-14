@@ -7,6 +7,8 @@ CONST MaximumWork = 64 * 1024 * 1024;
 	MaximumEffects = 256;
 
 TYPE
+	LineHit* = PROCEDURE {DELEGATE} (world: GameGeometry.World; line: SIGNED32);
+
 	Images = POINTER TO RECORD
 		name: ARRAY 6 OF CHAR;
 		views: ARRAY DoomFormat.SpriteRotations OF GameRenderer.Sprite;
@@ -309,19 +311,41 @@ TYPE
 		END Shoot;
 
 		PROCEDURE ShootAim*(world: GameGeometry.World; x, y, angle, eye, slope, range: FLOAT64; damage: SIGNED32): Scene;
-		VAR target: SIGNED32;
-			dx, dy, limit: FLOAT64;
+		BEGIN
+			RETURN ShootAimObserved(world, x, y, angle, eye, slope, range, damage, NIL)
+		END ShootAim;
+
+		(* ShootAimObserved clips line notifications at geometry and the closest live actor before damage. *)
+		PROCEDURE ShootAimObserved*(world: GameGeometry.World; x, y, angle, eye, slope, range: FLOAT64;
+			damage: SIGNED32; onLine: LineHit): Scene;
+		VAR target, i: SIGNED32;
+			wall: GameGeometry.Wall;
+			dx, dy, limit, near, distance: FLOAT64;
 		BEGIN
 			ASSERT((range > 0) & (damage > 0));
 			dx := MathL.cos(angle);
 			dy := MathL.sin(angle);
 			limit := world.TraceRay(x, y, dx, dy, eye, slope, range);
 			target := Target(world, -1, x, y, dx, dy, eye, slope, limit);
+			IF onLine # NIL THEN
+				near := 0;
+				i := 0;
+				LOOP
+					IF (i >= MIN(world.Count(), DoomFormat.MaximumTraceHits)) OR
+						~world.CastSector(-1, x, y, dx, dy, near, distance, wall) OR
+						(distance > limit + DoomFormat.TraceTolerance) THEN
+						EXIT
+					END;
+					onLine(world, wall.id);
+					near := distance;
+					INC(i)
+				END
+			END;
 			IF target < 0 THEN
 				RETURN SELF
 			END;
 			RETURN Damage(target, damage)
-		END ShootAim;
+		END ShootAimObserved;
 
 		(* EnemyShot resolves each configured pellet against the closest current live volume. *)
 		PROCEDURE EnemyShot(world: GameGeometry.World; index: SIGNED32;

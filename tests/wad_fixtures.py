@@ -259,6 +259,50 @@ def exit_lumps(special=11, marker="E1M1", crossing=False):
     return lumps
 
 
+def tagged_door_lumps(special=103, crossing=False, ceiling=0, tag=7, portal=False):
+    lumps = sector_lumps(floor=0, ceiling=ceiling)
+    portal = portal or crossing
+    lumps[1] = ("THINGS", struct.pack("<5h", -32 if portal else -224, 0, 0 if portal else 180, 1, 7))
+    lines = bytearray(lumps[2][1])
+    index = 8 if portal else 7
+    a, b = struct.unpack_from("<2H", lines, index * 14)
+    struct.pack_into("<2H", lines, index * 14, b, a)
+    struct.pack_into("<2H", lines, index * 14 + 6, special, tag)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    sectors = bytearray(lumps[8][1])
+    if portal:
+        struct.pack_into("<h", sectors, 26 + 2, 128)
+        struct.pack_into("<h", sectors, 52 + 2, ceiling)
+        struct.pack_into("<H", sectors, 52 + 24, 7)
+    else:
+        struct.pack_into("<H", sectors, 26 + 24, 7)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps
+
+
+def grouped_door_lumps():
+    lumps = tagged_door_lumps(63)
+    vertices = [(x, y) for y in (-256, 256) for x in (-256, 0, 256, 512, 768, 1024)]
+    sides, lines = [], []
+    edges = [(i, i + 1, i) for i in range(5)] + [(5, 11, 4)]
+    edges += [(i + 7, i + 6, i) for i in range(4, -1, -1)] + [(0, 6, 0)]
+    for a, b, sector in edges:
+        lines.append(struct.pack("<7H", a, b, 1, 63 if (a, b) == (0, 6) else 0,
+                                 7 if (a, b) == (0, 6) else 0, len(sides), 65535))
+        sides.append(struct.pack("<hh8s8s8sH", 0, 0, b"-", b"-", b"WALL", sector))
+    for i in range(1, 5):
+        lines.append(struct.pack("<7H", i + 6, i, 4, 1 if i == 1 else 0, 0, len(sides), len(sides) + 1))
+        sides.extend(struct.pack("<hh8s8s8sH", 0, 0, b"WALL", b"WALL", b"-", sector)
+                     for sector in (i - 1, i))
+    lumps[2] = ("LINEDEFS", b"".join(lines))
+    lumps[3] = ("SIDEDEFS", b"".join(sides))
+    lumps[4] = ("VERTEXES", b"".join(struct.pack("<2h", *v) for v in vertices))
+    lumps[8] = ("SECTORS", b"".join(struct.pack("<hh8s8shhh", 0, 0 if i in (1, 3) else 128,
+                                               b"FLOOR", b"CEILING", 192, 0, 7 if i in (1, 3) else 0)
+                                      for i in range(5)))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -588,6 +632,50 @@ def fixtures(directory):
     single[6] = ("SSECTORS", struct.pack("<2H", 1, 0))
     files["bsp-single.wad"] = wad(single)
     files["door.wad"] = wad(door_lumps())
+    files["tagged-door-use.wad"] = wad(tagged_door_lumps())
+    files["tagged-door-gui.wad"] = wad(tagged_door_lumps(portal=True))
+    switches = (29, 42, 50, 61, 63, 99, 103, 111, 112, 113, 114, 115, 116, 133, 134, 135, 136, 137)
+    walks = (2, 3, 4, 16, 75, 76, 86, 90, 105, 106, 107, 108, 109, 110)
+    closes = (3, 16, 42, 50, 75, 76, 107, 110, 113, 116)
+    for special in (*switches, *walks, 46):
+        files[f"tagged-door-{special}.wad"] = wad(tagged_door_lumps(special, special in walks,
+                                                                   128 if special in closes else 0))
+    files["tagged-door-multi.wad"] = wad(grouped_door_lumps())
+    busy = tagged_door_lumps()
+    lines = bytearray(busy[2][1])
+    struct.pack_into("<2H", lines, 8 * 14, 5, 1)
+    struct.pack_into("<H", lines, 8 * 14 + 6, 1)
+    busy[2] = ("LINEDEFS", bytes(lines))
+    files["tagged-door-busy.wad"] = wad(busy)
+    files["tagged-door-no-tag.wad"] = wad(tagged_door_lumps(tag=8))
+    files["tagged-door-hidden.wad"] = wad(tagged_door_lumps(42, ceiling=128))
+    hidden = tagged_door_lumps(42, ceiling=128)
+    sides = bytearray(hidden[3][1])
+    sides[8 * 30 + 4:8 * 30 + 12] = b"MISSING\0"
+    hidden[3] = ("SIDEDEFS", bytes(sides))
+    files["tagged-door-missing-texture.wad"] = wad(hidden)
+    blocked = tagged_door_lumps(90, crossing=True)
+    lines = bytearray(blocked[2][1])
+    struct.pack_into("<H", lines, 8 * 14 + 4, 5)
+    blocked[2] = ("LINEDEFS", bytes(lines))
+    files["tagged-door-blocked-crossing.wad"] = wad(blocked)
+    occluded = tagged_door_lumps()
+    occluded[4] = ("VERTEXES", occluded[4][1] + struct.pack("<8h", -240, -128, -232, -128, -232, 128, -240, 128))
+    occluded[2] = ("LINEDEFS", occluded[2][1] + b"".join(struct.pack("<7H", a, b, 1, 0, 0, 0, 65535)
+                                                       for a, b in ((8, 9), (9, 10), (10, 11), (11, 8))))
+    occluded[1] = ("THINGS", struct.pack("<5h", -200, 0, 180, 1, 7))
+    files["tagged-door-occluded.wad"] = wad(occluded)
+    lines = bytearray(occluded[2][1])
+    struct.pack_into("<H", lines, 7 * 14 + 6, 46)
+    occluded[2] = ("LINEDEFS", bytes(lines))
+    files["tagged-door-gun-occluded.wad"] = wad(occluded)
+    actor = sprite_lumps(tagged_door_lumps(46), things=[(-224, 0, 0, 2035, 7)])
+    actor += [("BAR1A0", sprite_patch(5))]
+    files["tagged-door-gun-actor.wad"] = wad(actor)
+    files["tagged-door-gun-portal.wad"] = wad(tagged_door_lumps(46, portal=True))
+    files["tagged-door-gun-projectile.wad"] = wad(sprite_lumps(tagged_door_lumps(46),
+                                                               things=[(-224, 0, 0, 2003, 7)]) +
+                                                [("LAUNA0", sprite_patch()), ("MISLA0", sprite_patch())])
     files["door-open.wad"] = wad(door_lumps(31))
     files["door-fast.wad"] = wad(door_lumps(117))
     files["door-fast-open.wad"] = wad(door_lumps(118))

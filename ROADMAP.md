@@ -35,9 +35,20 @@ This stage uses immediate transitions; original intermissions, finales, switch
 texture changes and secret-exit fallback for editions without MAP31 remain open.
 Evidence and exact limits are recorded in scratch/exits-check.md.
 
+## Delivered tagged door stage
+
+Tagged door actions now cover 18 use switches/buttons, 14 walk triggers and
+the repeatable hitscan action 46. Matching idle sectors open, close, raise/wait/
+close or close/wait/reopen, with normal/fast speeds and card/skull locks.
+Accepted player movement supplies crossing observations; actual hitscan pellets
+report reached lines after geometry and actor clipping. Existing engine ceiling
+snapshots handle movement and rendering. Mandatory YAML supplies all door timing.
+Switch texture changes, button reset timing, sound, monster activation and actor
+obstruction remain open. Evidence and exact limits are in scratch/tagged-doors-check.md.
+
 ## Remaining delivery areas
 
-- Map progression: tagged doors and switches, floor/ceiling actions, lifts,
+- Map progression: switch visuals/buttons, floor/ceiling actions, lifts,
   crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,

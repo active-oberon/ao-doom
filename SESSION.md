@@ -2,6 +2,89 @@
 
 Updated: 2026-10-14
 
+## Delivery checkpoint: tagged doors
+
+The user requested committing and pushing the validated tagged-door stage, then
+continuing ROADMAP implementation. This checkpoint accompanies
+feat(map): add tagged door activation. It requires ao-game-engine commit
+63c04e5dccfd68b76e3b92585a062430a1f58341. Exact commit and remote verification
+are recorded in scratch/tagged-doors-delivery.json. The continuation below is
+the historical pre-delivery state; publication approval covers this delivery.
+
+## Current continuation: tagged doors (2026-10-14)
+
+Resumed implementation at the user's request according to ROADMAP.md. This
+continuation supersedes the previous exit checkpoint while retaining its history.
+Game main remains at c5f9ff19375c6ff2829445351598f5e00ce5049a; engine main remains
+at 63c04e5dccfd68b76e3b92585a062430a1f58341 and is clean. Game changes are local
+and uncommitted. No commit or push was requested or performed.
+
+- Added 33 tagged door actions: 18 use, 14 walk and repeatable hitscan type 46;
+  normal/fast opening/closing, raise/wait/close, close/wait/reopen, grouped tags,
+  card/skull locks, busy target handling and one-shot/repeat behavior.
+- Player movement observations feed doors/exits; clipped actual player hitscan
+  feeds gun actions. Existing ceiling snapshots require no engine changes.
+  Hidden moving-wall textures validate before replacement. Complete custom
+  profiles now require doors.close_wait_ticks; standard delay is 1050 ticks.
+- Native task check, six A64/QEMU suites, 27 isolated Xephyr scenarios, five
+  logging cases, 132 short original-map probes, six original tagged-switch
+  probes and three original manual/locked-door probes passed. An expanded
+  distant-door crossing assertion passed final native and A64 reruns.
+- Evidence: scratch/tagged-doors-check.md and tagged-doors-verification.json.
+  Setup: scratch/tagged-doors-state.json, /tmp/ao-doom-tagged-v71f_o7s.
+  Use the existing Logging-capable SDK directory from that state file on PATH;
+  the installed older SDK remains unsuitable. No SDK/MiniA2 sources changed.
+- scene.ppm, the previous user-owned SESSION edit and existing build/demo
+  captures remain preserved. Default sibling-engine task build passed.
+  Demo: ./build/ao-doom build/tagged-door-gui.wad E1M1, press E, then walk.
+- Limits: switch visuals/button timers, sound, monster activation and actor
+  obstruction remain open. No full campaigns, original fidelity, CI, Windows,
+  ARMhf, full A2, hardware or maximum-scene performance validation. Next:
+  floor/lift actions and remaining switch presentation, following ROADMAP.md.
+
+## Exit checkpoint: 2026-10-14
+
+The user requested saving state and leaving the session. Stop implementation;
+resume only after a new request. This checkpoint supersedes historical states
+below. Pushes remain explicitly deferred, with no pending publication approval.
+
+- ao-doom main: c5f9ff19375c6ff2829445351598f5e00ce5049a,
+  feat(game): add level exits and campaign transitions.
+- ao-game-engine main: 63c04e5dccfd68b76e3b92585a062430a1f58341,
+  feat(geometry): observe accepted movement and line crossings.
+- Both branches are two commits ahead of cached origin/main. No fetch or push
+  was performed for this exit checkpoint. Engine is clean. Game product code,
+  tests and YAML are committed; this SESSION.md update is intentionally the
+  only tracked local edit, and user-owned scene.ppm remains untracked.
+- Completed: shared animation/ray geometry and accepted movement observations;
+  normal/secret exits 11/51/52/124; 68 authored classic campaign routes; carried
+  health/armor/weapons/ammo/backpack/magazines; key reset; validated replacement
+  with failure preservation; terminal freeze and rare typed transition logs.
+  Direct Load movement semantics are preserved. Custom YAML requires campaign.
+- Verification: native task check, six engine executables, 242 owned WAD
+  fixtures, 63 game TEST procedures, ten A64/QEMU suites, 24 isolated Xephyr
+  scenarios, five logging cases, 132 short original-map probes and default
+  sibling-engine task build passed. Initial failures and fixes remain documented
+  in scratch/exits-check.md. Tests were not rerun for this bookkeeping update.
+- Native SDK with Logging: /tmp/ao-doom-resume-1khrtq_c/minia2/target/bundle/ob.
+  Prepend its directory to PATH; the installed older ob lacks Logging.
+  Unique work/output setup: scratch/exits-state.json and
+  /tmp/ao-doom-exits-ma8srrj_. A64 SDK is read-only at
+  /home/andrejjj/Projects/A2/minia2/target/logging-build/sdk/ob; use build -t a64.
+  GUI checks require owned isolated Xephyr; preserve host focus/pointer.
+- Resume by reading AGENTS.md, this checkpoint, ROADMAP.md, README.md and
+  scratch/exits-check.md, then verify both real branches/worktrees and SDK paths.
+  Exact commits/hashes: scratch/exits-delivery.json and exits-verification.json.
+  Preserve scene.ppm and existing build/demo GIF/MP4/logs; exclude them from
+  commits. Demo: ./build/ao-doom build/exits-use.wad E1M1, then press E.
+- Next planned progression: tagged switches/doors and further sector actions,
+  extending only common geometry mechanisms in ao-game-engine. Keep Doom
+  activation semantics and authored tuning/routes in ao-doom, following ROADMAP.
+- Limits: immediate transitions; original intermissions/finales/switch visuals
+  and absent-MAP31 secret fallback remain open. Full campaigns, classic fidelity,
+  CI, Windows, ARMhf, full A2, hardware and maximum-scene performance are not
+  validated. Doom 3/BFG Edition/Quake are deferred; classic BFG stays in scope.
+
 ## Delivery checkpoint: level exits and campaign transitions
 
 The user requested local commits and explicitly deferred pushes. This checkpoint

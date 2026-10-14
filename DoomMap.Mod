@@ -296,7 +296,7 @@ BEGIN
 			END
 		END
 	END;
-	NEW(doors, archive, lines, sides, sectorCount);
+	NEW(doors, archive, lines, sides, sectors, vertices);
 	NEW(world, lineCount * 2);
 	ASSERT(world.SetSectors(regions^));
 	IF leaves # NIL THEN

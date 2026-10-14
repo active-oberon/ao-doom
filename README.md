@@ -39,6 +39,18 @@ Types 26-28 raise, wait and close; 32-34 stay open and consume their line action
 Their ceilings animate, open the passage, and either
 stay open or wait 150 ticks before closing. Closing reverses if the player would
 lose clearance. Normal doors move two units per tick; fast doors move eight.
+Tagged use switches/buttons (29/42/50/61/63/99/103/111-116/133-137), walk
+triggers (2/3/4/16/75/76/86/90/105-110) and hitscan lines (46) also control
+doors. One line starts every idle sector with a matching tag, including tag
+zero; an active tagged door ignores additional activations. One-shot use
+actions remain available when no door starts; one-shot crossings consume the
+action even when targets are busy, as in the original games. Card/skull locks
+also apply to the six fast tagged open actions. Close-only doors stop at player
+obstruction and continue when clear; raise and close/wait/open doors reverse.
+Actions 16/76 restore the original ceiling after `doors.close_wait_ticks`
+(1050 in the standard profile). This field is mandatory in custom profiles.
+Switch texture changes, button reset timers, door sounds, monster activation
+and obstruction by actors remain unimplemented.
 Sprites for 116 classic visible object types load their spawn frames: monsters,
 pickups, decorations and corpses. Medium-skill single-player flags select them.
 Directional frames support all eight views and paired mirrored lump names;
@@ -123,7 +135,7 @@ task run
 
 Default controls: WASD moves/strafes, mouse motion turns/pitches the view, LMB
 fires, RMB aims while held, R reloads, digits 1–7 or the wheel select weapons,
-E uses nearby manual doors and exit switches; Escape closes the window. Pickups are automatic on contact.
+E uses nearby manual doors, tagged switches and exits; Escape closes the window. Pickups are automatic on contact.
 Up/Down, Left/Right and Ctrl remain secondary keyboard bindings in YAML.
 Holding E issues one action until release. Losing focus clears held buttons,
 keys and pending input, restores normal aim and releases pointer confinement.
@@ -158,6 +170,12 @@ task run -- build/door.wad E1M1
 # A locked blue door: try E, briefly strafe right with D to collect its key,
 # release E, press it again, then walk through.
 task run -- build/door-key.wad E1M1
+# A tagged switch opens the distant door; press E, then walk through.
+task run -- build/tagged-door-gui.wad E1M1
+# Crossing the line opens the distant door.
+task run -- build/tagged-door-90.wad E1M1
+# Shoot the line with the pistol to open the distant door.
+task run -- build/tagged-door-gun-portal.wad E1M1
 # A grille with transparent holes; the line permits crossing.
 task run -- build/masked.wad E1M1
 # Original synthetic sprites behind a grille.
@@ -197,6 +215,9 @@ windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
 types with cards and skulls, wrong colors, key retention, active-door toggles,
 hidden material validation and actual tick-driven pickup/unlocking.
+Tagged-door checks cover all 33 actions, multi-sector tags, busy targets,
+one-shot/repeated activation, both key forms, player obstruction, accepted
+crossings, clipped hitscan and preservation after a missing texture fails loading.
 Actor checks cover solid monsters/barrels/decorations, tangent and corner
 contact, long movement, sliding, steps, passable corpses/hanging variants/items,
 spawn flags, overlapping starts and successful/failed replacement loads.
@@ -220,12 +241,13 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies twenty-four scenarios: corridor, single-sector,
+`task gui-check` additionally verifies twenty-seven scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
 an imp, a rocket blast, a barrel explosion chain and the modern mouse controls,
 plus normal/secret exits, campaign completion and a missing next map.
+Three additional scenarios activate tagged doors by use, crossing and shooting.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
 The existing scenes check movement, release, focus loss, turning and Escape.
@@ -589,8 +611,9 @@ rendering and collision use a consistent world snapshot. Floors remain fixed;
 stepping changes eye height immediately, and drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
-Tagged switches (including locked switches), walk-over actions beyond exits,
-lifts and sound are unsupported.
+Switch textures/button timers, further floor/ceiling actions, lifts and sound
+are unsupported. Tagged-door evidence is in
+[the tagged-door report](scratch/tagged-doors-check.md).
 Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references
