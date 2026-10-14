@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
+IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomFloors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
 
 CONST LevelChanged* = 1;
 	CampaignComplete* = 2;
@@ -27,6 +27,7 @@ TYPE
 		ticks: SIGNED64;
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
+		floors: DoomFloors.Controller;
 		exits: DoomExits.Controller;
 		archive: DoomWad.Archive;
 		mapName: ARRAY DoomFormat.NameLength + 1 OF CHAR;
@@ -67,6 +68,7 @@ TYPE
 			strafe := 0;
 			turn := 0;
 			doors := NIL;
+			floors := NIL;
 			exits := NIL;
 			archive := NIL;
 			mapName[0] := 0X;
@@ -131,6 +133,7 @@ TYPE
 		BEGIN
 			world := map.world;
 			doors := map.doors;
+			floors := map.floors;
 			exits := map.exits;
 			sprites := map.sprites;
 			use := FALSE;
@@ -309,6 +312,9 @@ TYPE
 					feet := pose.eye - DoomConfig.values.playerEye;
 					IF use THEN
 						used := doors.Use(world, pose.x, pose.y, pose.angle, inventory);
+						IF ~used THEN
+							used := floors.Use(world, pose.x, pose.y, pose.angle)
+						END;
 						IF ~used & exits.Use(world, pose.x, pose.y, pose.angle) THEN
 							kind := exits.Take(line);
 							Finish(kind, line);
@@ -317,9 +323,12 @@ TYPE
 						END
 					END;
 					doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
+					floors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet,
+						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, MoveFloorActors);
 					ASSERT(world.MovePlayerObserved(pose.x, pose.y, feet, dx, dy,
 						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free, Crossed));
 					doors.ApplyCrossings(world);
+					floors.ApplyCrossings(world);
 					pose.eye := feet + DoomConfig.values.playerEye;
 					kind := exits.Take(line);
 					IF kind # DoomExits.None THEN
@@ -346,15 +355,29 @@ TYPE
 		PROCEDURE Crossed(x0, y0, x1, y1: FLOAT64);
 		BEGIN
 			doors.Crossed(x0, y0, x1, y1);
+			floors.Crossed(x0, y0, x1, y1);
 			exits.Crossed(x0, y0, x1, y1)
 		END Crossed;
 
 		PROCEDURE Shot(geometry: GameGeometry.World; line: SIGNED32);
 		BEGIN
 			IF doors # NIL THEN
-				doors.Shot(geometry, line)
+				doors.Shot(geometry, line);
+				floors.Shot(geometry, line)
 			END
 		END Shot;
+
+		(* MoveFloorActors publishes carried actor positions only when every valid solid volume still fits. *)
+		PROCEDURE MoveFloorActors(before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
+		VAR candidate: DoomSprites.Scene;
+		BEGIN
+			candidate := sprites.FollowFloors(before, after, sector);
+			IF candidate = NIL THEN
+				RETURN FALSE
+			END;
+			sprites := candidate;
+			RETURN TRUE
+		END MoveFloorActors;
 
 		PROCEDURE State*(): Pose;
 		BEGIN {EXCLUSIVE}

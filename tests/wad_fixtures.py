@@ -303,6 +303,28 @@ def grouped_door_lumps():
     return lumps
 
 
+def floor_lumps(special=62, crossing=False, floor=96, portal=True, ride=False):
+    lumps = sector_lumps(floor=floor, ceiling=192)
+    lumps[1] = ("THINGS", struct.pack("<5h", 224 if ride else -32 if portal or crossing else -224, 0,
+                                    0 if portal or crossing else 180, 1, 7))
+    lines = bytearray(lumps[2][1])
+    index = 9 if ride else 8 if portal or crossing else 7
+    a, b = struct.unpack_from("<2H", lines, index * 14)
+    struct.pack_into("<2H", lines, index * 14, b, a)
+    struct.pack_into("<2H", lines, index * 14 + 6, special, 7)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    sectors = bytearray(lumps[8][1])
+    if crossing:
+        struct.pack_into("<h", sectors, 26, 0)
+        struct.pack_into("<hh", sectors, 52, floor, 192)
+        struct.pack_into("<H", sectors, 52 + 24, 7)
+    else:
+        struct.pack_into("<H", sectors, 26 + 24, 7)
+        struct.pack_into("<hh", sectors, 52, 64, 192)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -633,6 +655,65 @@ def fixtures(directory):
     files["bsp-single.wad"] = wad(single)
     files["door.wad"] = wad(door_lumps())
     files["tagged-door-use.wad"] = wad(tagged_door_lumps())
+    files["floor-lift.wad"] = wad(floor_lumps())
+    files["floor-gun.wad"] = wad(floor_lumps(24, floor=16))
+    floor_walks = (5, 10, 19, 38, 82, 83, 88, 91, 119, 120, 121, 128)
+    floor_nearest = (18, 69, 119, 128)
+    floor_variants = (5, 10, 18, 19, 21, 23, 24, 38, 45, 60, 62, 64, 69, 82, 83, 88, 91, 101, 102,
+                      119, 120, 121, 122, 123, 128)
+    for special in floor_variants:
+        crossing = special in floor_walks
+        start = (-24 if crossing else 0) if special in floor_nearest else 96
+        files[f"floor-{special}.wad"] = wad(floor_lumps(special, crossing, start, portal=False))
+    files["floor-lift-ride.wad"] = wad(floor_lumps(ride=True))
+    riders = sprite_lumps(floor_lumps(ride=True), things=[(128, 64, 0, 2035, 7),
+                                                       (128, -64, 0, 2014, 7),
+                                                       (64, -128, 0, 49, 7)])
+    riders += [("BAR1A0", sprite_patch())]
+    files["floor-riders.wad"] = wad(riders)
+    pinch = floor_lumps(101, floor=0)
+    sectors = bytearray(pinch[8][1])
+    struct.pack_into("<h", sectors, 26 + 2, 80)
+    pinch[8] = ("SECTORS", bytes(sectors))
+    files["floor-actor-block.wad"] = wad(sprite_lumps(pinch, things=[(128, 0, 0, 2035, 7)]) +
+                                         [("BAR1A0", sprite_patch())])
+    pinch = floor_lumps(101, floor=0, ride=True)
+    sectors = bytearray(pinch[8][1])
+    struct.pack_into("<h", sectors, 26 + 2, 80)
+    pinch[8] = ("SECTORS", bytes(sectors))
+    files["floor-player-block.wad"] = wad(pinch)
+    hidden = floor_lumps(18, floor=0, portal=False)
+    sides = bytearray(hidden[3][1])
+    sides[9 * 30 + 12:9 * 30 + 20] = b"MISSING\0"
+    hidden[3] = ("SIDEDEFS", bytes(sides))
+    files["floor-hidden-texture.wad"] = wad(hidden)
+    shared = floor_lumps(23, floor=24)
+    vertices = bytearray(shared[4][1])
+    for index in (2, 6):
+        struct.pack_into("<h", vertices, index * 4, 32)
+    shared[4] = ("VERTEXES", bytes(vertices))
+    lines = bytearray(shared[2][1])
+    struct.pack_into("<2H", lines, 9 * 14, 6, 2)
+    struct.pack_into("<H", lines, 9 * 14 + 6, 31)
+    shared[2] = ("LINEDEFS", bytes(lines))
+    sectors = bytearray(shared[8][1])
+    struct.pack_into("<hh", sectors, 52, 0, 0)
+    shared[8] = ("SECTORS", bytes(sectors))
+    files["floor-shared-actions.wad"] = wad(shared)
+    busy = floor_lumps(18, floor=0, portal=False)
+    lines = bytearray(busy[2][1])
+    struct.pack_into("<2H", lines, 8 * 14, 5, 1)
+    struct.pack_into("<H", lines, 8 * 14 + 6, 1)
+    busy[2] = ("LINEDEFS", bytes(lines))
+    sectors = bytearray(busy[8][1])
+    struct.pack_into("<h", sectors, 26 + 2, 0)
+    busy[8] = ("SECTORS", bytes(sectors))
+    files["floor-door-busy.wad"] = wad(busy)
+    blocked = floor_lumps(88, crossing=True)
+    lines = bytearray(blocked[2][1])
+    struct.pack_into("<H", lines, 8 * 14 + 4, 5)
+    blocked[2] = ("LINEDEFS", bytes(lines))
+    files["floor-blocked-crossing.wad"] = wad(blocked)
     files["tagged-door-gui.wad"] = wad(tagged_door_lumps(portal=True))
     switches = (29, 42, 50, 61, 63, 99, 103, 111, 112, 113, 114, 115, 116, 133, 134, 135, 136, 137)
     walks = (2, 3, 4, 16, 75, 76, 86, 90, 105, 106, 107, 108, 109, 110)

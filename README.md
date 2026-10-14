@@ -5,9 +5,10 @@ A Doom clone in Active Oberon built on the separate
 The target is a complete Active Oberon implementation of classic Doom and Doom II
 on a reusable sector-based engine. Current coverage is partial; the remaining
 work and acceptance criteria are in [ROADMAP.md](ROADMAP.md).
-These sources require ao-game-engine commit `63c04e5` or a compatible later
+These sources require ao-game-engine commit `db5e874` or a compatible later
 revision providing `GameAnimation`, `World.TraceRay`, `World.MovePlayerObserved`
-and `GameGeometry.Crossing`.
+and `GameGeometry.Crossing`, together with `World.WithFloors` and
+`World.TouchesSector` for moving floors and occupant checks.
 
 ## Current state
 
@@ -51,6 +52,18 @@ Actions 16/76 restore the original ceiling after `doors.close_wait_ticks`
 (1050 in the standard profile). This field is mandatory in custom profiles.
 Switch texture changes, button reset timers, door sounds, monster activation
 and obstruction by actors remain unimplemented.
+Floors now support 17 lower/raise actions: lower to the highest or lowest
+neighbor floor, raise to the next higher floor, or raise to the surrounding
+ceiling. Eight normal/fast lift actions lower to the lowest neighboring floor,
+wait and return to their original height. Use, accepted player crossings and
+hitscan activate the corresponding classic linedefs. Shared action state prevents
+multiple movers owning one sector and preserves consumed actions across
+controllers. Player and grounded things ride the plane; valid solid volumes
+block pinching. Blocked ascending lifts reverse. Existing invalid spawn volumes
+retain preview behavior. `floors.speed_per_tick` and the mandatory `platforms`
+speed/wait settings supply all tuning; the standard profile uses 1, 4/8 and 105
+respectively. Remaining floor variants, surface changes, perpetual platforms,
+crushers and sound are not implemented.
 Sprites for 116 classic visible object types load their spawn frames: monsters,
 pickups, decorations and corpses. Medium-skill single-player flags select them.
 Directional frames support all eight views and paired mirrored lump names;
@@ -176,6 +189,12 @@ task run -- build/tagged-door-gui.wad E1M1
 task run -- build/tagged-door-90.wad E1M1
 # Shoot the line with the pistol to open the distant door.
 task run -- build/tagged-door-gun-portal.wad E1M1
+# Stand on the lift, press E, ride down and return.
+task run -- build/floor-lift-ride.wad E1M1
+# Walk across the trigger to lower the distant platform.
+task run -- build/floor-88.wad E1M1
+# Shoot the line with the pistol to raise the floor.
+task run -- build/floor-gun.wad E1M1
 # A grille with transparent holes; the line permits crossing.
 task run -- build/masked.wad E1M1
 # Original synthetic sprites behind a grille.
@@ -209,7 +228,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 242 original WAD fixtures, rejects
+`task check` runs engine checks, generates 323 authored WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -218,6 +237,8 @@ hidden material validation and actual tick-driven pickup/unlocking.
 Tagged-door checks cover all 33 actions, multi-sector tags, busy targets,
 one-shot/repeated activation, both key forms, player obstruction, accepted
 crossings, clipped hitscan and preservation after a missing texture fails loading.
+Floor checks cover all 25 actions, shared consumption, busy sectors, riding,
+solid obstruction, lift reversal, terrain snapshots and hidden-material failure.
 Actor checks cover solid monsters/barrels/decorations, tangent and corner
 contact, long movement, sliding, steps, passable corpses/hanging variants/items,
 spawn flags, overlapping starts and successful/failed replacement loads.
@@ -241,13 +262,14 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies twenty-seven scenarios: corridor, single-sector,
+`task gui-check` additionally verifies thirty scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
 an imp, a rocket blast, a barrel explosion chain and the modern mouse controls,
 plus normal/secret exits, campaign completion and a missing next map.
-Three additional scenarios activate tagged doors by use, crossing and shooting.
+Three scenarios activate tagged doors by use, crossing and shooting; three
+more check lift riding/return and floor activation by crossing or hitscan.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
 The existing scenes check movement, release, focus loss, turning and Escape.
@@ -607,13 +629,13 @@ Rocket blasts and visible impact/barrel explosions are recorded in
 Next: route finding, further monster attacks and map actions. Door obstruction remains player-only;
 actor crushing and actor-triggered door reversal are not implemented.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
-rendering and collision use a consistent world snapshot. Floors remain fixed;
-stepping changes eye height immediately, and drops
+rendering and collision use a consistent world snapshot. Floor motion and walking update eye height immediately; drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
-Switch textures/button timers, further floor/ceiling actions, lifts and sound
+Switch textures/button timers, remaining floor/ceiling actions, lifts and sound
 are unsupported. Tagged-door evidence is in
-[the tagged-door report](scratch/tagged-doors-check.md).
+[the tagged-door report](scratch/tagged-doors-check.md) and
+[the floor/lift report](scratch/floors-check.md).
 Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references

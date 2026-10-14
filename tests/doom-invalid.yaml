@@ -23,6 +23,12 @@ doors:
   close_wait_ticks: 1050
   use_range: 64
   top_gap: 4
+floors:
+  speed_per_tick: 1
+platforms:
+  speed_per_tick: 4
+  fast_speed_per_tick: 8
+  wait_ticks: 105
 demo:
   eye: 83.2
   wall_height: 179.2

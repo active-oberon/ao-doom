@@ -46,9 +46,24 @@ snapshots handle movement and rendering. Mandatory YAML supplies all door timing
 Switch texture changes, button reset timing, sound, monster activation and actor
 obstruction remain open. Evidence and exact limits are in scratch/tagged-doors-check.md.
 
+## Delivered floor and lift stage
+
+Seventeen floor actions lower to neighboring heights or raise to the next floor
+or surrounding ceiling; eight normal/fast lift actions lower, wait and return.
+Mandatory YAML supplies floor/lift speeds and wait timing. Shared DoomActions
+keeps consumed lines and sector occupancy consistent across doors, floors and
+exits. A completed floor action no longer hides a later door behind its portal.
+Engine WithFloors snapshots preserve ceilings and update geometry, collision,
+ray clipping, texture anchors and rendering. TouchesSector limits occupant checks.
+Player and grounded things ride accepted planes; valid solid volumes prevent
+pinching, and obstructed rising lifts reverse. Pre-existing invalid spawn
+volumes keep the preview behavior and do not stop planes. Remaining floor
+variants, crushers, perpetual platforms, surface changes, sound and classic
+ordering/timing fidelity remain open. Evidence is in scratch/floors-check.md.
+
 ## Remaining delivery areas
 
-- Map progression: switch visuals/buttons, floor/ceiling actions, lifts,
+- Map progression: switch visuals/buttons, remaining floor/ceiling actions and lifts,
   crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,

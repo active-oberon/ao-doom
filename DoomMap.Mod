@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomExits, DoomSprites, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomFloors, DoomActions, DoomExits, DoomSprites, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -8,6 +8,8 @@ TYPE
 	Map* = RECORD
 		world*: GameGeometry.World;
 		doors*: DoomDoors.Controller;
+		floors*: DoomFloors.Controller;
+		actions*: DoomActions.Table;
 		exits*: DoomExits.Controller;
 		sprites*: DoomSprites.Scene;
 		x*, y*, angle*, eye*: FLOAT64
@@ -49,7 +51,7 @@ BEGIN
 	END
 END SkyName;
 
-PROCEDURE Side(archive: DoomWad.Archive; textures: DoomTextures.Library; doors: DoomDoors.Controller;
+PROCEDURE Side(archive: DoomWad.Archive; textures: DoomTextures.Library; doors: DoomDoors.Controller; floors: DoomFloors.Controller;
 	world: GameGeometry.World; CONST regions: ARRAY OF GameGeometry.Sector;
 	CONST vertices, sides: DoomWad.Lump; id, v1, v2, side, neighbor, flags: SIGNED32;
 	VAR error: ARRAY OF CHAR): BOOLEAN;
@@ -119,7 +121,7 @@ BEGIN
 					END
 				END
 			END;
-			IF back.floor > front.floor THEN
+			IF (back.floor > front.floor) OR floors.Moving(wall.sector) OR floors.Moving(neighbor) THEN
 				Name(archive.data^, offset + 12, name);
 				wall.omitLower := name = "-";
 				IF ~wall.omitLower THEN
@@ -149,6 +151,8 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	things, lines, sides, vertices, sectors, markerLump: DoomWad.Lump;
 	world: GameGeometry.World;
 	doors: DoomDoors.Controller;
+	floors: DoomFloors.Controller;
+	actions: DoomActions.Table;
 	textures: DoomTextures.Library;
 	regions: POINTER TO ARRAY OF GameGeometry.Sector;
 	degree: POINTER TO ARRAY OF SIGNED32;
@@ -159,6 +163,8 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 BEGIN
 	map.world := NIL;
 	map.doors := NIL;
+	map.floors := NIL;
+	map.actions := NIL;
 	map.exits := NIL;
 	map.sprites := NIL;
 	error[0] := 0X;
@@ -296,7 +302,9 @@ BEGIN
 			END
 		END
 	END;
-	NEW(doors, archive, lines, sides, sectors, vertices);
+	NEW(actions, archive, lines, sectorCount);
+	NEW(doors, archive, lines, sides, sectors, vertices, actions);
+	NEW(floors, archive, lines, sides, sectors, vertices, actions);
 	NEW(world, lineCount * 2);
 	ASSERT(world.SetSectors(regions^));
 	IF leaves # NIL THEN
@@ -316,12 +324,12 @@ BEGIN
 		IF back # DoomFormat.NoSide THEN
 			backSector := GameBytes.U16(archive.data^, sides.offset + back * DoomFormat.SideSize + DoomFormat.SideSector)
 		END;
-		IF ~Side(archive, textures, doors, world, regions^, vertices, sides, i, v1, v2, front, backSector, flags, error) THEN
+		IF ~Side(archive, textures, doors, floors, world, regions^, vertices, sides, i, v1, v2, front, backSector, flags, error) THEN
 			RETURN FALSE
 		END;
 		IF back # DoomFormat.NoSide THEN
 			frontSector := GameBytes.U16(archive.data^, sides.offset + front * DoomFormat.SideSize + DoomFormat.SideSector);
-			IF ~Side(archive, textures, doors, world, regions^, vertices, sides, i, v2, v1, back, frontSector, flags, error) THEN
+			IF ~Side(archive, textures, doors, floors, world, regions^, vertices, sides, i, v2, v1, back, frontSector, flags, error) THEN
 				RETURN FALSE
 			END
 		END
@@ -362,7 +370,9 @@ BEGIN
 	END;
 	map.world := world;
 	map.doors := doors;
-	NEW(map.exits, archive, lines, vertices);
+	map.floors := floors;
+	map.actions := actions;
+	NEW(map.exits, archive, lines, vertices, actions);
 	map.x := x;
 	map.y := y;
 	map.angle := angle;

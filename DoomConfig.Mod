@@ -138,8 +138,10 @@ END;
 
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*, doorCloseWait*: SIGNED32;
+	platformWait*: SIGNED32;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
+	floorSpeed*, platformSpeed*, fastPlatformSpeed*: FLOAT64;
 	mouseSensitivity*, aimSensitivity*, pitchLimit*, aimZoom*: FLOAT64;
 	invertMouse*: BOOLEAN;
 	fireButton*, aimButton*: SIGNED32;
@@ -1016,7 +1018,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|floors|platforms|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -1039,7 +1041,13 @@ BEGIN
 		~Integer(object, "wait_ticks", 1, MAX(SIGNED32), candidate.doorWait, error) OR
 		~Integer(object, "close_wait_ticks", 1, MAX(SIGNED32), candidate.doorCloseWait, error) OR
 		~Real(object, "use_range", 1, 1024, DoomFormat.UnitsPerWorld, candidate.useRange, error) OR
-		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) THEN
+		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) OR
+		~Section(root, "floors", "|speed_per_tick|", object, error) OR
+		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.floorSpeed, error) OR
+		~Section(root, "platforms", "|speed_per_tick|fast_speed_per_tick|wait_ticks|", object, error) OR
+		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.platformSpeed, error) OR
+		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastPlatformSpeed, error) OR
+		~Integer(object, "wait_ticks", 1, MAX(SIGNED32), candidate.platformWait, error) THEN
 		RETURN FALSE
 	END;
 	IF ~Section(root, "demo", "|eye|wall_height|light|bricks|colors|", demo, error) OR
@@ -1444,6 +1452,16 @@ BEGIN
 	RejectField(root, object, "close_wait_ticks", JSON.NewNumber(0), settings);
 	RejectField(root, object, "close_wait_ticks", JSON.NewNumber(1.5), settings);
 	RejectField(root, object, "close_wait_ticks", JSON.NewNumber(MAX(SIGNED32) + 1.0), settings);
+	value := root.Get("floors");
+	object := value(JSON.Object);
+	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, object, "speed_per_tick", JSON.NewNumber(65), settings);
+	value := root.Get("platforms");
+	object := value(JSON.Object);
+	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, object, "fast_speed_per_tick", JSON.NewNumber(65), settings);
+	RejectField(root, object, "wait_ticks", JSON.NewNumber(0.5), settings);
+	RejectField(root, object, "wait_ticks", JSON.NewNumber(0), settings);
 	value := root.Get("player");
 	object := value(JSON.Object);
 	RejectField(root, object, "radius", JSON.NewNumber(0), settings);

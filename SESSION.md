@@ -2,6 +2,74 @@
 
 Updated: 2026-10-14
 
+## Delivery checkpoint: floor and lift actions
+
+The user explicitly requested committing and pushing the validated floor/lift
+stage in both main branches. The engine stage is committed and its remote main
+verified at db5e8742f1a724d1cd95ea2381da76843239d4c9,
+feat(geometry): add moving floor snapshots. This game checkpoint accompanies
+feat(map): add floor and lift actions and requires that exact engine revision.
+Exact commits, committed file hashes and game/engine remote verification are
+recorded in scratch/floors-delivery.json. Approval covers this delivery only;
+the earlier pending approval and uncommitted states below are historical.
+
+- Delivered 17 floor actions and eight lifts, shared consumed actions and
+  sector ownership, carried occupants and valid-volume obstruction checks.
+- Product sources retain their validated hashes. Native task check, ten
+  A64/QEMU suites, 30 isolated GUI scenarios, five logging cases, 132 short
+  original-map checks and ten original floor/lift probes passed before delivery.
+  Runtime tests were not repeated for commit metadata and documentation changes.
+- Evidence and limits: scratch/floors-check.md and floors-verification.json.
+  Ready demo: cd build/floors, then ./ao-doom floor-lift-ride.wad E1M1 and E.
+  Existing builds, captures and user-owned scene.ppm remain preserved.
+- Next: remaining map progression in ROADMAP.md. Full campaigns, classic
+  fidelity, CI, other platforms and hardware remain unverified.
+
+## Previous continuation: floor and lift actions (2026-10-14)
+
+The user requested committing/pushing the tagged-door stage and continuing
+ROADMAP implementation, then asked how to launch the game. Game main and the
+verified remote main are now 29a76b7573238aa7a928e22b90b1d5ed7d126f47. The
+tagged-door push approval is consumed. Engine HEAD remains
+63c04e5dccfd68b76e3b92585a062430a1f58341; a separate approval request to push
+the two existing engine commits up to that fixed SHA is unanswered. Do not
+infer approval from the launch question. The new floor/lift stage is local and
+uncommitted in both repositories; no further commit or push was performed.
+This continuation supersedes the checkpoints below while retaining their history.
+
+- Added 17 floor actions and eight normal/fast down/wait/return lifts. Shared
+  DoomActions coordinates consumed lines and sector ownership across doors,
+  floors and exits. Use, accepted crossings and clipped player hitscan activate
+  matching tags. Mandatory YAML now requires floors/platforms speeds and wait.
+- Generic engine WithFloors snapshots compose with ceilings and update ray,
+  collision, renderer and texture heights. TouchesSector narrows occupant
+  checks. Player and grounded things ride accepted floors; valid solid volumes
+  block pinching and obstructed rising lifts reverse. Engine changes are exactly
+  GameGeometry.Mod, SectorSmoke.Mod and README.md, promoted from tested staging.
+- Native task check passes six engine executables, 323 authored WAD fixtures
+  and 78 game TEST procedures. Ten A64/QEMU suites, 30 isolated Xephyr scenarios,
+  five logging cases, 132 short original-map probes and ten isolated original
+  floor/lift probes pass. G1 busy-target consumption was corrected and verified
+  by final native/A64 reruns. The initial GUI crossing wait was too short;
+  corrected timing passes the full repeat. Failures remain in the evidence.
+- Final exact-source build against the live sibling engine passed. Ready demo:
+  cd /home/andrejjj/Projects/A2/ao-doom/build/floors, then
+  ./ao-doom floor-lift-ride.wad E1M1; press E to ride down/wait/return.
+  The ready artifact has matching YAML and three synthetic maps, and its own
+  isolated GUI check passes. Existing build/ao-doom, build/doom.yaml, scene.ppm
+  and build/demo remain preserved; the launch advice given earlier still works.
+- Evidence: scratch/floors-check.md, floors-verification.json and source/artifact
+  manifests. Setup: scratch/floors-state.json and /tmp/ao-doom-floors-pr0w4cow.
+  Native SDK: /tmp/ao-doom-resume-1khrtq_c/minia2/target/bundle on PATH;
+  installed older ob lacks Logging. A64 uses the existing logging-build SDK.
+  No SDK, MiniA2, original IWAD or SSH configuration edits were made.
+- Limits: remaining plane actions, surface changes, stairs/donuts, perpetual
+  platforms/stops, crushers, switch/button visuals, sound and monster activation
+  remain open. Door obstruction is player-only; already invalid spawn volumes
+  keep preview behavior. No full campaigns, classic fidelity, CI, Windows,
+  ARMhf, full A2, hardware or maximum-scene performance validation. Next:
+  remaining map progression according to ROADMAP.md.
+
 ## Delivery checkpoint: tagged doors
 
 The user requested committing and pushing the validated tagged-door stage, then

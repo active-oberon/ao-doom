@@ -150,6 +150,50 @@ TYPE
 			RETURN snapshot
 		END CopyState;
 
+		(* FollowFloors carries grounded things and rejects pinching valid solid volumes before publication. *)
+		PROCEDURE FollowFloors*(before, after: GameGeometry.World; sector: SIGNED32): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+			feet, oldFloor, newFloor, height: FLOAT64;
+			solid, valid, fits: BOOLEAN;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				IF ~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) &
+					after.TouchesSector(sector, states[i].x, states[i].y, MAX(actors[i].radius, DoomFormat.TraceTolerance)) THEN
+					oldFloor := before.Region(states[i].sector).floor;
+					newFloor := after.Region(states[i].sector).floor;
+					feet := states[i].feet;
+					height := actors[i].height / DoomFormat.UnitsPerWorld;
+					solid := (actors[i].radius > 0) & ((actors[i].initialHealth = 0) OR (hitpoints[i] > 0));
+					IF actors[i].ceiling THEN
+						feet := before.Region(states[i].sector).ceiling - height
+					END;
+					(* shortcut: pre-existing invalid spawn volumes do not block planes; enforce valid spawns during full object compatibility. *)
+					valid := FALSE;
+					IF solid THEN
+						valid := before.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, oldFloor)
+					END;
+					IF ~actors[i].ceiling & (ABS(feet - oldFloor) <= DoomFormat.TraceTolerance) THEN
+						IF valid THEN
+							fits := after.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, newFloor)
+						END;
+						feet := newFloor
+					END;
+					IF valid & ~after.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, newFloor) THEN
+						RETURN NIL
+					END;
+					IF ~actors[i].ceiling & (feet # states[i].feet) THEN
+						IF snapshot = SELF THEN
+							snapshot := CopyState(tick, playerX, playerY)
+						END;
+						snapshot.states[i].feet := feet
+					END
+				END
+			END;
+			RETURN snapshot
+		END FollowFloors;
+
 		(* Emit bounds visuals independently from barrel damage so a full effect pool cannot cancel a detonation. *)
 		PROCEDURE Emit(animation: DoomConfig.AnimationSettings; images: Frames; x, y, z: FLOAT64): Scene;
 		VAR snapshot: Scene;

@@ -285,7 +285,7 @@ def check_logs(output, arguments, exit_mode=None):
     assert stopped["attrs"]["result"] == 0
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None, tagged_mode=None):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None, tagged_mode=None, floor_mode=None):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -338,6 +338,32 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             assert process.returncode == 0, output
             check_logs(output, arguments, exit_mode)
             print(f"Exit GUI check passed: {exit_mode}, frame/status, one typed transition record and shutdown")
+            return
+        if floor_mode:
+            if floor_mode == "gun":
+                button(display, window, root, 1)
+                time.sleep(0.2)
+                button(display, window, root, 1, True)
+                time.sleep(3.3)
+            else:
+                key(display, window, root, ord("w" if floor_mode == "walk" else "e"))
+                time.sleep(0.3)
+                key(display, window, root, ord("w" if floor_mode == "walk" else "e"), release=True)
+                time.sleep(0.9 if floor_mode == "walk" else 0.5)
+            changed = pixels(display, window)
+            assert changed[:43 * 80] != initial[:43 * 80], "Moving floor did not change visible geometry"
+            time.sleep(0.2)
+            assert pixels(display, window) == changed, "Plane did not reach its destination or waiting position"
+            if floor_mode == "lift":
+                key(display, window, root, ord("e"))
+                key(display, window, root, ord("e"), release=True)
+                time.sleep(3.8)
+                assert pixels(display, window) == initial, "Lift did not carry the player back to its original height"
+            shutdown(display, window, root)
+            output, _ = process.communicate(timeout=5)
+            assert process.returncode == 0, output
+            check_logs(output, arguments)
+            print(f"Floor GUI check passed: {floor_mode}, motion, waiting/return and shutdown")
             return
         if tagged_mode:
             if tagged_mode == "gun":
@@ -636,7 +662,8 @@ def main():
     explosions = arguments[0] == "--explosions"
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
     tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
-    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode:
+    floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun"}.get(arguments[0])
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode or floor_mode:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
@@ -662,7 +689,7 @@ def main():
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode, tagged_mode)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode, tagged_mode, floor_mode)
 
 
 if __name__ == "__main__":

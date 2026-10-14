@@ -1,6 +1,6 @@
 MODULE DoomDoors;
 
-IMPORT DoomConfig, DoomFormat, DoomWad, DoomInventory, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomActions, DoomWad, DoomInventory, GameBytes, GameGeometry;
 
 CONST Raise = 1;
 	BlueRaise = 26;
@@ -78,12 +78,14 @@ TYPE
 		heights: POINTER TO ARRAY OF FLOAT64;
 		tags: POINTER TO ARRAY OF SIGNED32;
 		active: SIGNED32;
+		actions: DoomActions.Table;
 
-		PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines, sides, sectors, vertices: DoomWad.Lump);
+		PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines, sides, sectors, vertices: DoomWad.Lump; shared: DoomActions.Table);
 		VAR i, offset, side, sectorCount, a, b: SIGNED32;
 			movingTags: POINTER TO ARRAY OF BOOLEAN;
 		BEGIN
 			ASSERT(DoomConfig.loaded);
+			actions := shared;
 			sectorCount := sectors.size DIV DoomFormat.SectorSize;
 			NEW(triggers, lines.size DIV DoomFormat.LineSize);
 			NEW(doors, sectorCount);
@@ -177,6 +179,9 @@ TYPE
 					RETURN FALSE
 				END
 			END;
+			IF ~actions.Claim(sector) THEN
+				RETURN FALSE
+			END;
 			doors[sector].top := top;
 			doors[sector].kind := trigger.kind;
 			doors[sector].speed := DoomConfig.values.doorSpeed;
@@ -210,51 +215,27 @@ TYPE
 				END
 			END;
 			IF ~triggers[line].repeat & (started OR (triggers[line].activation = Walk)) THEN
-				triggers[line].special := 0
+				actions.Consume(line)
 			END;
 			RETURN started
 		END Activate;
 
 		PROCEDURE Use*(world: GameGeometry.World; x, y, angle: FLOAT64;
 			VAR player: DoomInventory.State): BOOLEAN;
-		VAR wall: GameGeometry.Wall;
-			front, back: GameGeometry.Sector;
-			i, key: SIGNED32;
-			distance, near: FLOAT64;
+		VAR line, key: SIGNED32;
 		BEGIN
 			player.neededKey := -1;
-			near := 0;
-			(* shortcut: use traces stop after 256 hits; add spatial traversal for denser edited maps. *)
-			FOR i := 1 TO MIN(world.Count(), DoomFormat.MaximumTraceHits) DO
-				IF ~world.CastSector(-1, x, y, MathL.cos(angle), MathL.sin(angle), near, distance, wall) OR
-					(distance > DoomConfig.values.useRange) THEN
-					RETURN FALSE
-				END;
-				ASSERT((wall.id >= 0) & (wall.id < LEN(triggers^)));
-				IF triggers[wall.id].special # 0 THEN
-					IF ((triggers[wall.id].activation # Manual) & (triggers[wall.id].activation # Switch)) OR
-						((triggers[wall.id].activation = Manual) & (triggers[wall.id].back < 0)) OR
-						((x - wall.ax) * (wall.by - wall.ay) > (y - wall.ay) * (wall.bx - wall.ax)) THEN
-						RETURN FALSE
-					END;
-					key := triggers[wall.id].key;
-					IF (key >= 0) & ~((key IN player.keys) OR (key + DoomInventory.KeyColors IN player.keys)) THEN
-						player.neededKey := key;
-						RETURN FALSE
-					END;
-					RETURN Activate(world, wall.id)
-				END;
-				IF wall.neighbor < 0 THEN
-					RETURN FALSE
-				END;
-				front := world.Region(wall.sector);
-				back := world.Region(wall.neighbor);
-				IF MAX(front.floor, back.floor) >= MIN(front.ceiling, back.ceiling) THEN
-					RETURN FALSE
-				END;
-				near := distance
+			line := actions.UseLine(world, x, y, angle);
+			IF (line < 0) OR ((triggers[line].activation # Manual) & (triggers[line].activation # Switch)) OR
+				((triggers[line].activation = Manual) & (triggers[line].back < 0)) THEN
+				RETURN FALSE
 			END;
-			RETURN FALSE
+			key := triggers[line].key;
+			IF (key >= 0) & ~((key IN player.keys) OR (key + DoomInventory.KeyColors IN player.keys)) THEN
+				player.neededKey := key;
+				RETURN FALSE
+			END;
+			RETURN Activate(world, line)
 		END Use;
 
 		(* Crossed queues accepted origin crossings without replacing geometry inside the movement callback. *)
@@ -263,7 +244,7 @@ TYPE
 			fraction: FLOAT64;
 		BEGIN
 			FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
-				IF (triggers[i].special # 0) & (triggers[i].activation = Walk) &
+				IF (actions.Special(i) # 0) & (triggers[i].activation = Walk) &
 					GameGeometry.Crossing(triggers[i].geometry, x0, y0, x1, y1, fraction) THEN
 					triggers[i].pending := TRUE
 				END
@@ -286,7 +267,7 @@ TYPE
 		PROCEDURE Shot*(world: GameGeometry.World; line: SIGNED32);
 		VAR started: BOOLEAN;
 		BEGIN
-			IF (triggers[line].special # 0) & (triggers[line].activation = Gun) THEN
+			IF (actions.Special(line) # 0) & (triggers[line].activation = Gun) THEN
 				started := Activate(world, line)
 			END
 		END Shot;
@@ -334,7 +315,8 @@ TYPE
 						IF (doors[i].direction = Opening) & (heights[i] = doors[i].top) THEN
 							IF doors[i].kind # RaiseDoor THEN
 								doors[i].direction := Closed;
-								DEC(active)
+								DEC(active);
+								actions.Release(i)
 							ELSE
 								doors[i].direction := Waiting;
 								doors[i].timer := DoomConfig.values.doorWait
@@ -347,7 +329,8 @@ TYPE
 									doors[i].timer := DoomConfig.values.doorCloseWait
 								ELSE
 									doors[i].direction := Closed;
-									DEC(active)
+									DEC(active);
+									actions.Release(i)
 								END
 							END
 						END
