@@ -325,6 +325,31 @@ def floor_lumps(special=62, crossing=False, floor=96, portal=True, ride=False):
     return lumps
 
 
+def switch_lumps(special=61, slot=20, portal=False, floor=False, on=False, missing=False):
+    lumps = floor_lumps(special, portal=portal) if floor else tagged_door_lumps(special, portal=portal)
+    if not portal:
+        things = bytearray(lumps[1][1])
+        struct.pack_into("<h", things, 0, -232)
+        lumps[1] = ("THINGS", bytes(things))
+    lines = lumps[2][1]
+    index = 8 if portal else 7
+    side = struct.unpack_from("<H", lines, index * 14 + 10)[0]
+    sides = bytearray(lumps[3][1])
+    sides[side * 30 + slot:side * 30 + slot + 8] = b"SW2BRCOM" if on else b"SW1BRCOM"
+    lumps[3] = ("SIDEDEFS", bytes(sides))
+    columns = [bytes((0, 48, 0)) + bytes((4,)) * 48 + bytes((0, 255)) for _ in range(32)]
+    patch = struct.pack("<4h32i", 32, 48, 0, 0, *(136 + i * 53 for i in range(32))) + b"".join(columns)
+    lumps[12] = ("PNAMES", struct.pack("<i8s8s", 2, b"PATCH001", b"PSWITCH"))
+    definitions = [lumps[14][1][8:]]
+    definitions.append(struct.pack("<8sIhhIh5h", b"SW1BRCOM", 0, 64, 64, 0, 1, 0, 0, 0, 1, 0))
+    if not missing:
+        definitions.append(struct.pack("<8sIhhIh5h", b"SW2BRCOM", 0, 32, 48, 0, 1, 0, 0, 1, 1, 0))
+    count = len(definitions)
+    lumps[14] = ("TEXTURE1", struct.pack(f"<{count + 1}i", count, *(4 + count * 4 + i * 32 for i in range(count))) +
+                 b"".join(definitions))
+    return lumps + [("PSWITCH", patch)]
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -655,6 +680,44 @@ def fixtures(directory):
     files["bsp-single.wad"] = wad(single)
     files["door.wad"] = wad(door_lumps())
     files["tagged-door-use.wad"] = wad(tagged_door_lumps())
+    for special in (11, 18, 21, 23, 24, 29, 42, 45, 46, 50, 51, 60, 61, 62, 63, 64, 69,
+                    99, 101, 102, 103, 111, 112, 113, 114, 115, 116, 122, 123, 133, 134, 135, 136, 137):
+        is_floor = special in (18, 21, 23, 24, 45, 60, 62, 64, 69, 101, 102, 122, 123)
+        files[f"switch-{special}.wad"] = wad(switch_lumps(special, floor=is_floor))
+    files["switch-button.wad"] = wad(switch_lumps())
+    custom = switch_lumps()
+    custom = [(name, data.replace(b"SW1BRCOM", b"LIGHTOFF").replace(b"SW2BRCOM", b"LIGHTON\0"))
+              if name in ("SIDEDEFS", "TEXTURE1") else (name, data) for name, data in custom]
+    files["switch-custom.wad"] = wad(custom)
+    files["switch-on.wad"] = wad(switch_lumps(on=True))
+    files["switch-upper.wad"] = wad(switch_lumps(slot=4, portal=True))
+    files["switch-lower.wad"] = wad(switch_lumps(slot=12, portal=True))
+    files["switch-missing.wad"] = wad(switch_lumps(missing=True))
+    manual = switch_lumps(1, portal=True)
+    sectors = bytearray(manual[8][1])
+    struct.pack_into("<h", sectors, 26 + 2, 0)
+    struct.pack_into("<h", sectors, 52 + 2, 128)
+    manual[8] = ("SECTORS", bytes(sectors))
+    files["switch-manual.wad"] = wad(manual)
+    files["switch-walk.wad"] = wad(switch_lumps(2, portal=True))
+    broken = switch_lumps()
+    broken[-1] = ("PSWITCH", b"broken")
+    files["switch-corrupt.wad"] = wad(broken)
+    shared = switch_lumps()
+    lines = bytearray(shared[2][1])
+    struct.pack_into("<H", lines, 6 * 14 + 10, 7)
+    shared[2] = ("LINEDEFS", bytes(lines))
+    files["switch-shared.wad"] = wad(shared)
+    empty = switch_lumps()
+    lines = bytearray(empty[2][1])
+    struct.pack_into("<H", lines, 7 * 14 + 8, 8)
+    empty[2] = ("LINEDEFS", bytes(lines))
+    files["switch-no-target.wad"] = wad(empty)
+    priority = switch_lumps(slot=4, portal=True)
+    sides = bytearray(priority[3][1])
+    sides[8 * 30 + 20:8 * 30 + 28] = b"SW1BRCOM"
+    priority[3] = ("SIDEDEFS", bytes(sides))
+    files["switch-priority.wad"] = wad(priority)
     files["floor-lift.wad"] = wad(floor_lumps())
     files["floor-gun.wad"] = wad(floor_lumps(24, floor=16))
     floor_walks = (5, 10, 19, 38, 82, 83, 88, 91, 119, 120, 121, 128)

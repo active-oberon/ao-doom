@@ -214,6 +214,9 @@ TYPE
 					END
 				END
 			END;
+			IF (started & (triggers[line].activation = Switch)) OR (triggers[line].activation = Gun) THEN
+				actions.Activated(line, triggers[line].repeat)
+			END;
 			IF ~triggers[line].repeat & (started OR (triggers[line].activation = Walk)) THEN
 				actions.Consume(line)
 			END;

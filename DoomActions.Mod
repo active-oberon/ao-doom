@@ -1,14 +1,17 @@
 MODULE DoomActions;
 
-IMPORT DoomConfig, DoomFormat, DoomWad, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomSwitches, GameBytes, GameGeometry, MathL;
 
 TYPE Table* = OBJECT
 VAR specials: POINTER TO ARRAY OF SIGNED32;
 	busy: POINTER TO ARRAY OF BOOLEAN;
+	switches: DoomSwitches.Controller;
 
-	PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines: DoomWad.Lump; sectorCount: SIGNED32);
+	PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines: DoomWad.Lump; sectorCount: SIGNED32;
+		visuals: DoomSwitches.Controller);
 	VAR i: SIGNED32;
 	BEGIN
+		switches := visuals;
 		NEW(specials, lines.size DIV DoomFormat.LineSize);
 		NEW(busy, sectorCount);
 		FOR i := 0 TO SIGNED32(LEN(specials^)) - 1 DO
@@ -25,6 +28,16 @@ VAR specials: POINTER TO ARRAY OF SIGNED32;
 	BEGIN
 		specials[line] := 0
 	END Consume;
+
+	PROCEDURE Activated*(line: SIGNED32; repeat: BOOLEAN);
+	BEGIN
+		switches.Activate(line, repeat)
+	END Activated;
+
+	PROCEDURE Step*(VAR world: GameGeometry.World);
+	BEGIN
+		switches.Step(world)
+	END Step;
 
 	(* Claim prevents doors and floors from driving the same sector at the same time. *)
 	PROCEDURE Claim*(sector: SIGNED32): BOOLEAN;

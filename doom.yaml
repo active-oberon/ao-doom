@@ -29,6 +29,89 @@ platforms:
   speed_per_tick: 4
   fast_speed_per_tick: 8
   wait_ticks: 105
+switches:
+  button_ticks: 35
+  pairs:
+    - off: SW1BRCOM
+      on: SW2BRCOM
+    - off: SW1BRN1
+      on: SW2BRN1
+    - off: SW1BRN2
+      on: SW2BRN2
+    - off: SW1BRNGN
+      on: SW2BRNGN
+    - off: SW1BROWN
+      on: SW2BROWN
+    - off: SW1COMM
+      on: SW2COMM
+    - off: SW1COMP
+      on: SW2COMP
+    - off: SW1DIRT
+      on: SW2DIRT
+    - off: SW1EXIT
+      on: SW2EXIT
+    - off: SW1GRAY
+      on: SW2GRAY
+    - off: SW1GRAY1
+      on: SW2GRAY1
+    - off: SW1METAL
+      on: SW2METAL
+    - off: SW1PIPE
+      on: SW2PIPE
+    - off: SW1SLAD
+      on: SW2SLAD
+    - off: SW1STARG
+      on: SW2STARG
+    - off: SW1STON1
+      on: SW2STON1
+    - off: SW1STON2
+      on: SW2STON2
+    - off: SW1STONE
+      on: SW2STONE
+    - off: SW1STRTN
+      on: SW2STRTN
+    - off: SW1BLUE
+      on: SW2BLUE
+    - off: SW1CMT
+      on: SW2CMT
+    - off: SW1GARG
+      on: SW2GARG
+    - off: SW1GSTON
+      on: SW2GSTON
+    - off: SW1HOT
+      on: SW2HOT
+    - off: SW1LION
+      on: SW2LION
+    - off: SW1SATYR
+      on: SW2SATYR
+    - off: SW1SKIN
+      on: SW2SKIN
+    - off: SW1VINE
+      on: SW2VINE
+    - off: SW1WOOD
+      on: SW2WOOD
+    - off: SW1PANEL
+      on: SW2PANEL
+    - off: SW1ROCK
+      on: SW2ROCK
+    - off: SW1MET2
+      on: SW2MET2
+    - off: SW1WDMET
+      on: SW2WDMET
+    - off: SW1BRIK
+      on: SW2BRIK
+    - off: SW1MOD1
+      on: SW2MOD1
+    - off: SW1ZIM
+      on: SW2ZIM
+    - off: SW1STON6
+      on: SW2STON6
+    - off: SW1TEK
+      on: SW2TEK
+    - off: SW1MARB
+      on: SW2MARB
+    - off: SW1SKULL
+      on: SW2SKULL
 demo:
   eye: 83.2
   wall_height: 179.2

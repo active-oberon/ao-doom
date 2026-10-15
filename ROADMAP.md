@@ -31,8 +31,9 @@ images before replacement, preserves health/armor/weapons/ammo/backpack, and
 clears keys and level pickup state. Failed transitions preserve the active map
 and inventory. Terminal routes freeze gameplay and show an authored completion
 label. Typed transition events are logged outside simulation and rendering.
-This stage uses immediate transitions; original intermissions, finales, switch
-texture changes and secret-exit fallback for editions without MAP31 remain open.
+This stage uses immediate transitions; original intermissions, finales and
+secret-exit fallback for editions without MAP31 remain open. Exit switch
+materials are covered by the later switch/button stage below.
 Evidence and exact limits are recorded in scratch/exits-check.md.
 
 ## Delivered tagged door stage
@@ -43,8 +44,8 @@ close or close/wait/reopen, with normal/fast speeds and card/skull locks.
 Accepted player movement supplies crossing observations; actual hitscan pellets
 report reached lines after geometry and actor clipping. Existing engine ceiling
 snapshots handle movement and rendering. Mandatory YAML supplies all door timing.
-Switch texture changes, button reset timing, sound, monster activation and actor
-obstruction remain open. Evidence and exact limits are in scratch/tagged-doors-check.md.
+Sound, monster activation and actor obstruction remain open. Switch presentation
+is covered below. Earlier evidence is in scratch/tagged-doors-check.md.
 
 ## Delivered floor and lift stage
 
@@ -61,9 +62,22 @@ volumes keep the preview behavior and do not stop planes. Remaining floor
 variants, crushers, perpetual platforms, surface changes, sound and classic
 ordering/timing fidelity remain open. Evidence is in scratch/floors-check.md.
 
+## Delivered switch and button stage
+
+Implemented use/gun actions toggle authored front-side texture pairs; repeat
+buttons restore their initial image on an independent timer without extending
+the deadline on reactivation. Shared sidedefs update every wall that uses them.
+Game activation and mandatory YAML own pair order, names and release timing;
+the engine only replaces wall materials in immutable geometry snapshots.
+Upper/middle/lower selection, dimensions, pegging and moving plane composition
+are covered by engine and game checks. Both matched images validate before
+publishing a level. Existing immediate exits update their material first;
+intermissions, switch sounds and edition-specific behavior remain open.
+Evidence and exact validation limits are in scratch/switches-check.md.
+
 ## Remaining delivery areas
 
-- Map progression: switch visuals/buttons, remaining floor/ceiling actions and lifts,
+- Map progression: remaining floor/ceiling actions and lifts,
   crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,

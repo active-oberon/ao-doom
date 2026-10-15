@@ -285,7 +285,7 @@ def check_logs(output, arguments, exit_mode=None):
     assert stopped["attrs"]["result"] == 0
 
 
-def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None, tagged_mode=None, floor_mode=None):
+def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None, tagged_mode=None, floor_mode=None, switch_mode=None):
     executable = executable.resolve()
     display = X.XOpenDisplay(None)
     if not display:
@@ -317,6 +317,33 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
         key(display, window, root, ord("0"))
         key(display, window, root, ord("0"), release=True)
         time.sleep(0.05)
+        if switch_mode:
+            if switch_mode == "gun":
+                button(display, window, root, 1)
+            else:
+                key(display, window, root, ord("e"))
+            time.sleep(0.15)
+            if switch_mode == "gun":
+                button(display, window, root, 1, True)
+            else:
+                key(display, window, root, ord("e"), release=True)
+            changed = pixels(display, window)
+            scene = 43 * 80
+            assert changed[:scene] != initial[:scene], "Switch texture did not change"
+            deadline = time.monotonic() + 2
+            if switch_mode == "button":
+                while time.monotonic() < deadline and pixels(display, window)[:scene] != initial[:scene]:
+                    time.sleep(0.05)
+                assert pixels(display, window)[:scene] == initial[:scene], "Button texture did not return"
+            else:
+                time.sleep(1.2)
+                assert pixels(display, window)[:scene] == changed[:scene], "One-shot switch texture did not stay changed"
+            shutdown(display, window, root)
+            output, _ = process.communicate(timeout=5)
+            assert process.returncode == 0, output
+            check_logs(output, arguments)
+            print(f"Switch GUI check passed: {switch_mode}, texture, release timing and shutdown")
+            return
         if exit_mode:
             key(display, window, root, ord("e"))
             time.sleep(0.4)
@@ -663,7 +690,8 @@ def main():
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
     tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
     floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun"}.get(arguments[0])
-    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode or floor_mode:
+    switch_mode = {"--button": "button", "--switch": "switch", "--gun-switch": "gun"}.get(arguments[0])
+    if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode or floor_mode or switch_mode:
         arguments = arguments[1:]
     with tempfile.TemporaryDirectory(prefix="ao-doom-gui-") as directory:
         executable = pathlib.Path(directory) / "ao-doom"
@@ -689,7 +717,7 @@ def main():
                 profile = profile.replace("    damage: 10\n", "    damage: 200\n")
             config.write_text(profile)
             arguments[1:1] = ["--config", str(config)]
-        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode, tagged_mode, floor_mode)
+        check(executable, arguments[1:], door, pickup, locked_door, actor, combat, remapped, ai, hitscan, projectiles, modern, blast, explosions, exit_mode, tagged_mode, floor_mode, switch_mode)
 
 
 if __name__ == "__main__":

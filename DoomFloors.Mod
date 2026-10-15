@@ -193,6 +193,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				started := TRUE
 			END
 		END;
+		IF (started & (triggers[line].activation = Using)) OR (triggers[line].activation = Gun) THEN
+			actions.Activated(line, triggers[line].repeat)
+		END;
 		IF ~triggers[line].repeat & (started OR (triggers[line].activation = Walk) OR (triggers[line].activation = Gun)) THEN
 			actions.Consume(line)
 		END;

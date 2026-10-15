@@ -12,6 +12,7 @@ CONST HudCharacterAdvance* = 4;
 	MaximumDimension = 4096;
 	MaximumTextureDimension = 1024;
 	MaximumClockValue = 1000;
+	MaximumSwitchPairs = 256;
 	Forward* = 0;
 	Backward* = 1;
 	Left* = 2;
@@ -136,9 +137,15 @@ CampaignSettings* = RECORD
 	completeText*, errorText*: ARRAY 32 OF CHAR
 END;
 
+SwitchPair* = RECORD
+	off*, on*: ARRAY DoomFormat.NameLength + 1 OF CHAR
+END;
+
 Settings* = RECORD
 	width*, height*, ticksPerSecond*, maximumElapsed*, sleepMillis*, doorWait*, doorCloseWait*: SIGNED32;
 	platformWait*: SIGNED32;
+	buttonTicks*: SIGNED32;
+	switchPairs*: POINTER TO ARRAY OF SwitchPair;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
 	floorSpeed*, platformSpeed*, fastPlatformSpeed*: FLOAT64;
@@ -911,6 +918,89 @@ BEGIN
 	RETURN TRUE
 END RouteName;
 
+PROCEDURE SwitchName(value: JSON.Value; CONST key: ARRAY OF CHAR; VAR name, error: ARRAY OF CHAR): BOOLEAN;
+VAR i, length: SIGNED32;
+	c: CHAR;
+BEGIN
+	IF value = NIL THEN
+		COPY("Missing required switch key: ", error);
+		Strings.AppendX(error, key);
+		RETURN FALSE
+	ELSIF ~(value IS JSON.String) THEN
+		COPY("Switch texture name must be a string", error);
+		RETURN FALSE
+	END;
+	length := SIGNED32(Strings.Length(value(JSON.String).value^));
+	IF (length < 1) OR (length > DoomFormat.NameLength) THEN
+		COPY("Switch texture name must contain one to eight characters", error);
+		RETURN FALSE
+	END;
+	FOR i := 0 TO length - 1 DO
+		c := CAP(value(JSON.String).value[i]);
+		IF ~(((c >= "A") & (c <= "Z")) OR ((c >= "0") & (c <= "9")) OR (c = "_") OR (c = "-")) THEN
+			COPY("Invalid switch texture name", error);
+			RETURN FALSE
+		END;
+		name[i] := c
+	END;
+	name[length] := 0X;
+	IF name = "-" THEN
+		COPY("Switch texture cannot be absent", error);
+		RETURN FALSE
+	END;
+	RETURN TRUE
+END SwitchName;
+
+PROCEDURE Switches(root: JSON.Object; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
+VAR object, pair: JSON.Object;
+	value: JSON.Value;
+	list: JSON.Array;
+	i, j: SIGNED32;
+BEGIN
+	IF ~Section(root, "switches", "|button_ticks|pairs|", object, error) OR
+		~Integer(object, "button_ticks", 1, MAX(SIGNED32), settings.buttonTicks, error) THEN
+		RETURN FALSE
+	END;
+	value := object.Get("pairs");
+	IF (value = NIL) OR ~(value IS JSON.Array) THEN
+		COPY("Expected switch texture pairs sequence", error);
+		RETURN FALSE
+	END;
+	list := value(JSON.Array);
+	IF (list.length < 1) OR (list.length > MaximumSwitchPairs) THEN
+		COPY("Switch texture pair count is outside bounds", error);
+		RETURN FALSE
+	END;
+	NEW(settings.switchPairs, list.length);
+	FOR i := 0 TO SIGNED32(list.length) - 1 DO
+		value := list.At(i);
+		IF (value = NIL) OR ~(value IS JSON.Object) THEN
+			COPY("Expected switch texture pair mapping", error);
+			RETURN FALSE
+		END;
+		pair := value(JSON.Object);
+		IF ~Keys(pair, "|off|on|", error) OR
+			~SwitchName(pair.Get("off"), "off", settings.switchPairs[i].off, error) OR
+			~SwitchName(pair.Get("on"), "on", settings.switchPairs[i].on, error) THEN
+			RETURN FALSE
+		END;
+		IF settings.switchPairs[i].off = settings.switchPairs[i].on THEN
+			COPY("Switch texture names must differ", error);
+			RETURN FALSE
+		END;
+		FOR j := 0 TO i - 1 DO
+			IF (settings.switchPairs[i].off = settings.switchPairs[j].off) OR
+				(settings.switchPairs[i].off = settings.switchPairs[j].on) OR
+				(settings.switchPairs[i].on = settings.switchPairs[j].off) OR
+				(settings.switchPairs[i].on = settings.switchPairs[j].on) THEN
+				COPY("Duplicate switch texture name", error);
+				RETURN FALSE
+			END
+		END
+	END;
+	RETURN TRUE
+END Switches;
+
 PROCEDURE CampaignLabel(object: JSON.Object; CONST key: ARRAY OF CHAR; VAR text, error: ARRAY OF CHAR): BOOLEAN;
 VAR value: JSON.Value;
 	i: SIGNED32;
@@ -1018,7 +1108,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|floors|platforms|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|floors|platforms|switches|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -1122,7 +1212,7 @@ BEGIN
 		COPY("Player eye and step must not exceed player height", error);
 		RETURN FALSE
 	END;
-	IF ~Campaign(root, candidate, error) OR ~ThingRules(root, candidate.things, error) OR
+	IF ~Switches(root, candidate, error) OR ~Campaign(root, candidate, error) OR ~ThingRules(root, candidate.things, error) OR
 		~Inventory(root, candidate.inventory, error) OR
 		~Combat(root, candidate.things^, candidate.combat, error) OR ~Controls(root, candidate, error) OR
 		~Section(root, "mouse", "|sensitivity|aim_sensitivity|invert_y|pitch_limit|aim_zoom|fire_button|aim_button|", object, error) OR
@@ -1233,6 +1323,51 @@ BEGIN
 	ASSERT(settings.width = 640);
 	object.Set(key, original)
 END RejectField;
+
+PROCEDURE {TEST} SwitchBounds*;
+VAR value: JSON.Value;
+	root, switches, pair, other: JSON.Object;
+	pairs, oversized: JSON.Array;
+	settings: Settings;
+	i: SIGNED32;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	ASSERT(settings.buttonTicks = 35);
+	ASSERT(LEN(settings.switchPairs^) = 40);
+	settings.width := 640;
+	value := root.Get("switches");
+	switches := value(JSON.Object);
+	value := switches.Get("pairs");
+	pairs := value(JSON.Array);
+	value := pairs.At(0);
+	pair := value(JSON.Object);
+	value := pairs.At(1);
+	other := value(JSON.Object);
+	RejectField(root, switches, "button_ticks", JSON.NewNumber(0), settings);
+	RejectField(root, switches, "button_ticks", JSON.NewNumber(1.5), settings);
+	RejectField(root, switches, "button_ticks", JSON.NewNumber(MAX(SIGNED32) + 1.0), settings);
+	RejectField(root, switches, "pairs", JSON.NewArray(), settings);
+	RejectField(root, switches, "pairs", JSON.NewNull(), settings);
+	oversized := JSON.NewArray();
+	FOR i := 0 TO MaximumSwitchPairs DO
+		oversized.Add(pair)
+	END;
+	RejectField(root, switches, "pairs", oversized, settings);
+	RejectField(root, pair, "off", JSON.NewString(""), settings);
+	RejectField(root, pair, "off", JSON.NewString("-"), settings);
+	RejectField(root, pair, "off", JSON.NewString("TOO_LONG_NAME"), settings);
+	RejectField(root, pair, "off", JSON.NewString("BAD NAME"), settings);
+	RejectField(root, pair, "off", JSON.NewNumber(1), settings);
+	RejectField(root, pair, "on", pair.Get("off"), settings);
+	RejectField(root, pair, "off", other.Get("on"), settings);
+	RejectField(root, pair, "on", other.Get("off"), settings);
+	ASSERT(Decode(root, settings, error));
+	settings.width := 640;
+	RejectField(root, pair, "unknown", JSON.NewNull(), settings)
+END SwitchBounds;
 
 PROCEDURE {TEST} CampaignBounds*;
 VAR value: JSON.Value;

@@ -54,6 +54,7 @@ TYPE
 				pending := Secret
 			END;
 			triggered := line;
+			actions.Activated(line, FALSE);
 			RETURN TRUE
 		END Use;
 

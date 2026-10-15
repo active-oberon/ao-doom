@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomFloors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
+IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, DoomActions, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomFloors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
 
 CONST LevelChanged* = 1;
 	CampaignComplete* = 2;
@@ -28,6 +28,7 @@ TYPE
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
 		floors: DoomFloors.Controller;
+		actions: DoomActions.Table;
 		exits: DoomExits.Controller;
 		archive: DoomWad.Archive;
 		mapName: ARRAY DoomFormat.NameLength + 1 OF CHAR;
@@ -69,6 +70,7 @@ TYPE
 			turn := 0;
 			doors := NIL;
 			floors := NIL;
+			actions := NIL;
 			exits := NIL;
 			archive := NIL;
 			mapName[0] := 0X;
@@ -134,6 +136,7 @@ TYPE
 			world := map.world;
 			doors := map.doors;
 			floors := map.floors;
+			actions := map.actions;
 			exits := map.exits;
 			sprites := map.sprites;
 			use := FALSE;
@@ -317,6 +320,7 @@ TYPE
 						END;
 						IF ~used & exits.Use(world, pose.x, pose.y, pose.angle) THEN
 							kind := exits.Take(line);
+							actions.Step(world);
 							Finish(kind, line);
 							use := FALSE;
 							RETURN
@@ -332,6 +336,7 @@ TYPE
 					pose.eye := feet + DoomConfig.values.playerEye;
 					kind := exits.Take(line);
 					IF kind # DoomExits.None THEN
+						actions.Step(world);
 						Finish(kind, line);
 						use := FALSE;
 						RETURN
@@ -344,6 +349,9 @@ TYPE
 			reloading := FALSE;
 			sprites := DoomCombat.StepAimObserved(ticks, firing, weapon, world, sprites,
 				pose.x, pose.y, pose.angle, pose.eye, MathL.sin(pose.pitch) / MathL.cos(pose.pitch), inventory, Shot);
+			IF actions # NIL THEN
+				actions.Step(world)
+			END;
 			IF sprites # NIL THEN
 				sprites := sprites.Step(world, ticks, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye, inventory);
 				sprites := sprites.Touch(world, pose.x, pose.y, pose.eye - DoomConfig.values.playerEye,

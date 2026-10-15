@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomFloors, DoomActions, DoomExits, DoomSprites, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomFloors, DoomActions, DoomSwitches, DoomExits, DoomSprites, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -153,6 +153,7 @@ VAR marker, i, j, offset, v1, v2, front, back, flags, start,
 	doors: DoomDoors.Controller;
 	floors: DoomFloors.Controller;
 	actions: DoomActions.Table;
+	switches: DoomSwitches.Controller;
 	textures: DoomTextures.Library;
 	regions: POINTER TO ARRAY OF GameGeometry.Sector;
 	degree: POINTER TO ARRAY OF SIGNED32;
@@ -302,7 +303,11 @@ BEGIN
 			END
 		END
 	END;
-	NEW(actions, archive, lines, sectorCount);
+	switches := DoomSwitches.Read(archive, lines, sides, textures, error);
+	IF switches = NIL THEN
+		RETURN FALSE
+	END;
+	NEW(actions, archive, lines, sectorCount, switches);
 	NEW(doors, archive, lines, sides, sectors, vertices, actions);
 	NEW(floors, archive, lines, sides, sectors, vertices, actions);
 	NEW(world, lineCount * 2);

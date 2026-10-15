@@ -1,6 +1,119 @@
 # ao-doom session handoff
 
-Updated: 2026-10-14
+Updated: 2026-10-15
+
+## Delivery checkpoint: switch and button materials
+
+The user requested committing and pushing the validated switch/button stage in
+both main branches. This checkpoint accompanies feat(map): animate switches and
+buttons and requires ao-game-engine commit d90c17d0e74eeb615ff2ba1cd0f6d2c4a832a12c,
+feat(geometry): add wall material snapshots. Exact commits, committed source
+hashes and remote verification are recorded in scratch/switches-delivery.json.
+The continuation below is the historical pre-delivery state. Publication
+approval covers this delivery only; earlier approvals remain consumed.
+
+## Previous continuation: switch and button materials (2026-10-15)
+
+The user requested continued Doom work according to the plan. This continuation
+supersedes the prior exit checkpoint while preserving its text below. Game main
+remains at 82a5c8fd8561672155d45fcecfeb4f9339ad9969; engine main remains at
+db5e8742f1a724d1cd95ea2381da76843239d4c9. This switch/button stage is local and
+uncommitted in both repositories. No commit or push was requested or performed;
+previous publication approvals remain consumed.
+
+- Added presentation for all 34 implemented use/gun switch bindings, including
+  exits: front upper/middle/lower image changes, permanent one-shot states,
+  timed button restoration without extending the first deadline, shared
+  sidedefs, busy-gun activation and failed-level replacement preservation.
+- Mandatory YAML switches supplies button_ticks and ordered off/on pairs.
+  Standard values are 35 ticks and 40 classic pairs. Custom profiles must add
+  the complete section; arbitrary names and alternate timing are verified.
+- Generic engine WithWallTexture snapshots preserve old materials, partition
+  data, moving planes and image alignment across different dimensions. Only
+  GameGeometry.Mod, SectorSmoke.Mod and README.md changed in the engine;
+  tested sources were promoted after clean-tree/base/hash guards.
+- Native task check and final focused checks pass six engine executables,
+  369 final fixtures and 85 game TEST procedures. Ten A64/QEMU suites plus
+  final focused reruns, 33 isolated Xephyr scenarios, five logging cases,
+  132 short original-map checks and 14 isolated original-switch probes pass.
+  An exact-source build against the live engine and a separate ready-demo
+  GUI check pass. Initial test/harness failures and corrections remain in
+  scratch/switches-check.md; no final required check remains failing.
+- Ready demo: cd /home/andrejjj/Projects/A2/ao-doom/build/switches, then
+  ./ao-doom switch-button.wad E1M1; press E to change and release the button.
+  switch-103.wad is a permanent use switch; shoot switch-24.wad to activate it.
+  The matching complete YAML is included. Prior scene/build artifacts retain
+  their hashes; scene.ppm and the previous SESSION text are preserved.
+- Evidence: scratch/switches-check.md, switches-verification.json,
+  switches-state.json and switches-engine-promotion.json. Isolated outputs:
+  /tmp/ao-doom-switches-2m233w8h. The historical /tmp resume SDK no longer
+  exists; the verified native SDK is now
+  /home/andrejjj/Projects/A2/minia2/target/bundle/ob. Prepend its directory to
+  PATH and use a fresh unique TMPDIR. A64 uses the existing logging-build/sdk
+  with build -t a64 and qemu-aarch64 plus target/A64/sysroot. No SDK edits.
+- Next: remaining map progression in ROADMAP.md: other floor/ceiling actions,
+  surface changes, stairs/donuts, perpetual platforms/stops, crushers,
+  teleporters, damage/secrets and sound. Switch sounds and original
+  intermissions remain open. Full campaigns, demo fidelity, CI, Windows,
+  ARMhf, full A2, physical hardware and maximum-scene performance are
+  unverified. Door obstruction remains player-only.
+
+## Exit checkpoint: 2026-10-15
+
+The user requested saving state and leaving the session. Stop implementation;
+resume only after a new request. This checkpoint supersedes all historical
+continuations below. Both authorized floor/lift pushes completed and their
+single-use approvals are consumed. No publication approval remains pending.
+
+- ao-doom main: 82a5c8fd8561672155d45fcecfeb4f9339ad9969,
+  feat(map): add floor and lift actions.
+- ao-game-engine main: db5e8742f1a724d1cd95ea2381da76843239d4c9,
+  feat(geometry): add moving floor snapshots.
+- Both HEADs match cached origin/main. Both live remote heads were verified
+  after publication at 2026-10-14T20:59:32.427088+00:00; evidence is in
+  scratch/floors-delivery.json. No fetch, push or new commit was performed for
+  this exit checkpoint. Game product sources/tests/YAML and engine changes
+  are committed and published. Engine is clean. This SESSION.md update is the
+  only tracked game edit; user-owned scene.ppm remains untracked and preserved.
+- Delivered: 17 floor actions and eight normal/fast lifts, shared consumed
+  actions and sector ownership across doors/floors/exits, immutable moving
+  floor snapshots composed with ceilings, texture/ray/collision updates,
+  carried player/grounded things, valid-volume obstruction and lift reversal.
+  Complete YAML requires floors.speed_per_tick and platforms.speed_per_tick,
+  fast_speed_per_tick and wait_ticks. Standard values are 1, 4, 8 and 105.
+- Prior validation passed native task check, six engine executables, 323
+  authored WAD fixtures, 78 game TEST procedures, ten A64/QEMU suites, 30
+  isolated Xephyr scenarios, five logging cases, 132 short original-map checks,
+  ten isolated original floor/lift probes and a separate ready-demo GUI check.
+  Red baseline Trap 5.8 and the corrected early GUI sampling failure remain
+  documented in scratch/floors-check.md. Tests were not rerun for publication
+  metadata or this exit checkpoint; source/artifact hashes were rechecked.
+- Ready demo: cd /home/andrejjj/Projects/A2/ao-doom/build/floors, then
+  ./ao-doom floor-lift-ride.wad E1M1; press E to ride down/wait/return.
+  Matching YAML and floor-88.wad/floor-gun.wad are included. Existing
+  build/ao-doom, build/doom.yaml, scene.ppm and build/demo captures retain their
+  recorded hashes. Preserve these files and keep them out of source commits.
+- Evidence: scratch/floors-check.md, floors-delivery.json,
+  floors-verification.json and floors-state.json. The verification manifest
+  is the historical pre-delivery snapshot; delivery.json records publication.
+  Isolated sources/outputs remain at /tmp/ao-doom-floors-pr0w4cow.
+  Native SDK: /tmp/ao-doom-resume-1khrtq_c/minia2/target/bundle/ob; prepend its
+  directory to PATH and use a fresh unique TMPDIR when resuming. The installed
+  older SDK lacks Logging.
+  A64 SDK: /home/andrejjj/Projects/A2/minia2/target/logging-build/sdk/ob.
+  Use build -t a64 and qemu-aarch64 with sysroot
+  /home/andrejjj/Projects/A2/minia2/target/A64/sysroot. These paths currently
+  exist; /tmp paths are temporary, so recheck.
+- Resume by reading AGENTS.md, this checkpoint, ROADMAP.md, README.md and
+  scratch/floors-check.md, then verify both real branches/worktrees and SDKs.
+  Previous unanswered push requests below are historical and resolved by the
+  later explicit publication instruction. Further pushes need new approval.
+- Next: remaining map progression in ROADMAP.md, including other plane
+  actions, surface changes, stairs/donuts, perpetual platforms/stops, crushers,
+  switch/button visuals, teleporters, damage/secrets and sound. These remain
+  incomplete. Door obstruction is player-only; already invalid spawn volumes
+  retain preview behavior. Full campaigns, classic fidelity, CI, Windows,
+  ARMhf, full A2, hardware and maximum-scene performance are unverified.
 
 ## Delivery checkpoint: floor and lift actions
 

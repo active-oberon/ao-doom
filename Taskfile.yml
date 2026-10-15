@@ -44,6 +44,7 @@ tasks:
       - cp tests/DoomExitsSmoke.Mod build/
       - cp tests/DoomTaggedDoorsSmoke.Mod build/
       - cp tests/DoomFloorsSmoke.Mod build/
+      - cp tests/DoomSwitchesSmoke.Mod build/
       - cp tests/DoomControlsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
       - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml tests/doom-incomplete.yaml build/
@@ -91,6 +92,8 @@ tasks:
       - cd build && timeout 10 ./tagged-doors-check
       - cd build && ob build DoomFloorsSmoke.Mod -o floors-check
       - cd build && timeout 10 ./floors-check
+      - cd build && ob build DoomSwitchesSmoke.Mod -o switches-check
+      - cd build && timeout 10 ./switches-check
       - cd build && ob build Doom.Mod -o doom-check
       - cd build && timeout 10 ./doom-check
       - cp tests/DoomOriginalSmoke.Mod build/
@@ -140,6 +143,9 @@ tasks:
       - python3 tests/gui_smoke.py --lift build/ao-doom build/floor-lift-ride.wad E1M1
       - python3 tests/gui_smoke.py --walk-floor build/ao-doom build/floor-88.wad E1M1
       - python3 tests/gui_smoke.py --gun-floor build/ao-doom build/floor-gun.wad E1M1
+      - python3 tests/gui_smoke.py --button build/ao-doom build/switch-button.wad E1M1
+      - python3 tests/gui_smoke.py --switch build/ao-doom build/switch-103.wad E1M1
+      - python3 tests/gui_smoke.py --gun-switch build/ao-doom build/switch-24.wad E1M1
       - python3 tests/gui_smoke.py --exit build/ao-doom build/exits-use.wad E1M1
       - python3 tests/gui_smoke.py --secret-exit build/ao-doom build/exits-secret.wad E1M3
       - python3 tests/gui_smoke.py --complete build/ao-doom build/exits-end.wad E1M8

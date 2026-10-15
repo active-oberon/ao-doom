@@ -5,10 +5,11 @@ A Doom clone in Active Oberon built on the separate
 The target is a complete Active Oberon implementation of classic Doom and Doom II
 on a reusable sector-based engine. Current coverage is partial; the remaining
 work and acceptance criteria are in [ROADMAP.md](ROADMAP.md).
-These sources require ao-game-engine commit `db5e874` or a compatible later
+These sources require ao-game-engine commit `d90c17d` or a compatible later
 revision providing `GameAnimation`, `World.TraceRay`, `World.MovePlayerObserved`
 and `GameGeometry.Crossing`, together with `World.WithFloors` and
-`World.TouchesSector` for moving floors and occupant checks.
+`World.TouchesSector` for moving floors and occupant checks. Switches/buttons
+use `World.WithWallTexture` and its three material-part identifiers.
 
 ## Current state
 
@@ -50,8 +51,7 @@ also apply to the six fast tagged open actions. Close-only doors stop at player
 obstruction and continue when clear; raise and close/wait/open doors reverse.
 Actions 16/76 restore the original ceiling after `doors.close_wait_ticks`
 (1050 in the standard profile). This field is mandatory in custom profiles.
-Switch texture changes, button reset timers, door sounds, monster activation
-and obstruction by actors remain unimplemented.
+Door sounds, monster activation and obstruction by actors remain unimplemented.
 Floors now support 17 lower/raise actions: lower to the highest or lowest
 neighbor floor, raise to the next higher floor, or raise to the surrounding
 ceiling. Eight normal/fast lift actions lower to the lowest neighboring floor,
@@ -64,6 +64,22 @@ retain preview behavior. `floors.speed_per_tick` and the mandatory `platforms`
 speed/wait settings supply all tuning; the standard profile uses 1, 4/8 and 105
 respectively. Remaining floor variants, surface changes, perpetual platforms,
 crushers and sound are not implemented.
+Implemented use/gun switches now toggle their front sidedef's upper, middle or
+lower texture, choosing the first authored pair and then upper/middle/lower.
+One-shot switches stay changed; repeat buttons restore the initial image after
+`switches.button_ticks` (35 in the standard profile). Repeated activations do
+not extend a button's first deadline. Use requires a successful action; gun
+actions 24/46 toggle even when their sector is busy. Locked/busy use actions,
+manual doors and walk triggers do not animate switches. Shared sidedefs update
+all their directed walls; old render snapshots retain their original materials.
+Mandatory `switches.pairs` supplies the 40 classic texture pairs in order, with
+`off` and `on` names; arbitrary custom names also work. Both images of a matched
+front sidedef validate before map replacement, including hidden parts. Unused
+pairs need no WAD resources. Complete custom profiles must add this section;
+missing, duplicate, malformed or excessive definitions fail validation. Exit
+switches update before the existing immediate transition or terminal label;
+failed transitions retain their current retry behavior. Switch sounds and
+original intermissions remain open.
 Sprites for 116 classic visible object types load their spawn frames: monsters,
 pickups, decorations and corpses. Medium-skill single-player flags select them.
 Directional frames support all eight views and paired mirrored lump names;
@@ -262,7 +278,7 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies thirty scenarios: corridor, single-sector,
+`task gui-check` additionally verifies thirty-three scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
@@ -270,6 +286,7 @@ an imp, a rocket blast, a barrel explosion chain and the modern mouse controls,
 plus normal/secret exits, campaign completion and a missing next map.
 Three scenarios activate tagged doors by use, crossing and shooting; three
 more check lift riding/return and floor activation by crossing or hitscan.
+Three check a permanent switch, button release and a hitscan switch texture.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
 The existing scenes check movement, release, focus loss, turning and Escape.
@@ -632,10 +649,14 @@ Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floor motion and walking update eye height immediately; drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
-Switch textures/button timers, remaining floor/ceiling actions, lifts and sound
-are unsupported. Tagged-door evidence is in
+Remaining floor/ceiling actions, other lift variants and sound are unsupported.
+Tagged-door evidence is in
 [the tagged-door report](scratch/tagged-doors-check.md) and
 [the floor/lift report](scratch/floors-check.md).
+Switch/button evidence is in [the switch report](scratch/switches-check.md):
+native checks and final focused reruns, ten A64/QEMU suites, 33 isolated window
+scenarios, 132 short original-map checks and 14 isolated original-switch probes.
+These do not establish campaign completion or full original fidelity.
 Brutal Doom/Project Brutality PK3 scripts and gameplay are not supported.
 
 ## Source style and references
