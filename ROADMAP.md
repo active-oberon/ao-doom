@@ -98,6 +98,12 @@ plane snapshots, riding and obstruction. Mandatory YAML owns both speeds and
 step sizes. Sound, crushing and exact classic plane timing remain open.
 Evidence and limits are in scratch/stairs-check.md.
 
+## Detailed application logs
+
+Application logs now include use results, focus, inventory, damage, death,
+weapon and ammunition changes outside the simulation/rendering methods.
+Evidence and limits are in scratch/stairs-check.md.
+
 ## Remaining delivery areas
 
 - Map progression: remaining floor/ceiling actions and lifts, surface changes,

@@ -516,7 +516,7 @@ scene data.
 `task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
 `DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
 `DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomExitsSmoke`,
-`DoomControlsSmoke`, `DoomPlatformsSmoke`, `DoomStairsSmoke` and `DoomInput`
+`DoomControlsSmoke`, `DoomPlatformsSmoke`, `DoomStairsSmoke`, `DoomDiagnosticsSmoke` and `DoomInput`
 in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
@@ -544,6 +544,8 @@ custom speed/wait, accepted movement, carried player and failed replacement.
 Stair checks cover all four actions, front/back direction, floor-name boundaries,
 busy and grouped sectors, initial height differences, riding, obstruction,
 hidden materials, failed map replacement, custom speeds/steps and old snapshots.
+Diagnostic checks cover accepted, locked and targetless use attempts, one-time
+event consumption and retention across failed or successful map replacement.
 These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
@@ -612,6 +614,19 @@ The window drains rare transition events and logs `level transitioned`,
 `campaign completed` or `level transition failed`, with typed previous/target,
 kind, linedef index and error fields. Successful events use INFO, failures ERROR.
 Kernel/driver diagnostics and test summaries can still use their existing output.
+Configuration records include frame dimensions and simulation frequency. Map
+records include sector/wall counts and integer spawn coordinates in map units
+using the game's coordinate axes. Focus changes report a boolean `focused`.
+Each use attempt reports its map/tick, line, original special, required key color
+and acceptance, including rejected and targetless attempts. The window reports
+pickups, health/armor loss, death, weapon selection, reload start/finish and
+ammunition changes with typed health/armor, weapon, magazine and ammo totals.
+These state records summarize changes between window observations; multiple
+simulation ticks can share one observation. They are not a per-hit replay log.
+No synchronous game logging runs inside `Game.Step` or rendering, and unchanged
+state produces no periodic records. Cross/gun map triggers retain their existing
+behavior without an individual action log. Stair and log verification is in
+[the stair report](scratch/stairs-check.md).
 
 ## Full A2 port assessment
 

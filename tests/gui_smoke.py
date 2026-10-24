@@ -259,10 +259,25 @@ def mouse_controls(display, window, root):
 def check_logs(output, arguments, exit_mode=None):
     records = [json.loads(line) for line in output.splitlines() if line.startswith('{"time":')]
     assert records, "Game emitted no structured logs"
+    changes = {"items collected", "player hurt", "player died", "weapon selected",
+               "weapon reload started", "weapon reload finished", "weapon ammunition changed"}
+    gameplay = changes | {"input focus changed", "map use attempted"}
     for record in records:
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", record["time"])
         assert record["attrs"]["component"] == "doom"
         assert record["level"] == ("ERROR" if record["msg"] == "level transition failed" else "INFO"), record
+        attrs = record["attrs"]
+        if record["msg"] in changes:
+            assert isinstance(attrs["map"], str)
+            for name in ("tick", "health", "armor", "weapon", "loaded", "bullets", "shells", "cells", "rockets", "pickups"):
+                assert type(attrs[name]) is int and attrs[name] >= 0, record
+        elif record["msg"] == "input focus changed":
+            assert type(attrs["focused"]) is bool, record
+        elif record["msg"] == "map use attempted":
+            assert isinstance(attrs["map"], str) and type(attrs["accepted"]) is bool, record
+            for name in ("tick", "line", "special", "needed_key"):
+                assert type(attrs[name]) is int, record
+    records = [record for record in records if record["msg"] not in gameplay]
     expected = ["configuration loaded",
             "map loaded" if any(arg.lower().endswith(".wad") for arg in arguments) else "demo loaded",
             "window started"]
@@ -271,6 +286,10 @@ def check_logs(output, arguments, exit_mode=None):
                         "level transition failed" if exit_mode == "failed" else "level transitioned")
     expected.append("window stopped")
     assert [record["msg"] for record in records] == expected, records
+    if records[1]["msg"] == "map loaded":
+        attrs = records[1]["attrs"]
+        for name in ("sectors", "walls", "spawn_x", "spawn_y"):
+            assert type(attrs[name]) is int, attrs
     if exit_mode:
         attrs = records[3]["attrs"]
         assert attrs["previous"] == arguments[-1], attrs
@@ -283,6 +302,11 @@ def check_logs(output, arguments, exit_mode=None):
     assert started["attrs"]["ticks_per_second"] == 35
     assert isinstance(stopped["attrs"]["ticks"], int) and stopped["attrs"]["ticks"] > 0
     assert stopped["attrs"]["result"] == 0
+
+
+def require_logs(output, *messages):
+    entries = [json.loads(line) for line in output.splitlines() if line.startswith('{"time":')]
+    assert set(messages) <= {entry["msg"] for entry in entries}, (messages, entries)
 
 
 def check(executable, arguments, door=False, pickup=False, locked_door=False, actor=False, combat=False, remapped=False, ai=False, hitscan=False, projectiles=False, modern=False, blast=False, explosions=False, exit_mode=None, tagged_mode=None, floor_mode=None, switch_mode=None):
@@ -418,6 +442,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             output, _ = process.communicate(timeout=5)
             assert process.returncode == 0, output
             check_logs(output, arguments)
+            if floor_mode in ("lift", "stairs"):
+                require_logs(output, "map use attempted")
             print(f"Floor GUI check passed: {floor_mode}, motion, waiting/return and shutdown")
             return
         if tagged_mode:
@@ -454,6 +480,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             output, _ = process.communicate(timeout=5)
             assert process.returncode == 0, output
             check_logs(output, arguments)
+            require_logs(output, "weapon selected", "weapon reload started", "weapon reload finished",
+                         "weapon ammunition changed", "input focus changed")
             return
         if explosions:
             key(display, window, root, 0xFFE3)
@@ -657,6 +685,14 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
         output, _ = process.communicate(timeout=5)
         assert process.returncode == 0, output
         check_logs(output, arguments)
+        if door or locked_door:
+            require_logs(output, "map use attempted")
+        if pickup or locked_door:
+            require_logs(output, "items collected")
+        if combat:
+            require_logs(output, "weapon ammunition changed")
+        if ai or hitscan or projectiles:
+            require_logs(output, "player hurt")
         if door:
             print("Door GUI check passed: opening, held/released E, closing and reopening")
         if pickup:

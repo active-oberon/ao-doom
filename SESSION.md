@@ -2,6 +2,37 @@
 
 Updated: 2026-10-25
 
+## Delivery checkpoint: detailed application logs (2026-10-25)
+
+The user requested separate logical commits and joint publication to origin/main.
+Stair actions are isolated in f7ccbc7, followed by feat(log): expand gameplay
+event diagnostics. The earlier platform stage was published as 17227ca. This
+publication approval is single-use. Engine main remains clean at d90c17d;
+no engine or SDK source changed. Existing builds and scene.ppm are preserved.
+
+Logs now include configuration/map details, focus, use acceptance/key denial,
+pickups, damage/death, weapon selection, reload and ammunition. The window drains
+the last use result and summarizes state changes outside simulation/rendering.
+Cross/gun actions have no individual action record; state summaries are not
+per-hit replays. Spawn coordinates use typed integers in map units because the
+installed float formatter produced invalid JSON.
+
+The final product sources match the previously validated snapshot: native task
+check with 397 fixtures, seven A64/QEMU suites, 35 isolated GUI scenarios, five
+logging cases, 132 original-map probes and 54 stair-line probes checking 446
+changed-sector heights. Splitting also passed fresh native configuration/stair
+tests and the window build on the independent stair-only snapshot. No broad
+runtime suite was repeated after the documentation-only delivery updates.
+Evidence: scratch/stairs-check.md, stairs-verification.json,
+commit-split-check.log and commit-split-state.json.
+
+Ready build: cd build/stairs, then ./ao-doom stairs-gui.wad E1M1. Its matching
+YAML and a local original Doom II command are included. Next map work: surface
+changes and donuts, then remaining plane actions, crushers, teleporters,
+sector damage/secrets and sound. Full campaigns, classic randomness/timing,
+CI, other platforms/hardware and maximum-scene stress remain unverified.
+Non-English letter input remains unsupported.
+
 ## Delivery checkpoint: stair actions (2026-10-25)
 
 This stage adds actions 7/8 and 100/127 for directed same-floor-name stair chains,

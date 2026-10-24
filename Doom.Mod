@@ -11,6 +11,13 @@ VAR log-: Logging.Logger;
 	logContext: ARRAY 1 OF Logging.Attr;
 
 TYPE
+	Interaction* = POINTER TO RECORD
+		map*: ARRAY DoomFormat.NameLength + 1 OF CHAR;
+		tick*: SIGNED64;
+		line*, special*, neededKey*: SIGNED32;
+		accepted*: BOOLEAN
+	END;
+
 	Transition* = POINTER TO RECORD
 		result*, kind*, line*: SIGNED32;
 		previous*, target*: ARRAY DoomFormat.NameLength + 1 OF CHAR;
@@ -33,6 +40,7 @@ TYPE
 		archive: DoomWad.Archive;
 		mapName: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 		transition: Transition;
+		interaction: Interaction;
 		completed, transitionFailed: BOOLEAN;
 		sprites: DoomSprites.Scene;
 		inventory: DoomInventory.State;
@@ -75,6 +83,7 @@ TYPE
 			archive := NIL;
 			mapName[0] := 0X;
 			transition := NIL;
+			interaction := NIL;
 			completed := FALSE;
 			transitionFailed := FALSE;
 			sprites := NIL;
@@ -125,6 +134,7 @@ TYPE
 				mapName[i] := CAP(mapName[i])
 			END;
 			transition := NIL;
+			interaction := NIL;
 			DoomInventory.Reset(inventory);
 			DoomCombat.Reset(weapon, inventory);
 			RETURN TRUE
@@ -215,6 +225,15 @@ TYPE
 			transition := NIL;
 			RETURN event
 		END TakeTransition;
+
+		(* TakeInteraction lets the window report the last use result outside the simulation lock. *)
+		PROCEDURE TakeInteraction*(): Interaction;
+		VAR event: Interaction;
+		BEGIN {EXCLUSIVE}
+			event := interaction;
+			interaction := NIL;
+			RETURN event
+		END TakeInteraction;
 
 		PROCEDURE Controls*(move, sidestep, rotate: SIGNED32);
 		BEGIN {EXCLUSIVE}
@@ -314,11 +333,22 @@ TYPE
 				ELSE
 					feet := pose.eye - DoomConfig.values.playerEye;
 					IF use THEN
+						NEW(interaction);
+						COPY(mapName, interaction.map);
+						interaction.tick := ticks;
+						interaction.line := actions.UseLine(world, pose.x, pose.y, pose.angle);
+						interaction.neededKey := -1;
+						IF interaction.line >= 0 THEN
+							interaction.special := actions.Special(interaction.line)
+						END;
 						used := doors.Use(world, pose.x, pose.y, pose.angle, inventory);
 						IF ~used THEN
 							used := floors.Use(world, pose.x, pose.y, pose.angle)
 						END;
+						interaction.accepted := used;
+						interaction.neededKey := inventory.neededKey;
 						IF ~used & exits.Use(world, pose.x, pose.y, pose.angle) THEN
+							interaction.accepted := TRUE;
 							kind := exits.Take(line);
 							actions.Step(world);
 							Finish(kind, line);
