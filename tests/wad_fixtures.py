@@ -334,6 +334,22 @@ def platform_lumps(start=87, stop=89, floor=32):
     return lumps
 
 
+def stair_lumps(special=7):
+    lumps = grouped_door_lumps()
+    crossing = special in (8, 100)
+    lumps[1] = ("THINGS", struct.pack("<5h", -32 if crossing else -232, 0,
+                                    0 if crossing else 180, 1, 7))
+    lines = bytearray(lumps[2][1])
+    for index in range(len(lines) // 14):
+        struct.pack_into("<2H", lines, index * 14 + 6, 0, 0)
+    struct.pack_into("<2H", lines, (12 if crossing else 11) * 14 + 6, special, 7)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    lumps[8] = ("SECTORS", b"".join(struct.pack("<hh8s8shhh", 0, 192,
+                                               b"FLOOR", b"CEILING", 192, 0, 7 if i == 1 else 0)
+                                      for i in range(5)))
+    return lumps
+
+
 def switch_lumps(special=61, slot=20, portal=False, floor=False, on=False, missing=False):
     lumps = floor_lumps(special, portal=portal) if floor else tagged_door_lumps(special, portal=portal)
     if not portal:
@@ -728,6 +744,44 @@ def fixtures(directory):
     priority[3] = ("SIDEDEFS", bytes(sides))
     files["switch-priority.wad"] = wad(priority)
     files["floor-lift.wad"] = wad(floor_lumps())
+    for special in (7, 8, 100, 127):
+        files[f"stairs-{special}.wad"] = wad(stair_lumps(special))
+    stairs = stair_lumps(127)
+    stairs[1] = ("THINGS", struct.pack("<5h", -32, 0, 0, 1, 7))
+    lines = bytearray(stairs[2][1])
+    struct.pack_into("<2H", lines, 11 * 14 + 6, 0, 0)
+    struct.pack_into("<2H", lines, 12 * 14 + 6, 127, 7)
+    stairs[2] = ("LINEDEFS", bytes(lines))
+    files["stairs-gui.wad"] = wad(stairs)
+    stairs = stair_lumps()
+    sectors = bytearray(stairs[8][1])
+    sectors[2 * 26 + 4:2 * 26 + 12] = b"CEILING\0"
+    stairs[8] = ("SECTORS", bytes(sectors))
+    files["stairs-texture.wad"] = wad(stairs)
+    stairs = stair_lumps()
+    lines = bytearray(stairs[2][1])
+    a, b = struct.unpack_from("<2H", lines, 13 * 14)
+    front, back = struct.unpack_from("<2H", lines, 13 * 14 + 10)
+    struct.pack_into("<2H", lines, 13 * 14, b, a)
+    struct.pack_into("<2H", lines, 13 * 14 + 10, back, front)
+    stairs[2] = ("LINEDEFS", bytes(lines))
+    files["stairs-reversed.wad"] = wad(stairs)
+    stairs = stair_lumps()
+    sides = bytearray(stairs[3][1])
+    sides[16 * 30 + 12:16 * 30 + 20] = b"MISSING\0"
+    stairs[3] = ("SIDEDEFS", bytes(sides))
+    files["stairs-hidden-texture.wad"] = wad(stairs)
+    stairs = stair_lumps()
+    sectors = bytearray(stairs[8][1])
+    struct.pack_into("<h", sectors, 2 * 26, 64)
+    struct.pack_into("<H", sectors, 4 * 26 + 24, 7)
+    stairs[8] = ("SECTORS", bytes(sectors))
+    files["stairs-grouped.wad"] = wad(stairs)
+    stairs = stair_lumps()
+    sectors = bytearray(stairs[8][1])
+    struct.pack_into("<h", sectors, 2 * 26 + 2, 56)
+    stairs[8] = ("SECTORS", bytes(sectors))
+    files["stairs-obstructed.wad"] = wad(stairs)
     for start in (53, 87, 10, 88, 121, 120, 38):
         for stop in (54, 89):
             files[f"platform-{start}-{stop}.wad"] = wad(platform_lumps(start, stop))

@@ -45,6 +45,7 @@ tasks:
       - cp tests/DoomTaggedDoorsSmoke.Mod build/
       - cp tests/DoomFloorsSmoke.Mod build/
       - cp tests/DoomPlatformsSmoke.Mod build/
+      - cp tests/DoomStairsSmoke.Mod build/
       - cp tests/DoomSwitchesSmoke.Mod build/
       - cp tests/DoomControlsSmoke.Mod build/
       - python3 tests/wad_fixtures.py build
@@ -95,6 +96,8 @@ tasks:
       - cd build && timeout 10 ./floors-check
       - cd build && ob build DoomPlatformsSmoke.Mod -o platforms-check
       - cd build && timeout 10 ./platforms-check
+      - cd build && ob build DoomStairsSmoke.Mod -o stairs-check
+      - cd build && timeout 10 ./stairs-check
       - cd build && ob build DoomSwitchesSmoke.Mod -o switches-check
       - cd build && timeout 10 ./switches-check
       - cd build && ob build Doom.Mod -o doom-check
@@ -145,6 +148,7 @@ tasks:
       - python3 tests/gui_smoke.py --gun-door build/ao-doom build/tagged-door-gun-portal.wad E1M1
       - python3 tests/gui_smoke.py --lift build/ao-doom build/floor-lift-ride.wad E1M1
       - python3 tests/gui_smoke.py --platform build/ao-doom build/platform-riding.wad E1M1
+      - python3 tests/gui_smoke.py --stairs build/ao-doom build/stairs-gui.wad E1M1
       - python3 tests/gui_smoke.py --walk-floor build/ao-doom build/floor-88.wad E1M1
       - python3 tests/gui_smoke.py --gun-floor build/ao-doom build/floor-gun.wad E1M1
       - python3 tests/gui_smoke.py --button build/ao-doom build/switch-button.wad E1M1

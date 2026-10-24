@@ -2,6 +2,24 @@
 
 Updated: 2026-10-25
 
+## Delivery checkpoint: stair actions (2026-10-25)
+
+This stage adds actions 7/8 and 100/127 for directed same-floor-name stair chains,
+including untagged steps, busy-sector behavior and hidden-material validation.
+Mandatory stairs YAML supplies both speeds and step heights. Existing floor
+snapshots, player/actor riding and non-crushing obstruction are reused.
+The user requested separate logical commits and joint publication to origin/main.
+The platform stage was already published as 17227ca; the engine remains clean
+at d90c17d. User-owned scene.ppm and existing builds are preserved.
+
+Integrated validation passed native task check with 397 fixtures, seven A64/QEMU
+suites, 35 isolated GUI scenarios, five logging cases, 132 original-map probes
+and 54 stair-line probes. The stair-only commit also receives a separate native
+configuration/stair build check after splitting. Evidence is in
+scratch/stairs-check.md, stairs-verification.json and commit-split-check.log.
+These checks are not full campaign playthroughs. Next map work remains surface
+changes and donuts; the following commit adds the integrated log improvements.
+
 ## Delivery checkpoint: perpetual platforms (2026-10-25)
 
 The user authorized committing and pushing the existing platform stage on

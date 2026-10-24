@@ -718,7 +718,7 @@ def main():
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
     tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
     floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun",
-                  "--platform": "perpetual"}.get(arguments[0])
+                  "--platform": "perpetual", "--stairs": "stairs"}.get(arguments[0])
     switch_mode = {"--button": "button", "--switch": "switch", "--gun-switch": "gun"}.get(arguments[0])
     if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode or floor_mode or switch_mode:
         arguments = arguments[1:]

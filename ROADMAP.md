@@ -88,10 +88,20 @@ Initial direction uses a controller-local random generator; shared classic
 randomness, exact classic mover timing, monster activation and sound remain
 open. Evidence and validation limits are in scratch/platforms-check.md.
 
+## Delivered stair actions
+
+Actions 7/8 and 100/127 build slow/fast stair chains through use or crossings.
+Directed two-sided adjacency preserves WAD order and floor-name matching,
+including untagged steps and busy-sector behavior. Loader reachability covers
+hidden lower wall materials before map publication; the existing engine handles
+plane snapshots, riding and obstruction. Mandatory YAML owns both speeds and
+step sizes. Sound, crushing and exact classic plane timing remain open.
+Evidence and limits are in scratch/stairs-check.md.
+
 ## Remaining delivery areas
 
-- Map progression: remaining floor/ceiling actions and lifts,
-  crushers, teleporters, sector damage and secrets, plus original exit visuals
+- Map progression: remaining floor/ceiling actions and lifts, surface changes,
+  donuts, crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,
   attack/pain/death states, projectiles, infighting, drops and boss actions.

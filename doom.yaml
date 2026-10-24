@@ -25,6 +25,11 @@ doors:
   top_gap: 4
 floors:
   speed_per_tick: 1
+stairs:
+  speed_per_tick: 0.25
+  fast_speed_per_tick: 4
+  step: 8
+  fast_step: 16
 platforms:
   speed_per_tick: 4
   fast_speed_per_tick: 8

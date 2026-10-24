@@ -31,6 +31,10 @@ CONST WalkLowerHighest = 19;
 	RepeatPerpetual = 87;
 	WalkStopLift = 54;
 	RepeatStopLift = 89;
+	SwitchStairs = 7;
+	WalkStairs = 8;
+	WalkFastStairs = 100;
+	SwitchFastStairs = 127;
 	Unsupported = 0;
 	Using = 1;
 	Walk = 2;
@@ -42,6 +46,7 @@ CONST WalkLowerHighest = 19;
 	Lift = 5;
 	Perpetual = 6;
 	StopLift = 7;
+	Stairs = 8;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -53,7 +58,7 @@ TYPE Occupants* = PROCEDURE {DELEGATE} (before, after: GameGeometry.World; secto
 Trigger = RECORD
 	geometry: GameGeometry.Wall;
 	tag, front, back, activation, kind: SIGNED32;
-	repeat, fast, pending: BOOLEAN
+	repeat, fast, pending, twoSided: BOOLEAN
 END;
 
 Motion = RECORD
@@ -66,6 +71,8 @@ Controller* = OBJECT
 VAR triggers: POINTER TO ARRAY OF Trigger;
 	motions: POINTER TO ARRAY OF Motion;
 	tags: POINTER TO ARRAY OF SIGNED32;
+	first, next: POINTER TO ARRAY OF SIGNED32;
+	flats: POINTER TO ARRAY OF ARRAY DoomFormat.NameLength + 1 OF CHAR;
 	moving: POINTER TO ARRAY OF BOOLEAN;
 	heights: POINTER TO ARRAY OF FLOAT64;
 	actions: DoomActions.Table;
@@ -74,8 +81,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 
 	PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines, sides, sectors, vertices: DoomWad.Lump;
 		shared: DoomActions.Table);
-	VAR i, offset, side, a, b, sectorCount: SIGNED32;
-		movingTags: POINTER TO ARRAY OF BOOLEAN;
+	VAR i, j, offset, side, a, b, sectorCount, head, count, sector: SIGNED32;
+		movingTags, stairTags, stairMoving: POINTER TO ARRAY OF BOOLEAN;
+		pending: POINTER TO ARRAY OF SIGNED32;
 	BEGIN
 		actions := shared;
 		NEW(random);
@@ -83,16 +91,29 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		NEW(triggers, lines.size DIV DoomFormat.LineSize);
 		NEW(motions, sectorCount);
 		NEW(tags, sectorCount);
+		NEW(first, sectorCount);
+		NEW(next, LEN(triggers^));
+		NEW(flats, sectorCount);
 		NEW(moving, sectorCount);
 		NEW(heights, sectorCount);
 		NEW(movingTags, DoomFormat.MaximumRecords);
+		NEW(stairTags, DoomFormat.MaximumRecords);
+		NEW(stairMoving, sectorCount);
+		NEW(pending, sectorCount);
 		FOR i := 0 TO sectorCount - 1 DO
-			tags[i] := GameBytes.U16(archive.data^, sectors.offset + i * DoomFormat.SectorSize + DoomFormat.SectorTag)
+			offset := sectors.offset + i * DoomFormat.SectorSize;
+			tags[i] := GameBytes.U16(archive.data^, offset + DoomFormat.SectorTag);
+			first[i] := -1;
+			FOR j := 0 TO DoomFormat.NameLength - 1 DO
+				flats[i][j] := CAP(archive.data[offset + 4 + j])
+			END;
+			flats[i][DoomFormat.NameLength] := 0X
 		END;
 		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 			offset := lines.offset + i * DoomFormat.LineSize;
 			Classify(actions.Special(i), triggers[i]);
 			triggers[i].tag := GameBytes.U16(archive.data^, offset + DoomFormat.LineTag);
+			triggers[i].twoSided := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags) DIV 4 MOD 2 = 1;
 			side := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
 			triggers[i].front := GameBytes.U16(archive.data^, sides.offset + side * DoomFormat.SideSize + DoomFormat.SideSector);
 			triggers[i].back := -1;
@@ -108,10 +129,44 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			triggers[i].geometry.by := -GameBytes.I16(archive.data^, b + 2) / DoomFormat.UnitsPerWorld;
 			IF (triggers[i].activation # Unsupported) & (triggers[i].kind # StopLift) THEN
 				movingTags[triggers[i].tag] := TRUE
+			END;
+			IF triggers[i].kind = Stairs THEN
+				stairTags[triggers[i].tag] := TRUE
+			END
+		END;
+		FOR i := SIGNED32(LEN(triggers^)) - 1 TO 0 BY -1 DO
+			next[i] := -1;
+			IF triggers[i].twoSided & (triggers[i].back >= 0) THEN
+				next[i] := first[triggers[i].front];
+				first[triggers[i].front] := i
+			END
+		END;
+		count := 0;
+		FOR i := 0 TO sectorCount - 1 DO
+			moving[i] := movingTags[tags[i]];
+			IF stairTags[tags[i]] THEN
+				stairMoving[i] := TRUE;
+				pending[count] := i;
+				INC(count)
+			END
+		END;
+		head := 0;
+		WHILE head < count DO
+			sector := pending[head];
+			INC(head);
+			i := first[sector];
+			WHILE i >= 0 DO
+				b := triggers[i].back;
+				IF ~stairMoving[b] & (flats[b] = flats[sector]) THEN
+					stairMoving[b] := TRUE;
+					pending[count] := b;
+					INC(count)
+				END;
+				i := next[i]
 			END
 		END;
 		FOR i := 0 TO sectorCount - 1 DO
-			moving[i] := movingTags[tags[i]]
+			moving[i] := moving[i] OR stairMoving[i]
 		END
 	END Init;
 
@@ -218,15 +273,67 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		RETURN TRUE
 	END Start;
 
+	(* BuildStairs follows front-to-back neighbors in WAD order and claims each moving step once. *)
+	PROCEDURE BuildStairs(world: GameGeometry.World; VAR sector: SIGNED32; fast: BOOLEAN): BOOLEAN;
+	VAR line, neighbor: SIGNED32;
+		height, step, speed: FLOAT64;
+		flat: ARRAY DoomFormat.NameLength + 1 OF CHAR;
+		found: BOOLEAN;
+	BEGIN
+		IF ~actions.Claim(sector) THEN
+			RETURN FALSE
+		END;
+		COPY(flats[sector], flat);
+		height := world.Region(sector).floor;
+		step := DoomConfig.values.stairStep;
+		speed := DoomConfig.values.stairSpeed;
+		IF fast THEN
+			step := DoomConfig.values.fastStairStep;
+			speed := DoomConfig.values.fastStairSpeed
+		END;
+		height := height + step;
+		LOOP
+			motions[sector].direction := Up;
+			motions[sector].target := height;
+			motions[sector].speed := speed;
+			motions[sector].lift := FALSE;
+			motions[sector].perpetual := FALSE;
+			INC(active);
+			found := FALSE;
+			line := first[sector];
+			WHILE (line >= 0) & ~found DO
+				neighbor := triggers[line].back;
+				IF flats[neighbor] = flat THEN
+					height := height + step;
+					IF actions.Claim(neighbor) THEN
+						sector := neighbor;
+						found := TRUE
+						END
+				END;
+				line := next[line]
+			END;
+			IF ~found THEN
+				EXIT
+			END
+		END;
+		RETURN TRUE
+	END BuildStairs;
+
 	PROCEDURE Activate(world: GameGeometry.World; line: SIGNED32): BOOLEAN;
 	VAR i: SIGNED32;
 		started: BOOLEAN;
 	BEGIN
 		started := FALSE;
-		FOR i := 0 TO SIGNED32(LEN(tags^)) - 1 DO
-			IF (tags[i] = triggers[line].tag) & Start(world, i, triggers[line]) THEN
-				started := TRUE
-			END
+		i := 0;
+		WHILE i < LEN(tags^) DO
+			IF tags[i] = triggers[line].tag THEN
+				IF triggers[line].kind = Stairs THEN
+					started := BuildStairs(world, i, triggers[line].fast) OR started
+				ELSIF Start(world, i, triggers[line]) THEN
+					started := TRUE
+				END
+			END;
+			INC(i)
 		END;
 		IF (started & (triggers[line].activation = Using)) OR (triggers[line].activation = Gun) THEN
 			actions.Activated(line, triggers[line].repeat)
@@ -362,6 +469,8 @@ BEGIN
 		trigger.kind := Perpetual
 	| WalkStopLift, RepeatStopLift:
 		trigger.kind := StopLift
+	| SwitchStairs, WalkStairs, WalkFastStairs, SwitchFastStairs:
+		trigger.kind := Stairs
 	ELSE
 		RETURN
 	END;
@@ -369,7 +478,7 @@ BEGIN
 	CASE special OF
 	WalkLowerHighest, RepeatLowerHighest, WalkLowerLowest, RepeatLowerLowest, WalkRaiseNearest, RepeatRaiseNearest,
 		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift,
-		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift:
+		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs:
 		trigger.activation := Walk
 	| GunRaiseCeiling:
 		trigger.activation := Gun
@@ -383,7 +492,8 @@ BEGIN
 	ELSE
 	END;
 	trigger.fast := (special = RepeatFastLift) OR (special = WalkFastLift) OR
-		(special = SwitchFastLift) OR (special = ButtonFastLift)
+		(special = SwitchFastLift) OR (special = ButtonFastLift) OR
+		(special = WalkFastStairs) OR (special = SwitchFastStairs)
 END Classify;
 
 END DoomFloors.

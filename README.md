@@ -73,6 +73,13 @@ per tick in the standard profile, valid range 0.01-64). Custom complete profiles
 must add this field. Initial directions use MiniA2's local random generator;
 the shared classic random sequence and exact classic mover timing remain open.
 Remaining floor variants, surface changes, crushers and sound are not implemented.
+Stair actions 7/8 build slow steps and 100/127 build fast steps through use or
+crossing triggers. Chains follow two-sided lines from front to back, in WAD
+order, while floor names match; untagged neighbors join the chain. Busy steps
+remain owned by their existing controller. Newly visible lower wall materials
+validate before map replacement. Player and grounded objects use the existing
+floor riding and obstruction checks. Mandatory `stairs` YAML supplies speed and
+step height: the standard profile uses 0.25/4 units per tick and 8/16-unit steps.
 Implemented use/gun switches now toggle their front sidedef's upper, middle or
 lower texture, choosing the first authored pair and then upper/middle/lower.
 One-shot switches stay changed; repeat buttons restore the initial image after
@@ -221,6 +228,8 @@ task run -- build/floor-lift-ride.wad E1M1
 task run -- build/floor-88.wad E1M1
 # Walk onto the perpetual platform; cross the far edge to stop it, then return to restart.
 task run -- build/platform-riding.wad E1M1
+# Press E to raise a staircase, then walk up its steps.
+task run -- build/stairs-gui.wad E1M1
 # Shoot the line with the pistol to raise the floor.
 task run -- build/floor-gun.wad E1M1
 # A grille with transparent holes; the line permits crossing.
@@ -256,7 +265,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 387 authored WAD fixtures, rejects
+`task check` runs engine checks, generates 397 authored WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -290,7 +299,7 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies thirty-four scenarios: corridor, single-sector,
+`task gui-check` additionally verifies thirty-five scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
@@ -299,6 +308,7 @@ plus normal/secret exits, campaign completion and a missing next map.
 Three scenarios activate tagged doors by use, crossing and shooting; three
 more check lift riding/return and floor activation by crossing or hitscan.
 One checks perpetual platform movement, waiting and reversal while riding.
+One raises a staircase through a use action and checks the visible result.
 Three check a permanent switch, button release and a hitscan switch texture.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
@@ -366,6 +376,9 @@ Distances use Doom map units. Player and door speeds are per simulation tick;
 turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
 timing, collision dimensions, motion, door interaction and panel layout/colors.
 `player.pickup_radius` and `pickup_below_feet` control item reach.
+`stairs` requires `speed_per_tick`, `fast_speed_per_tick`, `step` and `fast_step`.
+Speeds accept 0.01-64 map units per tick; steps accept 0.01-128 map units.
+Complete external profiles must add this section; there are no fallback values.
 `inventory` supplies initial health/bullets, health/armor limits, ammo capacities,
 pickup amounts, box/weapon/backpack multipliers and green/blue armor damage
 divisors; values must fit HUD digits.
@@ -502,7 +515,8 @@ scene data.
 
 `task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
 `DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
-`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomExitsSmoke`, `DoomControlsSmoke`, `DoomPlatformsSmoke` and `DoomInput`
+`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomExitsSmoke`,
+`DoomControlsSmoke`, `DoomPlatformsSmoke`, `DoomStairsSmoke` and `DoomInput`
 in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
@@ -527,6 +541,9 @@ invalid next maps, retries, completion input freeze and authored custom routes.
 Platform checks cover normal/fast lift stop/resume, both movement directions,
 paused waits, shared ownership, grouped/unrelated tags, obstruction reversal,
 custom speed/wait, accepted movement, carried player and failed replacement.
+Stair checks cover all four actions, front/back direction, floor-name boundaries,
+busy and grouped sectors, initial height differences, riding, obstruction,
+hidden materials, failed map replacement, custom speeds/steps and old snapshots.
 These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.
@@ -576,8 +593,8 @@ selected weapon and loaded magazines persist. Keys, pickup counters and hints
 reset; active firing/reload/effects and camera pitch reset for the new spawn.
 Failure keeps the current level and inventory, displays `error_text`, and allows
 a new attempt. A null target freezes gameplay and displays `complete_text`.
-Transitions are immediate: intermission statistics, original finale scenes,
-exit switch texture changes and the missing-MAP31 secret fallback remain open.
+Transitions are immediate: intermission statistics, original finale scenes
+and the missing-MAP31 secret fallback remain open.
 
 For an owned two-map demonstration, run `./build/ao-doom build/exits-use.wad E1M1`
 after `task check`, then press E. Evidence: [the exit report](scratch/exits-check.md).

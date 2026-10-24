@@ -149,6 +149,7 @@ Settings* = RECORD
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
 	floorSpeed*, platformSpeed*, fastPlatformSpeed*, perpetualPlatformSpeed*: FLOAT64;
+	stairSpeed*, fastStairSpeed*, stairStep*, fastStairStep*: FLOAT64;
 	mouseSensitivity*, aimSensitivity*, pitchLimit*, aimZoom*: FLOAT64;
 	invertMouse*: BOOLEAN;
 	fireButton*, aimButton*: SIGNED32;
@@ -1108,7 +1109,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|floors|platforms|switches|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|floors|stairs|platforms|switches|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -1134,6 +1135,11 @@ BEGIN
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) OR
 		~Section(root, "floors", "|speed_per_tick|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.floorSpeed, error) OR
+		~Section(root, "stairs", "|speed_per_tick|fast_speed_per_tick|step|fast_step|", object, error) OR
+		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.stairSpeed, error) OR
+		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastStairSpeed, error) OR
+		~Real(object, "step", 0.01, 128, DoomFormat.UnitsPerWorld, candidate.stairStep, error) OR
+		~Real(object, "fast_step", 0.01, 128, DoomFormat.UnitsPerWorld, candidate.fastStairStep, error) OR
 		~Section(root, "platforms", "|speed_per_tick|fast_speed_per_tick|perpetual_speed_per_tick|wait_ticks|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.platformSpeed, error) OR
 		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastPlatformSpeed, error) OR
@@ -1592,6 +1598,12 @@ BEGIN
 	object := value(JSON.Object);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(65), settings);
+	value := root.Get("stairs");
+	object := value(JSON.Object);
+	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, object, "fast_speed_per_tick", JSON.NewNumber(65), settings);
+	RejectField(root, object, "step", JSON.NewNumber(0), settings);
+	RejectField(root, object, "fast_step", JSON.NewNumber(129), settings);
 	value := root.Get("platforms");
 	object := value(JSON.Object);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
