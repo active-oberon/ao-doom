@@ -1,6 +1,101 @@
 # ao-doom session handoff
 
-Updated: 2026-10-15
+Updated: 2026-10-25
+
+## Delivery checkpoint: perpetual platforms (2026-10-25)
+
+The user authorized committing and pushing the existing platform stage on
+ao-doom main, then continuing the roadmap and expanding application logs.
+A fresh isolated native task check passed all six engine executables and the
+game suite with 387 authored WAD fixtures. Evidence: scratch/resume-baseline.log
+and scratch/resume-state.json. The existing platform sources and ready demo
+matched the saved verification hashes before this documentation update.
+The sibling engine remains clean at d90c17d. User-owned scene.ppm is excluded.
+Earlier A64, GUI and original-map evidence is retained below; those families
+were not rerun for this delivery. This checkpoint supersedes the exit-only
+stopping instruction below. Next: stair actions and detailed rare-event logs.
+
+## Exit checkpoint: 2026-10-24
+
+The user explicitly requested saving memory and leaving. Stop implementation
+and testing; resume only after a new request. This checkpoint supersedes the
+historical continuations below. No commit or push was requested or performed;
+no publication approval is pending.
+
+- Game main remains at ad9b2d1ad935b8560d7fe62a418abf4fc28fb811 with the
+  perpetual-platform stage uncommitted. Engine main is clean at
+  d90c17d0e74eeb615ff2ba1cd0f6d2c4a832a12c. Preserve all dirty game work,
+  new tests/DoomPlatformsSmoke.Mod and user-owned untracked scene.ppm.
+- Platforms: actions 53/87 start/resume and 54/89 stop normal, fast and
+  perpetual lifts without losing direction, wait or sector ownership.
+  Complete profiles require platforms.perpetual_speed_per_tick. See the
+  continuation below and scratch/platforms-check.md for behavior and limits.
+- Prior verification passed native task check, five A64/QEMU suites,
+  34 isolated Xephyr scenarios, five logging cases, 132 original-map probes,
+  ten original-platform probes and a separate ready-demo GUI check.
+  Final equal-bounds tests pass native/A64: 387 fixtures and ten new TEST
+  procedures. No runtime tests were rerun for this exit bookkeeping.
+- The user ran build/platforms/ao-doom and reported needing arrow keys.
+  WASD/E bindings are already in its matching YAML. Isolated layout tests
+  pass English E/W/D and fail Russian/Ukrainian E activation. The user did
+  not confirm their active layout, so the original symptom's cause remains
+  unconfirmed. No input code, executable or YAML was changed for diagnosis;
+  README and demo instructions document the English-layout requirement.
+  Evidence: scratch/keyboard-layout-check.md and keyboard-layout-check-final.log.
+  Non-English input remains unresolved. Do not describe it as fixed.
+- Ready demo: cd build/platforms, then ./ao-doom platform-riding.wad E1M1.
+  Use an English layout for letter bindings. WASD moves, E uses doors/switches;
+  this platform starts/stops/resumes through line crossings.
+- Resume from AGENTS.md, this checkpoint, ROADMAP.md, README.md and the two
+  reports above, then verify both live worktrees and SDK paths. Source/artifact
+  hashes are in scratch/platforms-verification.json; it precedes this exit-only
+  SESSION update. Final exit hashes are in platforms-exit-state.json; staging
+  and SDK paths are in platforms-state.json. /tmp/ao-doom-platforms-cmxzp990 is temporary.
+  Full campaigns, classic random/timing fidelity, sound, CI, other platforms,
+  physical hardware and maximum-scene stress remain unverified.
+
+## Current continuation: perpetual platforms (2026-10-23)
+
+The user requested continuing Doom implementation. This continuation supersedes
+the historical checkpoints below. Game main remains at
+ad9b2d1ad935b8560d7fe62a418abf4fc28fb811; engine main remains clean at
+d90c17d0e74eeb615ff2ba1cd0f6d2c4a832a12c. The platform stage is local and
+uncommitted. No commit or push was requested or performed; earlier publication
+approvals remain consumed.
+
+- Added crossing actions 53/87 for perpetual platforms and 54/89 for stopping
+  platforms, including normal/fast lifts. Resume retains direction, target,
+  remaining wait, original lift behavior and sector ownership. Repeated
+  activation preserves state; upward obstruction reverses; grouped and unrelated
+  tags, equal bounds, carried player and failed map replacement are covered.
+- Complete YAML now requires platforms.perpetual_speed_per_tick, standard 1
+  and alternate test profile 2. Existing platform wait supplies both endpoint
+  delays. Initial direction uses the controller-local MiniA2 random generator;
+  the shared classic random stream and exact plane timing remain open.
+- Native task check passes all six engine executables and the game suite;
+  five A64/QEMU suites, all 34 isolated Xephyr scenarios and five logging cases
+  pass. All 132 original-map probes and ten original-platform probes pass,
+  including five actual stop/resume pairs. Final equal-bounds coverage passes
+  fresh Linux64 and A64 builds: 387 fixtures and ten new platform TEST procedures.
+  These checks are not full campaigns. Initial failures and corrections remain
+  in scratch/platforms-check.md; no required check remains failing.
+- Ready demo: cd /home/andrejjj/Projects/A2/ao-doom/build/platforms, then
+  ./ao-doom platform-riding.wad E1M1. Hold W to enter, release to ride,
+  cross the far edge when reachable to stop, and return across the entry to
+  resume. The matching complete YAML is included. A separate GUI check passes.
+  All 538 pre-existing scene/build files retain their hashes. No engine or SDK
+  sources changed. scene.ppm remains user-owned and untracked.
+- Evidence: scratch/platforms-check.md, platforms-state.json and
+  platforms-verification.json. Isolated sources/outputs:
+  /tmp/ao-doom-platforms-cmxzp990. Native SDK:
+  /home/andrejjj/Projects/A2/minia2/target/bundle/ob. A64 uses the existing
+  logging-build/sdk/ob, build -t a64, qemu-aarch64 and target/A64/sysroot.
+  Check families use separate output and TMPDIR paths; older builds are intact.
+- Next: remaining floor/ceiling actions, surface changes, stairs/donuts,
+  crushers, teleporters, sector damage/secrets and sound, following ROADMAP.md.
+  Monster activation, classic randomness/demo fidelity and exact mover ordering
+  remain open. Existing door obstruction remains player-only. Full campaigns,
+  CI, Windows, ARMhf, full A2, hardware and maximum-scene stress are unverified.
 
 ## Delivery checkpoint: switch and button materials
 

@@ -59,7 +59,7 @@ ray clipping, texture anchors and rendering. TouchesSector limits occupant check
 Player and grounded things ride accepted planes; valid solid volumes prevent
 pinching, and obstructed rising lifts reverse. Pre-existing invalid spawn
 volumes keep the preview behavior and do not stop planes. Remaining floor
-variants, crushers, perpetual platforms, surface changes, sound and classic
+variants, crushers, surface changes, sound and classic
 ordering/timing fidelity remain open. Evidence is in scratch/floors-check.md.
 
 ## Delivered switch and button stage
@@ -74,6 +74,19 @@ are covered by engine and game checks. Both matched images validate before
 publishing a level. Existing immediate exits update their material first;
 intermissions, switch sounds and edition-specific behavior remain open.
 Evidence and exact validation limits are in scratch/switches-check.md.
+
+## Delivered perpetual platform stage
+
+Crossing actions 53/87 start perpetual platforms between the lowest/highest
+neighboring floors. Actions 54/89 pause platforms by tag, including normal/fast
+lifts. Activation through 53/87 resumes the saved direction or remaining wait;
+ordinary lifts still finish at their original height. Paused platforms retain
+sector ownership, repeated starts/stops preserve state, and ascending obstruction
+reverses motion. The existing engine handles snapshots, collision and occupants.
+Mandatory YAML supplies perpetual speed and the existing platform wait.
+Initial direction uses a controller-local random generator; shared classic
+randomness, exact classic mover timing, monster activation and sound remain
+open. Evidence and validation limits are in scratch/platforms-check.md.
 
 ## Remaining delivery areas
 

@@ -325,6 +325,15 @@ def floor_lumps(special=62, crossing=False, floor=96, portal=True, ride=False):
     return lumps
 
 
+def platform_lumps(start=87, stop=89, floor=32):
+    lumps = floor_lumps(start, floor=floor)
+    lines = bytearray(lumps[2][1])
+    struct.pack_into("<2H", lines, 9 * 14 + 6, stop, 7)
+    struct.pack_into("<2H", lines, 6, 87, 7)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    return lumps
+
+
 def switch_lumps(special=61, slot=20, portal=False, floor=False, on=False, missing=False):
     lumps = floor_lumps(special, portal=portal) if floor else tagged_door_lumps(special, portal=portal)
     if not portal:
@@ -719,6 +728,29 @@ def fixtures(directory):
     priority[3] = ("SIDEDEFS", bytes(sides))
     files["switch-priority.wad"] = wad(priority)
     files["floor-lift.wad"] = wad(floor_lumps())
+    for start in (53, 87, 10, 88, 121, 120, 38):
+        for stop in (54, 89):
+            files[f"platform-{start}-{stop}.wad"] = wad(platform_lumps(start, stop))
+    grouped = platform_lumps()
+    sectors = bytearray(grouped[8][1])
+    struct.pack_into("<h", sectors, 24, 7)
+    struct.pack_into("<h", sectors, 52 + 24, 7)
+    grouped[8] = ("SECTORS", bytes(sectors))
+    files["platform-grouped.wad"] = wad(grouped)
+    separate = platform_lumps()
+    sectors = bytearray(separate[8][1])
+    struct.pack_into("<h", sectors, 52 + 24, 9)
+    separate[8] = ("SECTORS", bytes(sectors))
+    lines = bytearray(separate[2][1])
+    struct.pack_into("<2H", lines, 5 * 14 + 6, 87, 9)
+    separate[2] = ("LINEDEFS", bytes(lines))
+    files["platform-separate.wad"] = wad(separate)
+    files["platform-riding.wad"] = wad(platform_lumps(floor=16))
+    flat = platform_lumps(floor=0)
+    sectors = bytearray(flat[8][1])
+    struct.pack_into("<h", sectors, 52, 0)
+    flat[8] = ("SECTORS", bytes(sectors))
+    files["platform-flat.wad"] = wad(flat)
     files["floor-gun.wad"] = wad(floor_lumps(24, floor=16))
     floor_walks = (5, 10, 19, 38, 82, 83, 88, 91, 119, 120, 121, 128)
     floor_nearest = (18, 69, 119, 128)

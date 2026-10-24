@@ -367,6 +367,34 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             print(f"Exit GUI check passed: {exit_mode}, frame/status, one typed transition record and shutdown")
             return
         if floor_mode:
+            if floor_mode == "perpetual":
+                key(display, window, root, ord("w"))
+                time.sleep(0.3)
+                key(display, window, root, ord("w"), release=True)
+                scene = 43 * 80
+                previous = pixels(display, window)[:scene]
+                changes, stable = 0, 0
+                waited = False
+                deadline = time.monotonic() + 12
+                while time.monotonic() < deadline:
+                    time.sleep(0.1)
+                    current = pixels(display, window)[:scene]
+                    if current == previous:
+                        stable += 1
+                        waited = waited or (stable >= 6 and changes >= 3)
+                    else:
+                        changes += 1
+                        if waited:
+                            break
+                        stable = 0
+                    previous = current
+                assert waited and current != previous, "Perpetual platform did not move, wait and reverse"
+                shutdown(display, window, root)
+                output, _ = process.communicate(timeout=5)
+                assert process.returncode == 0, output
+                check_logs(output, arguments)
+                print("Platform GUI check passed: riding, motion, waiting, reversal and shutdown")
+                return
             if floor_mode == "gun":
                 button(display, window, root, 1)
                 time.sleep(0.2)
@@ -689,7 +717,8 @@ def main():
     explosions = arguments[0] == "--explosions"
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
     tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
-    floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun"}.get(arguments[0])
+    floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun",
+                  "--platform": "perpetual"}.get(arguments[0])
     switch_mode = {"--button": "button", "--switch": "switch", "--gun-switch": "gun"}.get(arguments[0])
     if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode or floor_mode or switch_mode:
         arguments = arguments[1:]

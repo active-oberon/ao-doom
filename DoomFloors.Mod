@@ -1,6 +1,6 @@
 MODULE DoomFloors;
 
-IMPORT DoomConfig, DoomFormat, DoomActions, DoomWad, GameBytes, GameGeometry;
+IMPORT DoomConfig, DoomFormat, DoomActions, DoomWad, GameBytes, GameGeometry, Random;
 
 CONST WalkLowerHighest = 19;
 	ButtonLowerHighest = 45;
@@ -27,6 +27,10 @@ CONST WalkLowerHighest = 19;
 	WalkFastLift = 121;
 	SwitchFastLift = 122;
 	ButtonFastLift = 123;
+	WalkPerpetual = 53;
+	RepeatPerpetual = 87;
+	WalkStopLift = 54;
+	RepeatStopLift = 89;
 	Unsupported = 0;
 	Using = 1;
 	Walk = 2;
@@ -36,10 +40,13 @@ CONST WalkLowerHighest = 19;
 	RaiseNearest = 3;
 	RaiseCeiling = 4;
 	Lift = 5;
+	Perpetual = 6;
+	StopLift = 7;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
 	Waiting = 2;
+	Paused = 3;
 
 TYPE Occupants* = PROCEDURE {DELEGATE} (before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
 
@@ -50,9 +57,9 @@ Trigger = RECORD
 END;
 
 Motion = RECORD
-	direction, timer: SIGNED32;
+	direction, oldDirection, timer: SIGNED32;
 	target, low, high, speed: FLOAT64;
-	lift: BOOLEAN
+	lift, perpetual: BOOLEAN
 END;
 
 Controller* = OBJECT
@@ -62,6 +69,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	moving: POINTER TO ARRAY OF BOOLEAN;
 	heights: POINTER TO ARRAY OF FLOAT64;
 	actions: DoomActions.Table;
+	random: Random.Generator;
 	active: SIGNED32;
 
 	PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines, sides, sectors, vertices: DoomWad.Lump;
@@ -70,6 +78,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		movingTags: POINTER TO ARRAY OF BOOLEAN;
 	BEGIN
 		actions := shared;
+		NEW(random);
 		sectorCount := sectors.size DIV DoomFormat.SectorSize;
 		NEW(triggers, lines.size DIV DoomFormat.LineSize);
 		NEW(motions, sectorCount);
@@ -97,7 +106,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			triggers[i].geometry.ay := -GameBytes.I16(archive.data^, a + 2) / DoomFormat.UnitsPerWorld;
 			triggers[i].geometry.bx := GameBytes.I16(archive.data^, b) / DoomFormat.UnitsPerWorld;
 			triggers[i].geometry.by := -GameBytes.I16(archive.data^, b + 2) / DoomFormat.UnitsPerWorld;
-			IF triggers[i].activation # Unsupported THEN
+			IF (triggers[i].activation # Unsupported) & (triggers[i].kind # StopLift) THEN
 				movingTags[triggers[i].tag] := TRUE
 			END
 		END;
@@ -137,7 +146,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				CASE kind OF
 				LowerHighest:
 					result := MAX(result, other.floor)
-				| LowerLowest, Lift:
+				| LowerLowest, Lift, Perpetual:
 					result := MIN(result, other.floor)
 				| RaiseNearest:
 					IF other.floor > region.floor THEN
@@ -157,11 +166,26 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	PROCEDURE Start(world: GameGeometry.World; sector: SIGNED32; CONST trigger: Trigger): BOOLEAN;
 	VAR region: GameGeometry.Sector;
 	BEGIN
+		IF trigger.kind = StopLift THEN
+			IF motions[sector].lift & (motions[sector].direction # Idle) & (motions[sector].direction # Paused) THEN
+				motions[sector].oldDirection := motions[sector].direction;
+				motions[sector].direction := Paused;
+				DEC(active);
+				RETURN TRUE
+			END;
+			RETURN FALSE
+		END;
+		IF (trigger.kind = Perpetual) & (motions[sector].direction = Paused) THEN
+			motions[sector].direction := motions[sector].oldDirection;
+			INC(active);
+			RETURN TRUE
+		END;
 		IF ~actions.Claim(sector) THEN
 			RETURN FALSE
 		END;
 		region := world.Region(sector);
-		motions[sector].lift := trigger.kind = Lift;
+		motions[sector].perpetual := trigger.kind = Perpetual;
+		motions[sector].lift := (trigger.kind = Lift) OR motions[sector].perpetual;
 		motions[sector].high := region.floor;
 		motions[sector].target := Target(world, sector, trigger.kind);
 		motions[sector].speed := DoomConfig.values.floorSpeed;
@@ -173,7 +197,18 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			motions[sector].target := MAX(region.floor, motions[sector].target)
 		END;
 		motions[sector].low := motions[sector].target;
-		IF motions[sector].lift THEN
+		IF motions[sector].perpetual THEN
+			motions[sector].low := Target(world, sector, LowerLowest);
+			motions[sector].high := MAX(region.floor, Target(world, sector, LowerHighest));
+			motions[sector].speed := DoomConfig.values.perpetualPlatformSpeed;
+			motions[sector].direction := Down;
+			motions[sector].target := motions[sector].low;
+			(* shortcut: platform randomness is controller-local; share the classic sequence when implementing demo compatibility. *)
+			IF random.Dice(2) = 0 THEN
+				motions[sector].direction := Up;
+				motions[sector].target := motions[sector].high
+			END
+		ELSIF motions[sector].lift THEN
 			motions[sector].speed := DoomConfig.values.platformSpeed;
 			IF trigger.fast THEN
 				motions[sector].speed := DoomConfig.values.fastPlatformSpeed
@@ -263,9 +298,13 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				DEC(motions[i].timer);
 				IF motions[i].timer = 0 THEN
 					motions[i].direction := Up;
-					motions[i].target := motions[i].high
+					motions[i].target := motions[i].high;
+					IF world.Region(i).floor # motions[i].low THEN
+						motions[i].direction := Down;
+						motions[i].target := motions[i].low
+					END
 				END
-			ELSIF motions[i].direction # Idle THEN
+			ELSIF (motions[i].direction = Up) OR (motions[i].direction = Down) THEN
 				previous := heights[i];
 				IF motions[i].direction = Up THEN
 					heights[i] := MIN(motions[i].target, heights[i] + motions[i].speed)
@@ -285,7 +324,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 					world := candidate;
 					feet := floor;
 					IF heights[i] = motions[i].target THEN
-						IF motions[i].lift & (motions[i].direction = Down) THEN
+						IF motions[i].lift & ((motions[i].direction = Down) OR motions[i].perpetual) THEN
 							motions[i].direction := Waiting;
 							motions[i].timer := DoomConfig.values.platformWait
 						ELSE
@@ -319,13 +358,18 @@ BEGIN
 		trigger.kind := RaiseCeiling
 	| WalkLift, SwitchLift, ButtonLift, RepeatLift, RepeatFastLift, WalkFastLift, SwitchFastLift, ButtonFastLift:
 		trigger.kind := Lift
+	| WalkPerpetual, RepeatPerpetual:
+		trigger.kind := Perpetual
+	| WalkStopLift, RepeatStopLift:
+		trigger.kind := StopLift
 	ELSE
 		RETURN
 	END;
 	trigger.activation := Using;
 	CASE special OF
 	WalkLowerHighest, RepeatLowerHighest, WalkLowerLowest, RepeatLowerLowest, WalkRaiseNearest, RepeatRaiseNearest,
-		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift:
+		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift,
+		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift:
 		trigger.activation := Walk
 	| GunRaiseCeiling:
 		trigger.activation := Gun
@@ -333,7 +377,8 @@ BEGIN
 	END;
 	CASE special OF
 	ButtonLowerHighest, RepeatLowerHighest, ButtonLowerLowest, RepeatLowerLowest, ButtonRaiseNearest, RepeatRaiseNearest,
-		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift:
+		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift,
+		RepeatPerpetual, RepeatStopLift:
 		trigger.repeat := TRUE
 	ELSE
 	END;

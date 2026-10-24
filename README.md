@@ -62,8 +62,17 @@ controllers. Player and grounded things ride the plane; valid solid volumes
 block pinching. Blocked ascending lifts reverse. Existing invalid spawn volumes
 retain preview behavior. `floors.speed_per_tick` and the mandatory `platforms`
 speed/wait settings supply all tuning; the standard profile uses 1, 4/8 and 105
-respectively. Remaining floor variants, surface changes, perpetual platforms,
-crushers and sound are not implemented.
+respectively. Crossing actions 53/87 start perpetual platforms between their
+lowest and highest neighboring floors, with a wait at each end. Actions 54/89
+stop matching platforms, including ordinary lifts. A later 53/87 resumes their
+saved direction and remaining wait without releasing sector ownership or
+changing their original lift behavior. Repeated starts leave active motion
+unchanged. Blocked ascending platforms reverse without crushing occupants.
+Mandatory `platforms.perpetual_speed_per_tick` supplies their speed (1 map unit
+per tick in the standard profile, valid range 0.01-64). Custom complete profiles
+must add this field. Initial directions use MiniA2's local random generator;
+the shared classic random sequence and exact classic mover timing remain open.
+Remaining floor variants, surface changes, crushers and sound are not implemented.
 Implemented use/gun switches now toggle their front sidedef's upper, middle or
 lower texture, choosing the first authored pair and then upper/middle/lower.
 One-shot switches stay changed; repeat buttons restore the initial image after
@@ -166,6 +175,7 @@ Default controls: WASD moves/strafes, mouse motion turns/pitches the view, LMB
 fires, RMB aims while held, R reloads, digits 1–7 or the wheel select weapons,
 E uses nearby manual doors, tagged switches and exits; Escape closes the window. Pickups are automatic on contact.
 Up/Down, Left/Right and Ctrl remain secondary keyboard bindings in YAML.
+Letter bindings currently require an English keyboard layout on X11.
 Holding E issues one action until release. Losing focus clears held buttons,
 keys and pending input, restores normal aim and releases pointer confinement.
 The Linux X11 adapter captures only the focused game window and recenters the
@@ -209,6 +219,8 @@ task run -- build/tagged-door-gun-portal.wad E1M1
 task run -- build/floor-lift-ride.wad E1M1
 # Walk across the trigger to lower the distant platform.
 task run -- build/floor-88.wad E1M1
+# Walk onto the perpetual platform; cross the far edge to stop it, then return to restart.
+task run -- build/platform-riding.wad E1M1
 # Shoot the line with the pistol to raise the floor.
 task run -- build/floor-gun.wad E1M1
 # A grille with transparent holes; the line permits crossing.
@@ -244,7 +256,7 @@ task door-check -- '/path/to/DOOM.WAD' E1M2 --keys
 task gui-check
 ```
 
-`task check` runs engine checks, generates 323 authored WAD fixtures, rejects
+`task check` runs engine checks, generates 387 authored WAD fixtures, rejects
 malformed archives and maps, and checks movement/collision before building the
 windowed executable. Door checks cover animation, clearance, closing/reopening,
 use range/side/occlusion and texture anchoring. Locked-door checks cover all six
@@ -278,7 +290,7 @@ there is no supported closed door with a valid probe position. It checks an
 isolated crossing, not the route from the map's player start. With `--keys`,
 it selects locked manual doors, verifies denial with no keys, then explicitly
 grants all six keys to the probe; it does not find the keys along a playable route.
-`task gui-check` additionally verifies thirty-three scenarios: corridor, single-sector,
+`task gui-check` additionally verifies thirty-four scenarios: corridor, single-sector,
 multi-sector, sky, BSP, grille, sprites, sprites behind a grille, pickups, doors
 and a locked door with an actual key pickup, plus solid barrel collision, two
 pistol scenarios with default/remapped keys, a chasing demon, a ranged soldier,
@@ -286,6 +298,7 @@ an imp, a rocket blast, a barrel explosion chain and the modern mouse controls,
 plus normal/secret exits, campaign completion and a missing next map.
 Three scenarios activate tagged doors by use, crossing and shooting; three
 more check lift riding/return and floor activation by crossing or hitscan.
+One checks perpetual platform movement, waiting and reversal while riding.
 Three check a permanent switch, button release and a hitscan switch texture.
 Combat checks verify ammunition, corpse rendering, release and focus-loss handling.
 Remapping runs the same executable with another complete YAML file.
@@ -489,7 +502,7 @@ scene data.
 
 `task check` runs `{TEST}` procedures from `DoomConfig`, `DoomHud`,
 `DoomConfigSmoke`, `DoomInventorySmoke`, `DoomCombatSmoke`, `DoomAISmoke`,
-`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomExitsSmoke`, `DoomControlsSmoke` and `DoomInput`
+`DoomHitscanSmoke`, `DoomProjectilesSmoke`, `DoomExplosionsSmoke`, `DoomExitsSmoke`, `DoomControlsSmoke`, `DoomPlatformsSmoke` and `DoomInput`
 in executables with file fixtures. They verify complete YAML
 loading, rejection of every missing section/field, invalid values, configured
 wall colors, heights, lighting, brick dimensions/joints, movement, panel pixels,
@@ -511,6 +524,9 @@ preservation and 300 barrels exceeding the visual-effect limit.
 Exit checks cover normal/secret use and accepted crossings, front-side/range
 checks, episode/Doom II routes, carried inventory/projectile images, missing or
 invalid next maps, retries, completion input freeze and authored custom routes.
+Platform checks cover normal/fast lift stop/resume, both movement directions,
+paused waits, shared ownership, grouped/unrelated tags, obstruction reversal,
+custom speed/wait, accepted movement, carried player and failed replacement.
 These executables run in `build/`:
 these tests require real YAML/WAD files, which `ob test` does not copy into its
 isolated case directories.

@@ -148,7 +148,7 @@ Settings* = RECORD
 	switchPairs*: POINTER TO ARRAY OF SwitchPair;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
-	floorSpeed*, platformSpeed*, fastPlatformSpeed*: FLOAT64;
+	floorSpeed*, platformSpeed*, fastPlatformSpeed*, perpetualPlatformSpeed*: FLOAT64;
 	mouseSensitivity*, aimSensitivity*, pitchLimit*, aimZoom*: FLOAT64;
 	invertMouse*: BOOLEAN;
 	fireButton*, aimButton*: SIGNED32;
@@ -1134,9 +1134,10 @@ BEGIN
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) OR
 		~Section(root, "floors", "|speed_per_tick|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.floorSpeed, error) OR
-		~Section(root, "platforms", "|speed_per_tick|fast_speed_per_tick|wait_ticks|", object, error) OR
+		~Section(root, "platforms", "|speed_per_tick|fast_speed_per_tick|perpetual_speed_per_tick|wait_ticks|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.platformSpeed, error) OR
 		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastPlatformSpeed, error) OR
+		~Real(object, "perpetual_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.perpetualPlatformSpeed, error) OR
 		~Integer(object, "wait_ticks", 1, MAX(SIGNED32), candidate.platformWait, error) THEN
 		RETURN FALSE
 	END;
@@ -1595,6 +1596,8 @@ BEGIN
 	object := value(JSON.Object);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
 	RejectField(root, object, "fast_speed_per_tick", JSON.NewNumber(65), settings);
+	RejectField(root, object, "perpetual_speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, object, "perpetual_speed_per_tick", JSON.NewNumber(65), settings);
 	RejectField(root, object, "wait_ticks", JSON.NewNumber(0.5), settings);
 	RejectField(root, object, "wait_ticks", JSON.NewNumber(0), settings);
 	value := root.Get("player");
