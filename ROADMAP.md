@@ -138,6 +138,8 @@ than granting resources in isolated probes. Validate game flow, inventory,
 weapons, monsters, saves, audio and compatibility separately. Record differences
 from original behavior and do not equate short start/walk probes with playthroughs.
 
-Native Linux64 and A64/QEMU remain the current tested environments. Full A2,
-other platforms and physical hardware need their own evidence; a hosted run
-does not establish bare-metal readiness.
+Native Linux64, A64/QEMU and Windows x64 have scoped test evidence. The A2
+desktop adapter compiles against full A2 symbols and its hosted harness starts
+the window system and game window; see docs/PLATFORMS.md. Native A2 boot,
+other targets and physical hardware still need their own evidence; a hosted
+run does not establish bare-metal readiness.

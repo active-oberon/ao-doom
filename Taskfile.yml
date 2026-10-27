@@ -1,7 +1,9 @@
 version: '3'
 
 vars:
-  ENGINE_DIR: '{{.ENGINE_DIR | default "../ao-game-engine"}}'
+  ENGINE_DIR: '{{.ENGINE_DIR | default ""}}'
+  PYTHON: '{{if eq OS "windows"}}python{{else}}python3{{end}}'
+  A2_PLATFORM: '{{if eq OS "windows"}}Win64{{else}}Unix64{{end}}'
 
 tasks:
   default:
@@ -9,173 +11,81 @@ tasks:
       - task: build
 
   stage:
+    desc: Stage sources for the current host
     cmds:
-      - mkdir -p build
-      - rm -f build/*.Gof* build/*.Sym*
-      - cp "{{.ENGINE_DIR}}"/Game*.Mod build/
-      - cp Doom*.Mod build/
-      - cp doom.yaml build/
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" stage'
 
   build:
-    desc: Build the Linux64 windowed scene
+    desc: Build for the current host (Windows or Linux)
     cmds:
-      - task: stage
-      - cd build && ob build --gui=640x400 DoomWindow.Mod -o ao-doom
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" build'
+
+  build-windows:
+    desc: Build Windows x64 using the native Windows SDK
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform windows --engine "{{.ENGINE_DIR}}" build'
+
+  build-linux:
+    desc: Build Linux using the native Linux SDK
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform linux --engine "{{.ENGINE_DIR}}" build'
+
+  build-a2:
+    desc: Build and package A2 modules against A2_ROOT/bin symbols
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform a2 --engine "{{.ENGINE_DIR}}" --a2-root "{{.A2_ROOT | default ""}}" --a2-platform "{{.A2_PLATFORM}}" build'
 
   run:
-    desc: Run the scene (optional WAD path and map after --)
+    desc: Build and run on the current host (arguments after --)
     cmds:
-      - task: build
-      - ./build/ao-doom {{.CLI_ARGS}}
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" run {{.CLI_ARGS}}'
+
+  run-windows:
+    desc: Build and run Windows x64 (arguments after --)
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform windows --engine "{{.ENGINE_DIR}}" run {{.CLI_ARGS}}'
+
+  run-linux:
+    desc: Build and run Linux (arguments after --)
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform linux --engine "{{.ENGINE_DIR}}" run {{.CLI_ARGS}}'
+
+  run-a2:
+    desc: Run the A2 desktop adapter through the native SDK (requires A2_ROOT)
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform a2 --engine "{{.ENGINE_DIR}}" --a2-root "{{.A2_ROOT | default ""}}" --a2-platform "{{.A2_PLATFORM}}" run {{.CLI_ARGS}}'
 
   check:
-    desc: Check engine, configuration, combat, monster AI, WAD validation and collision
+    desc: Check engine and game on the current host, then build the GUI
     cmds:
-      - task --dir "{{.ENGINE_DIR}}" check
-      - task: stage
-      - cp tests/DoomWadSmoke.Mod tests/DoomTexturesSmoke.Mod tests/DoomSectorsSmoke.Mod tests/DoomBspSmoke.Mod tests/DoomDoorsSmoke.Mod tests/DoomMaskedSmoke.Mod build/
-      - cp tests/DoomSpritesSmoke.Mod build/
-      - cp tests/DoomInventorySmoke.Mod tests/DoomPickupsSmoke.Mod build/
-      - cp tests/DoomLockedDoorsSmoke.Mod build/
-      - cp tests/DoomActorsSmoke.Mod tests/DoomCombatSmoke.Mod tests/DoomInputSmoke.Mod build/
-      - cp tests/DoomAISmoke.Mod tests/DoomHitscanSmoke.Mod build/
-      - cp tests/DoomProjectilesSmoke.Mod build/
-      - cp tests/DoomExplosionsSmoke.Mod build/
-      - cp tests/DoomExitsSmoke.Mod build/
-      - cp tests/DoomTaggedDoorsSmoke.Mod build/
-      - cp tests/DoomFloorsSmoke.Mod build/
-      - cp tests/DoomPlatformsSmoke.Mod build/
-      - cp tests/DoomStairsSmoke.Mod build/
-      - cp tests/DoomDiagnosticsSmoke.Mod build/
-      - cp tests/DoomSwitchesSmoke.Mod build/
-      - cp tests/DoomControlsSmoke.Mod build/
-      - python3 tests/wad_fixtures.py build
-      - cp tests/DoomConfigSmoke.Mod tests/doom-custom.yaml tests/doom-invalid.yaml tests/doom-incomplete.yaml build/
-      - cd build && ob build DoomConfigSmoke.Mod -o config-check
-      - cd build && timeout 10 ./config-check
-      - cd build && ob build DoomWadSmoke.Mod -o wad-check
-      - cd build && timeout 10 ./wad-check
-      - cd build && ob build DoomTexturesSmoke.Mod -o textures-check
-      - cd build && timeout 10 ./textures-check
-      - cd build && ob build DoomMaskedSmoke.Mod -o masked-check
-      - cd build && timeout 10 ./masked-check
-      - cd build && ob build DoomSpritesSmoke.Mod -o sprites-check
-      - cd build && timeout 10 ./sprites-check
-      - cd build && ob build DoomInventorySmoke.Mod -o inventory-check
-      - cd build && timeout 10 ./inventory-check
-      - cd build && ob build DoomPickupsSmoke.Mod -o pickups-check
-      - cd build && timeout 10 ./pickups-check
-      - cd build && ob build DoomActorsSmoke.Mod -o actors-check
-      - cd build && timeout 10 ./actors-check
-      - cd build && ob build DoomCombatSmoke.Mod -o combat-check
-      - cd build && timeout 10 ./combat-check
-      - cd build && ob build DoomAISmoke.Mod -o ai-check
-      - cd build && timeout 10 ./ai-check
-      - cd build && ob build DoomHitscanSmoke.Mod -o hitscan-check
-      - cd build && timeout 10 ./hitscan-check
-      - cd build && ob build DoomProjectilesSmoke.Mod -o projectiles-check
-      - cd build && timeout 10 ./projectiles-check
-      - cd build && ob build DoomExplosionsSmoke.Mod -o explosions-check
-      - cd build && timeout 10 ./explosions-check
-      - cd build && ob build DoomExitsSmoke.Mod -o exits-check
-      - cd build && timeout 10 ./exits-check
-      - cd build && ob build DoomInputSmoke.Mod -o input-check
-      - cd build && timeout 10 ./input-check
-      - cd build && ob build DoomControlsSmoke.Mod -o controls-check
-      - cd build && timeout 10 ./controls-check
-      - cd build && ob build DoomSectorsSmoke.Mod -o sectors-check
-      - cd build && timeout 10 ./sectors-check
-      - cd build && ob build DoomBspSmoke.Mod -o bsp-check
-      - cd build && timeout 10 ./bsp-check
-      - cd build && ob build DoomDoorsSmoke.Mod -o doors-check
-      - cd build && timeout 10 ./doors-check
-      - cd build && ob build DoomLockedDoorsSmoke.Mod -o locked-doors-check
-      - cd build && timeout 10 ./locked-doors-check
-      - cd build && ob build DoomTaggedDoorsSmoke.Mod -o tagged-doors-check
-      - cd build && timeout 10 ./tagged-doors-check
-      - cd build && ob build DoomFloorsSmoke.Mod -o floors-check
-      - cd build && timeout 10 ./floors-check
-      - cd build && ob build DoomPlatformsSmoke.Mod -o platforms-check
-      - cd build && timeout 10 ./platforms-check
-      - cd build && ob build DoomStairsSmoke.Mod -o stairs-check
-      - cd build && timeout 10 ./stairs-check
-      - cd build && ob build DoomDiagnosticsSmoke.Mod -o diagnostics-check
-      - cd build && timeout 10 ./diagnostics-check
-      - cd build && ob build DoomSwitchesSmoke.Mod -o switches-check
-      - cd build && timeout 10 ./switches-check
-      - cd build && ob build Doom.Mod -o doom-check
-      - cd build && timeout 10 ./doom-check
-      - cp tests/DoomOriginalSmoke.Mod build/
-      - cd build && ob build DoomOriginalSmoke.Mod -o original-check
-      - cd build && timeout 10 ./original-check sectors.wad E1M1
-      - cp tests/DoomOriginalDoorsSmoke.Mod build/
-      - cd build && ob build DoomOriginalDoorsSmoke.Mod -o original-doors-check
-      - cd build && timeout 10 ./original-doors-check door.wad E1M1
-      - task: build
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" check'
+
+  check-windows:
+    desc: Run native Windows engine and game checks
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform windows --engine "{{.ENGINE_DIR}}" check'
+
+  check-linux:
+    desc: Run native Linux engine and game checks
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform linux --engine "{{.ENGINE_DIR}}" check'
 
   wad-check:
-    desc: Load, render and walk a local WAD map without a display
+    desc: Load, render and walk a local WAD without a display
     cmds:
-      - task: stage
-      - cp tests/DoomOriginalSmoke.Mod build/
-      - cd build && ob build DoomOriginalSmoke.Mod -o original-check
-      - cd build && timeout 30 ./original-check {{.CLI_ARGS}}
-
-  gui-check:
-    desc: Check rendering, input and shutdown on X11
-    cmds:
-      - task: build
-      - python3 tests/gui_smoke.py build/ao-doom
-      - python3 tests/wad_fixtures.py build
-      - python3 tests/gui_smoke.py build/ao-doom build/valid.wad E1M1
-      - python3 tests/gui_smoke.py build/ao-doom build/sectors.wad E1M1
-      - python3 tests/gui_smoke.py build/ao-doom build/sky.wad E1M1
-      - python3 tests/gui_smoke.py build/ao-doom build/bsp-sectors.wad E1M1
-      - python3 tests/gui_smoke.py build/ao-doom build/masked.wad E1M1
-      - python3 tests/gui_smoke.py build/ao-doom build/sprites.wad E1M1
-      - python3 tests/gui_smoke.py build/ao-doom build/sprites-grate.wad E1M1
-      - python3 tests/gui_smoke.py --pickup build/ao-doom build/pickups.wad E1M1
-      - python3 tests/gui_smoke.py --combat build/ao-doom build/combat.wad E1M1
-      - python3 tests/gui_smoke.py --remapped-combat build/ao-doom build/combat.wad E1M1
-      - python3 tests/gui_smoke.py --ai build/ao-doom build/ai.wad E1M1
-      - python3 tests/gui_smoke.py --hitscan build/ao-doom build/hitscan.wad E1M1
-      - python3 tests/gui_smoke.py --projectiles build/ao-doom build/projectiles.wad E1M1
-      - python3 tests/gui_smoke.py --blast build/ao-doom build/blast.wad E1M1
-      - python3 tests/gui_smoke.py --explosions build/ao-doom build/barrels-chain.wad E1M1
-      - python3 tests/gui_smoke.py --modern build/ao-doom build/combat.wad E1M1
-      - python3 tests/gui_smoke.py --actor build/ao-doom build/actors-barrel.wad E1M1
-      - python3 tests/gui_smoke.py --door build/ao-doom build/door.wad E1M1
-      - python3 tests/gui_smoke.py --locked-door build/ao-doom build/door-key.wad E1M1
-      - python3 tests/gui_smoke.py --tagged-door build/ao-doom build/tagged-door-gui.wad E1M1
-      - python3 tests/gui_smoke.py --walk-door build/ao-doom build/tagged-door-90.wad E1M1
-      - python3 tests/gui_smoke.py --gun-door build/ao-doom build/tagged-door-gun-portal.wad E1M1
-      - python3 tests/gui_smoke.py --lift build/ao-doom build/floor-lift-ride.wad E1M1
-      - python3 tests/gui_smoke.py --platform build/ao-doom build/platform-riding.wad E1M1
-      - python3 tests/gui_smoke.py --stairs build/ao-doom build/stairs-gui.wad E1M1
-      - python3 tests/gui_smoke.py --walk-floor build/ao-doom build/floor-88.wad E1M1
-      - python3 tests/gui_smoke.py --gun-floor build/ao-doom build/floor-gun.wad E1M1
-      - python3 tests/gui_smoke.py --button build/ao-doom build/switch-button.wad E1M1
-      - python3 tests/gui_smoke.py --switch build/ao-doom build/switch-103.wad E1M1
-      - python3 tests/gui_smoke.py --gun-switch build/ao-doom build/switch-24.wad E1M1
-      - python3 tests/gui_smoke.py --exit build/ao-doom build/exits-use.wad E1M1
-      - python3 tests/gui_smoke.py --secret-exit build/ao-doom build/exits-secret.wad E1M3
-      - python3 tests/gui_smoke.py --complete build/ao-doom build/exits-end.wad E1M8
-      - python3 tests/gui_smoke.py --failed-exit build/ao-doom build/exits-missing.wad E1M1
-      - cd build && ob build Doom.Mod -o doom-check
-      - python3 tests/logging_smoke.py build/doom-check build/ao-doom
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" wad-check {{.CLI_ARGS}}'
 
   door-check:
-    desc: Open and cross a manual door in a local WAD map
+    desc: Open and cross a manual door in a local WAD
     cmds:
-      - task: stage
-      - cp tests/DoomOriginalDoorsSmoke.Mod build/
-      - cd build && ob build DoomOriginalDoorsSmoke.Mod -o original-doors-check
-      - cd build && timeout 30 ./original-doors-check {{.CLI_ARGS}}
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" door-check {{.CLI_ARGS}}'
 
   bench:
     desc: Measure 200 textured frames without display transfer
     cmds:
-      - task: stage
-      - cp tests/SceneBench.Mod build/
-      - cd build && ob build SceneBench.Mod -o scene-bench
-      - cd build && timeout 30 ./scene-bench
+      - '{{.PYTHON}} scripts/build.py --engine "{{.ENGINE_DIR}}" bench'
+
+  gui-check:
+    desc: Run the Linux X11 GUI regression scenarios
+    cmds:
+      - '{{.PYTHON}} scripts/build.py --platform linux --engine "{{.ENGINE_DIR}}" gui-check'

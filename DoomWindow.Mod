@@ -1,39 +1,18 @@
 MODULE DoomWindow;
 
-IMPORT DoomConfig, DoomFormat, DoomInput, DoomMouse, Doom, DoomInventory, DoomCombat, GameLoop, GameSurface, GameDisplay, GameClock,
-	Inputs, Objects, Kernel, Logging, Unix, Commands;
+IMPORT DoomConfig, DoomFormat, DoomInput, DoomHost, Doom, DoomInventory, DoomCombat, GameLoop, GameSurface, GameClock,
+	Kernel, Logging, Commands;
 
-TYPE
-	Keyboard = OBJECT (Inputs.Sink)
-	VAR controls: DoomInput.Controller;
-		focusKnown, focused: BOOLEAN;
+VAR running: BOOLEAN;
 
-		PROCEDURE &Init(input: DoomInput.Controller);
-		BEGIN
-			controls := input
-		END Init;
+PROCEDURE Acquire(): BOOLEAN;
+BEGIN {EXCLUSIVE}
+	IF running THEN RETURN FALSE END;
+	running := TRUE; RETURN TRUE
+END Acquire;
 
-		PROCEDURE Handle*(VAR message: Inputs.Message);
-		VAR fields: ARRAY 1 OF Logging.Attr;
-			result: SIGNED32;
-		BEGIN
-			IF message IS Inputs.FocusMsg THEN
-				WITH message: Inputs.FocusMsg DO
-					controls.Focus(message.focused);
-					IF ~focusKnown OR (focused # message.focused) THEN
-						focusKnown := TRUE;
-						focused := message.focused;
-						fields[0] := Logging.Bool("focused", focused);
-						result := Doom.log.Log(Logging.LevelInfo, "input focus changed", fields)
-					END
-				END
-			ELSIF message IS Inputs.KeyboardMsg THEN
-				WITH message: Inputs.KeyboardMsg DO
-					controls.Key(message.keysym, Inputs.Release IN message.flags)
-				END
-			END
-		END Handle;
-	END Keyboard;
+PROCEDURE Release;
+BEGIN {EXCLUSIVE} running := FALSE END Release;
 
 (* LogState reports changes between window observations without writing from simulation or rendering. *)
 PROCEDURE LogState(game: Doom.Game; CONST before: DoomInventory.State; CONST previous: DoomCombat.Weapon);
@@ -106,17 +85,16 @@ BEGIN
 	result := Doom.log.Log(Logging.LevelInfo, "map use attempted", fields)
 END LogInteraction;
 
-PROCEDURE Do*(context: Commands.Context);
+PROCEDURE Run(context: Commands.Context);
 VAR game: Doom.Game;
 	simulation: GameLoop.Simulation;
 	frame: GameSurface.Frame;
-	presenter: GameDisplay.Presenter;
-	keyboard: Keyboard;
+	host: DoomHost.Host;
 	controls: DoomInput.Controller;
-	mouse: DoomMouse.Pointer;
 	clock: GameClock.Clock;
 	timer: Kernel.MilliTimer;
-	move, strafe, turn, elapsed, ticks, argument: SIGNED32;
+	sleeper: Kernel.Timer;
+	move, strafe, turn, elapsed, ticks: SIGNED32;
 	dx, dy, slot, cycle, logResult: SIGNED32;
 	configFields: ARRAY 4 OF Logging.Attr;
 	errorFields: ARRAY 2 OF Logging.Attr;
@@ -131,23 +109,22 @@ VAR game: Doom.Game;
 	previous: DoomCombat.Weapon;
 	pose: Doom.Pose;
 	path: ARRAY 512 OF CHAR;
+	wad: ARRAY 512 OF CHAR;
 	map: ARRAY 9 OF CHAR;
 	error: ARRAY 256 OF CHAR;
 	firstFrame, activate, firing, reloading, aiming: BOOLEAN;
 BEGIN
-	argument := 1;
+	NEW(host, context);
 	COPY(DoomConfig.DefaultFile, path);
-	IF Unix.argc > argument THEN
-		Unix.GetArg(argument, error);
-		IF error = "--config" THEN
-			INC(argument);
-			IF Unix.argc <= argument THEN
+	wad[0] := 0X;
+	IF host.Next(wad) THEN
+		IF wad = "--config" THEN
+			IF ~host.Next(path) THEN
 				logResult := Doom.log.Error("--config requires a YAML file path");
 				context.result := Commands.CommandError;
 				RETURN
 			END;
-			Unix.GetArg(argument, path);
-			INC(argument)
+			IF ~host.Next(wad) THEN wad[0] := 0X END
 		END
 	END;
 	IF ~DoomConfig.Load(path, error) THEN
@@ -162,20 +139,11 @@ BEGIN
 	configFields[2] := Logging.Int("height", DoomConfig.values.height);
 	configFields[3] := Logging.Int("ticks_per_second", DoomConfig.values.ticksPerSecond);
 	logResult := Doom.log.Log(Logging.LevelInfo, "configuration loaded", configFields);
-	presenter := GameDisplay.Open();
-	IF presenter = NIL THEN
-		logResult := Doom.log.Error("no supported display; build with --gui");
-		context.result := Commands.CommandError;
-		RETURN
-	END;
 	NEW(game);
-	IF Unix.argc > argument THEN
-		Unix.GetArg(argument, path);
-		INC(argument);
+	COPY(wad, path);
+	IF path # "" THEN
 		COPY("E1M1", map);
-		IF Unix.argc > argument THEN
-			Unix.GetArg(argument, map)
-		END;
+		IF host.Next(wad) THEN COPY(wad, map) END;
 		IF ~game.Load(path, map, error) THEN
 			mapFields[0] := Logging.String("path", path);
 			mapFields[1] := Logging.String("map", map);
@@ -198,17 +166,14 @@ BEGIN
 	NEW(simulation, game.Step);
 	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
 	NEW(controls);
-	mouse := DoomMouse.Open(controls);
-	IF mouse = NIL THEN
-		logResult := Doom.log.Error("X11 mouse capture is unavailable");
+	IF ~host.Open(controls) THEN
+		logResult := Doom.log.Error("display or input adapter is unavailable");
 		simulation.Close;
 		context.result := Commands.CommandError;
 		RETURN
 	END;
-	NEW(keyboard, controls);
 	NEW(clock, DoomConfig.values.ticksPerSecond);
-	Inputs.keyboard.Register(keyboard);
-	Inputs.mouse.Register(mouse);
+	NEW(sleeper);
 	startupFields[0] := Logging.Int("width", frame.width);
 	startupFields[1] := Logging.Int("height", frame.height);
 	startupFields[2] := Logging.Int("ticks_per_second", DoomConfig.values.ticksPerSecond);
@@ -216,7 +181,7 @@ BEGIN
 	Kernel.SetTimer(timer, 0);
 	firstFrame := TRUE;
 	LOOP
-		mouse.Poll;
+		host.Poll;
 		IF ~controls.Read(move, strafe, turn, activate, firing) THEN
 			EXIT
 		END;
@@ -269,22 +234,31 @@ BEGIN
 		END;
 		IF (ticks > 0) OR firstFrame THEN
 			game.Render(frame);
-			IF ~presenter.Present(frame) THEN
+			IF ~host.Present(frame) THEN
 				logResult := Doom.log.Error("display is smaller than the configured frame");
 				context.result := Commands.CommandError;
 				EXIT
 			END;
 			firstFrame := FALSE
 		END;
-		Objects.Sleep(DoomConfig.values.sleepMillis)
+		sleeper.Sleep(DoomConfig.values.sleepMillis)
 	END;
-	Inputs.keyboard.Unregister(keyboard);
-	Inputs.mouse.Unregister(mouse);
-	mouse.Close;
+	host.Close;
 	simulation.Close;
 	stopFields[0] := Logging.Int("ticks", game.Ticks());
 	stopFields[1] := Logging.Int("result", context.result);
 	logResult := Doom.log.Log(Logging.LevelInfo, "window stopped", stopFields)
+END Run;
+
+PROCEDURE Do*(context: Commands.Context);
+VAR result: SIGNED32;
+BEGIN
+	IF ~Acquire() THEN
+		result := Doom.log.Error("a game window is already running");
+		context.result := Commands.CommandError; RETURN
+	END;
+	Run(context);
+	Release
 END Do;
 
 END DoomWindow.

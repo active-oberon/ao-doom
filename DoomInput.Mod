@@ -45,6 +45,11 @@ TYPE
 			END
 		END Focus;
 
+		PROCEDURE Stop*;
+		BEGIN {EXCLUSIVE}
+			quit := TRUE
+		END Stop;
+
 		PROCEDURE Key*(keysym: SIGNED32; released: BOOLEAN);
 		VAR action, binding: SIGNED32;
 		BEGIN {EXCLUSIVE}

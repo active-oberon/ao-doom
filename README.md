@@ -13,7 +13,10 @@ use `World.WithWallTexture` and its three material-part identifiers.
 
 ## Current state
 
-A runnable Linux64 scene renders at 320 x 200 and scales to a 640 x 400 window.
+A runnable Linux/Windows scene renders at 320 x 200 and scales to a 640 x 400 window.
+An A2 desktop adapter uses `WMWindowManager` and the same game loop. See
+[platform builds and verification](docs/PLATFORMS.md) for Windows commands,
+A2 packages, installation and the limits of the current runtime checks.
 It uses fixed simulation steps at 35 Hz in the standard YAML profile. It supports
 keyboard movement, turning, wall collision and sliding. The built-in corridor
 scene runs without any game assets.
@@ -171,7 +174,7 @@ Successful map loading resets inventory; failed replacement loads preserve it.
 
 ## Build, run and check
 
-Install the MiniA2 Linux64 SDK (`ob`), Task, Python 3, and `timeout`:
+Install the native MiniA2 SDK (`ob`), Task and Python 3:
 
 ```sh
 task check
@@ -193,8 +196,10 @@ Linux execution needs an X11 display. The installed SDK must contain the
 key release and focus notification fixes in MiniA2 `source/Unix.KbdMouse.Mod`; older drivers
 leave movement keys held after release or focus loss.
 
-`task build` produces `build/ao-doom`. The default engine checkout is
-`../ao-game-engine`; override it with `ENGINE_DIR=/path/to/ao-game-engine`.
+`task build` produces `build/ao-doom` on Linux or `build/windows/ao-doom.exe`
+on Windows. The default engine checkout is `../ao-game-engine`, with
+`target/deps/ao-game-engine` as a fallback; override it with
+`ENGINE_DIR=/path/to/ao-game-engine`.
 
 The native MiniA2 language server reads `sourcePaths` from `a2pkg.json` to find the
 engine without editor-specific environment variables. If the engine checkout is
@@ -560,7 +565,8 @@ archive, `DoomTextures` handles graphics data, and `DoomMap` constructs the scen
 All spawn metadata and footprints come from `things`. `DoomActors` combines shared world sight traces with chase
 and attack timing. `DoomSprites` resolves melee/hitscan impacts, loads immutable metadata and images, chooses
 directional/animated/death frames and publishes collection/health/motion snapshots.
-`DoomInput` collects keyboard/mouse actions; `DoomMouse` owns Linux X11 capture.
+`DoomInput` collects keyboard/mouse actions; `DoomHost` selects the platform's
+arguments, input and display adapter. `DoomMouse` owns Linux X11 capture.
 `DoomCombat` owns selection, magazines, reload/firing timing and aim/status overlays.
 `DoomProjectiles` owns fixed flight directions, volume clipping and sector traces;
 `DoomSprites` owns projectile state, rendering and impact damage.
@@ -628,22 +634,18 @@ state produces no periodic records. Cross/gun map triggers retain their existing
 behavior without an individual action log. Stair and log verification is in
 [the stair report](scratch/stairs-check.md).
 
-## Full A2 port assessment
+## Windows and full A2
 
-Source inspection suggests moderate porting effort; no full-A2 compile or run
-has been performed. The game rules, renderer and WAD reader mainly use common
-Active Oberon libraries. The current executable entry and pointer capture use
-Unix/X11 and require a native A2 launcher, display/window and input adapter.
-A2 provides keyboard, wheel and relative mouse messages, but the port must also
-handle focus, capture, key release and shutdown through its window system.
+`task build-windows` and `task check-windows` use the native Windows SDK.
+`task build-a2 A2_ROOT=/path/to/built/A2 A2_PLATFORM=Win64` compiles and packages
+the application against a full A2 distribution's symbols. The A2 adapter opens
+a desktop window, handles focus and input, and stops the simulation when closed.
+Portable YAML/Logging sources are included with their license.
 
-The inspected `a2oberon` tree has JSON and the parser/logging dependencies, but
-lacks the MiniA2 YAML and Logging modules. Port those modules and verify compiler
-and library API compatibility before estimating runtime performance. Start with
-a 320x200 windowed scene in a running A2 system; a native boot image and physical
-hardware performance are later checks. A64/QEMU headless tests do not validate
-full A2 desktop or bare-metal execution. The user deferred the port and chose
-to continue the game implementation.
+Windows build, game checks and interactive demo checks passed in the Windows
+session. The A2 hosted harness initialized its desktop and game window. Native
+A2 boot and physical hardware remain unverified. Commands, installation and
+the precise verification scope are in [PLATFORMS.md](docs/PLATFORMS.md).
 
 A short headless load/render/movement check passed all 132 maps from the supplied
 Doom, Doom II, TNT and Plutonia IWADs, up from 90 before BSP lookup. Interactive

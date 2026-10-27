@@ -1,6 +1,6 @@
 MODULE DoomOriginalSmoke;
 
-IMPORT DoomConfig, DoomCombat, DoomInventory, Doom, GameSurface, KernelLog, Unix, Commands;
+IMPORT DoomConfig, DoomCombat, DoomInventory, Doom, GameSurface, KernelLog, DoomArgs, Commands;
 
 PROCEDURE Visible(frame: GameSurface.Frame): BOOLEAN;
 VAR x, y, color: SIGNED32;
@@ -37,6 +37,7 @@ END SceneVisibility;
 
 PROCEDURE Do*(context: Commands.Context);
 VAR game: Doom.Game;
+	arguments: DoomArgs.Reader;
 	frame: GameSurface.Frame;
 	pose: Doom.Pose;
 	path: ARRAY 512 OF CHAR;
@@ -47,14 +48,13 @@ VAR game: Doom.Game;
 BEGIN
 	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	SceneVisibility;
-	IF Unix.argc < 3 THEN
+	NEW(arguments, context);
+	IF ~arguments.Next(path) OR ~arguments.Next(marker) THEN
 		KernelLog.String("Usage: original-check WAD MAP");
 		KernelLog.Ln;
 		context.result := Commands.CommandError;
 		RETURN
 	END;
-	Unix.GetArg(1, path);
-	Unix.GetArg(2, marker);
 	NEW(game);
 	IF ~game.Load(path, marker, error) THEN
 		KernelLog.String(marker);

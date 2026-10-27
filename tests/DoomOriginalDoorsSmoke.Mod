@@ -1,9 +1,10 @@
 MODULE DoomOriginalDoorsSmoke;
 
-IMPORT DoomConfig, DoomInventory, DoomWad, DoomMap, GameBytes, GameGeometry, GameSurface, GameRenderer, MathL, KernelLog, Unix, Commands;
+IMPORT DoomConfig, DoomInventory, DoomWad, DoomMap, GameBytes, GameGeometry, GameSurface, GameRenderer, MathL, KernelLog, DoomArgs, Commands;
 
 PROCEDURE Do*(context: Commands.Context);
 VAR archive: DoomWad.Archive;
+	arguments: DoomArgs.Reader;
 	map: DoomMap.Map;
 	lines, vertices: DoomWad.Lump;
 	region: GameGeometry.Sector;
@@ -14,25 +15,25 @@ VAR archive: DoomWad.Archive;
 	marker: ARRAY 9 OF CHAR;
 	error: ARRAY 128 OF CHAR;
 	option: ARRAY 16 OF CHAR;
-	locked: BOOLEAN;
+	locked, valid: BOOLEAN;
 	i, j, offset, a, b, special, sector: SIGNED32;
 	ax, ay, bx, by, rx, ry, length, x, y, angle, feet, floor, before,
 	blockedX, blockedY, blockedFeet, distance: FLOAT64;
 BEGIN
 	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error));
 	locked := FALSE;
-	IF Unix.argc = 4 THEN
-		Unix.GetArg(3, option);
-		locked := option = "--keys"
+	NEW(arguments, context);
+	valid := arguments.Next(path) & arguments.Next(marker);
+	IF arguments.Next(option) THEN
+		locked := option = "--keys";
+		valid := valid & locked
 	END;
-	IF (Unix.argc < 3) OR (Unix.argc > 4) OR ((Unix.argc = 4) & ~locked) THEN
+	IF ~valid OR arguments.Next(option) THEN
 		KernelLog.String("Usage: original-doors-check WAD MAP [--keys]");
 		KernelLog.Ln;
 		context.result := Commands.CommandError;
 		RETURN
 	END;
-	Unix.GetArg(1, path);
-	Unix.GetArg(2, marker);
 	archive := DoomWad.Open(path, error);
 	IF (archive = NIL) OR ~DoomMap.LoadMap(archive, marker, map, error) THEN
 		KernelLog.String(error);
