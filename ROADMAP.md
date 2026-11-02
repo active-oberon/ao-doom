@@ -44,7 +44,9 @@ close or close/wait/reopen, with normal/fast speeds and card/skull locks.
 Accepted player movement supplies crossing observations; actual hitscan pellets
 report reached lines after geometry and actor clipping. Existing engine ceiling
 snapshots handle movement and rendering. Mandatory YAML supplies all door timing.
-Sound, monster activation and actor obstruction remain open. Switch presentation
+Closing doors now stop or reverse for valid solid actor volumes, including
+footprints reaching from neighboring sectors; see docs/DOOR_OCCUPANTS.md.
+Sound, monster activation and actor crushing remain open. Switch presentation
 is covered below. Earlier evidence is in scratch/tagged-doors-check.md.
 
 ## Delivered floor and lift stage

@@ -150,6 +150,34 @@ TYPE
 			RETURN snapshot
 		END CopyState;
 
+		(* FitsCeilings tests live solid footprints, including objects reaching into a neighboring door sector. *)
+		PROCEDURE FitsCeilings*(before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
+		VAR i: SIGNED32;
+			feet, height, floor: FLOAT64;
+		BEGIN
+			FOR i := 0 TO count - 1 DO
+				IF (actors[i].radius > 0) & ((actors[i].initialHealth = 0) OR (hitpoints[i] > 0)) &
+					~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) &
+					after.TouchesSector(sector, states[i].x, states[i].y, actors[i].radius) THEN
+					height := actors[i].height / DoomFormat.UnitsPerWorld;
+					feet := states[i].feet;
+					IF actors[i].ceiling THEN
+						feet := before.Region(states[i].sector).ceiling - height
+					END;
+					(* Preserve the existing preview policy for invalid spawn volumes. *)
+					IF before.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, floor) THEN
+						IF actors[i].ceiling THEN
+							feet := after.Region(states[i].sector).ceiling - height
+						END;
+						IF ~after.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, floor) THEN
+							RETURN FALSE
+						END
+					END
+				END
+			END;
+			RETURN TRUE
+		END FitsCeilings;
+
 		(* FollowFloors carries grounded things and rejects pinching valid solid volumes before publication. *)
 		PROCEDURE FollowFloors*(before, after: GameGeometry.World; sector: SIGNED32): Scene;
 		VAR snapshot: Scene;

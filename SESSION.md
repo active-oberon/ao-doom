@@ -1,6 +1,28 @@
 # ao-doom session handoff
 
-Updated: 2026-10-25
+Updated: 2026-11-02
+
+## Continuation: door actor obstruction (2026-11-02)
+
+The user requested continued Doom development and authorized sibling engine
+changes if needed. Added closing-door checks for valid solid actors using the
+existing engine geometry API; no engine source changed. DoomDoors.StepOccupied
+queries DoomSprites.FitsCeilings before publishing closing ceiling snapshots.
+Raise/manual/close-wait-open doors reverse, close-only doors wait and retry.
+Dead actors and non-solid items do not obstruct; hanging solid decorations
+follow the ceiling. Neighbor footprints, exact tangency, invalid spawn preview
+policy and shared sector claims are preserved. See docs/DOOR_OCCUPANTS.md.
+
+Native checks passed: 38 modules, 412 generated original WAD fixtures, Linux
+window compilation. New DoomDoorOccupantsSmoke has six focused test procedures
+covering stop/reverse, removal by death, grouped doors, footprints, attachments,
+immutable snapshots and integrated game state after failed replacement. Build:
+build/door-occupants/ao-doom. Interactive GUI check could not start because X11
+is inaccessible. No new Windows, A2, A64/QEMU or original IWAD validation.
+The user requested committing and pushing this completed stage to origin/main.
+Engine worktree remains clean. Next map work
+remains surface changes/donuts and remaining planes/teleporters/sector effects;
+door sounds, monster activation and crushing remain open.
 
 ## Delivery checkpoint: detailed application logs (2026-10-25)
 

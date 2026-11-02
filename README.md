@@ -54,7 +54,13 @@ also apply to the six fast tagged open actions. Close-only doors stop at player
 obstruction and continue when clear; raise and close/wait/open doors reverse.
 Actions 16/76 restore the original ceiling after `doors.close_wait_ticks`
 (1050 in the standard profile). This field is mandatory in custom profiles.
-Door sounds, monster activation and obstruction by actors remain unimplemented.
+Closing doors also check valid solid actor volumes, including footprints that
+overlap the door from a neighboring sector. Raise and close/wait/open doors
+reverse; close-only doors wait until the obstruction clears. Killed actors and
+non-solid objects do not obstruct doors. Ceiling-attached solid decorations
+follow their ceiling until the available height is exhausted. Invalid spawn
+volumes retain the existing preview policy. Door sounds and monster activation
+remain unimplemented. See [door occupancy checks](docs/DOOR_OCCUPANTS.md).
 Floors now support 17 lower/raise actions: lower to the highest or lowest
 neighbor floor, raise to the next higher floor, or raise to the surrounding
 ceiling. Eight normal/fast lift actions lower to the lowest neighboring floor,
@@ -693,8 +699,8 @@ Rocket blasts and visible impact/barrel explosions are recorded in
 [the blast report](scratch/blast-check.md) and
 [the explosion report](scratch/explosions-check.md).
 
-Next: route finding, further monster attacks and map actions. Door obstruction remains player-only;
-actor crushing and actor-triggered door reversal are not implemented.
+Next: route finding, further monster attacks and map actions. Doors now stop or
+reverse for valid solid actors as well as the player; actor crushing remains open.
 Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floor motion and walking update eye height immediately; drops
 snap to the floor without gravity or view smoothing. Short checks do not prove

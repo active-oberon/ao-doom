@@ -356,7 +356,8 @@ TYPE
 							RETURN
 						END
 					END;
-					doors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet, DoomConfig.values.playerHeight, DoomConfig.values.playerStep);
+					doors.StepOccupied(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet,
+						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.FitsCeilings);
 					floors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet,
 						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, MoveFloorActors);
 					ASSERT(world.MovePlayerObserved(pose.x, pose.y, feet, dx, dy,

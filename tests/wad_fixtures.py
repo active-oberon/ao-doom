@@ -704,6 +704,30 @@ def fixtures(directory):
     single[6] = ("SSECTORS", struct.pack("<2H", 1, 0))
     files["bsp-single.wad"] = wad(single)
     files["door.wad"] = wad(door_lumps())
+    for special in (42, 63, 114, 116):
+        files[f"door-occupants-{special}.wad"] = wad(sprite_lumps(
+            tagged_door_lumps(special, ceiling=128), [(128, 0, 0, 2035, 7)]) +
+            [("BAR1A0", sprite_patch(6))])
+    for name, x, y, kind in (("overlap", -8, 0, 2035), ("tangent", -10, 0, 2035),
+                              ("remote", 384, 0, 2035), ("invalid", 128, 252, 2035),
+                              ("pickup", 128, 0, 2015), ("hanging", 128, 0, 49),
+                              ("hanging-passable", 128, 0, 63), ("monster", 128, 0, 3004)):
+        files[f"door-occupants-{name}.wad"] = wad(sprite_lumps(
+            tagged_door_lumps(42, ceiling=128), [(x, y, 0, kind, 7)]) +
+            [("BAR1A0", sprite_patch(6)), ("POSSA0", sprite_patch(5))])
+    files["door-occupants-manual.wad"] = wad(sprite_lumps(
+        door_lumps(), [(32, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
+    files["door-occupants-wait.wad"] = wad(sprite_lumps(
+        tagged_door_lumps(16, crossing=True, ceiling=128), [(384, 0, 0, 2035, 7)]) +
+        [("BAR1A0", sprite_patch(6))])
+    grouped = grouped_door_lumps()
+    lines, sectors = bytearray(grouped[2][1]), bytearray(grouped[8][1])
+    struct.pack_into("<H", lines, 11 * 14 + 6, 42)
+    for sector in (1, 3):
+        struct.pack_into("<h", sectors, sector * 26 + 2, 128)
+    grouped[2], grouped[8] = ("LINEDEFS", bytes(lines)), ("SECTORS", bytes(sectors))
+    files["door-occupants-grouped.wad"] = wad(sprite_lumps(
+        grouped, [(128, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
     files["tagged-door-use.wad"] = wad(tagged_door_lumps())
     for special in (11, 18, 21, 23, 24, 29, 42, 45, 46, 50, 51, 60, 61, 62, 63, 64, 69,
                     99, 101, 102, 103, 111, 112, 113, 114, 115, 116, 122, 123, 133, 134, 135, 136, 137):

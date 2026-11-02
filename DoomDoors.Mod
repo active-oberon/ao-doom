@@ -60,6 +60,8 @@ CONST Raise = 1;
 	Waiting = 2;
 
 TYPE
+	Occupants* = PROCEDURE {DELEGATE} (before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
+
 	Trigger = RECORD
 		special, front, back, tag, activation, kind, key: SIGNED32;
 		fast, repeat, pending: BOOLEAN;
@@ -276,6 +278,13 @@ TYPE
 		END Shot;
 
 		PROCEDURE Step*(VAR world: GameGeometry.World; x, y, radius, feet, height, step: FLOAT64);
+		BEGIN
+			StepOccupied(world, x, y, radius, feet, height, step, NIL)
+		END Step;
+
+		(* Occupancy is queried before publishing each closing ceiling; blocked doors keep their sector claim. *)
+		PROCEDURE StepOccupied*(VAR world: GameGeometry.World; x, y, radius, feet, height, step: FLOAT64;
+			occupants: Occupants);
 		VAR i: SIGNED32;
 			region: GameGeometry.Sector;
 			candidate: GameGeometry.World;
@@ -308,7 +317,8 @@ TYPE
 					END;
 					candidate := world.WithCeilings(heights^);
 					ASSERT(candidate # NIL);
-					IF ~candidate.Stand(x, y, radius, feet, height, step, floor) THEN
+					IF ~candidate.Stand(x, y, radius, feet, height, step, floor) OR
+						((doors[i].direction = Closing) & (occupants # NIL) & ~occupants(world, candidate, i)) THEN
 						heights[i] := previous;
 						IF doors[i].kind # CloseDoor THEN
 							doors[i].direction := Opening
@@ -340,7 +350,7 @@ TYPE
 					END
 				END
 			END
-		END Step;
+		END StepOccupied;
 	END Controller;
 
 PROCEDURE Classify(VAR trigger: Trigger);
