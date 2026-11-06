@@ -1,6 +1,6 @@
 MODULE DoomFloors;
 
-IMPORT DoomConfig, DoomFormat, DoomActions, DoomWad, GameBytes, GameGeometry, Random;
+IMPORT DoomConfig, DoomFormat, DoomActions, DoomWad, GameBytes, GameGeometry, GameMaterials, Random;
 
 CONST WalkLowerHighest = 19;
 	ButtonLowerHighest = 45;
@@ -10,6 +10,8 @@ CONST WalkLowerHighest = 19;
 	WalkLowerLowest = 38;
 	ButtonLowerLowest = 60;
 	RepeatLowerLowest = 82;
+	WalkLowerChange = 37;
+	RepeatLowerChange = 84;
 	SwitchRaiseNearest = 18;
 	ButtonRaiseNearest = 69;
 	WalkRaiseNearest = 119;
@@ -47,6 +49,7 @@ CONST WalkLowerHighest = 19;
 	Perpetual = 6;
 	StopLift = 7;
 	Stairs = 8;
+	LowerChange = 9;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -64,13 +67,17 @@ END;
 Motion = RECORD
 	direction, oldDirection, timer: SIGNED32;
 	target, low, high, speed: FLOAT64;
-	lift, perpetual: BOOLEAN
+	lift, perpetual, change: BOOLEAN;
+	texture: GameMaterials.Texture;
+	flat: ARRAY DoomFormat.NameLength + 1 OF CHAR;
+	special: SIGNED32
 END;
 
 Controller* = OBJECT
 VAR triggers: POINTER TO ARRAY OF Trigger;
 	motions: POINTER TO ARRAY OF Motion;
 	tags: POINTER TO ARRAY OF SIGNED32;
+	specials: POINTER TO ARRAY OF SIGNED32;
 	first, next: POINTER TO ARRAY OF SIGNED32;
 	flats: POINTER TO ARRAY OF ARRAY DoomFormat.NameLength + 1 OF CHAR;
 	moving: POINTER TO ARRAY OF BOOLEAN;
@@ -84,13 +91,16 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	VAR i, j, offset, side, a, b, sectorCount, head, count, sector: SIGNED32;
 		movingTags, stairTags, stairMoving: POINTER TO ARRAY OF BOOLEAN;
 		pending: POINTER TO ARRAY OF SIGNED32;
+		mutableFlats: BOOLEAN;
 	BEGIN
 		actions := shared;
+		mutableFlats := FALSE;
 		NEW(random);
 		sectorCount := sectors.size DIV DoomFormat.SectorSize;
 		NEW(triggers, lines.size DIV DoomFormat.LineSize);
 		NEW(motions, sectorCount);
 		NEW(tags, sectorCount);
+		NEW(specials, sectorCount);
 		NEW(first, sectorCount);
 		NEW(next, LEN(triggers^));
 		NEW(flats, sectorCount);
@@ -103,6 +113,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		FOR i := 0 TO sectorCount - 1 DO
 			offset := sectors.offset + i * DoomFormat.SectorSize;
 			tags[i] := GameBytes.U16(archive.data^, offset + DoomFormat.SectorTag);
+			specials[i] := GameBytes.U16(archive.data^, offset + DoomFormat.SectorSpecial);
 			first[i] := -1;
 			FOR j := 0 TO DoomFormat.NameLength - 1 DO
 				flats[i][j] := CAP(archive.data[offset + 4 + j])
@@ -112,6 +123,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 			offset := lines.offset + i * DoomFormat.LineSize;
 			Classify(actions.Special(i), triggers[i]);
+			mutableFlats := mutableFlats OR (triggers[i].kind = LowerChange);
 			triggers[i].tag := GameBytes.U16(archive.data^, offset + DoomFormat.LineTag);
 			triggers[i].twoSided := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags) DIV 4 MOD 2 = 1;
 			side := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
@@ -157,7 +169,8 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			i := first[sector];
 			WHILE i >= 0 DO
 				b := triggers[i].back;
-				IF ~stairMoving[b] & (flats[b] = flats[sector]) THEN
+				(* A changed flat can join previously separate stair chains; validate every directed reachable step. *)
+				IF ~stairMoving[b] & (mutableFlats OR (flats[b] = flats[sector])) THEN
 					stairMoving[b] := TRUE;
 					pending[count] := b;
 					INC(count)
@@ -174,6 +187,11 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	BEGIN
 		RETURN moving[sector]
 	END Moving;
+
+	PROCEDURE SectorSpecial*(sector: SIGNED32): SIGNED32;
+	BEGIN
+		RETURN specials[sector]
+	END SectorSpecial;
 
 	PROCEDURE Target(world: GameGeometry.World; sector, kind: SIGNED32): FLOAT64;
 	VAR i, neighbor: SIGNED32;
@@ -196,12 +214,12 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			ELSIF triggers[i].back = sector THEN
 				neighbor := triggers[i].front
 			END;
-			IF (neighbor >= 0) & (neighbor # sector) THEN
+			IF (neighbor >= 0) & (neighbor # sector) & ((kind # LowerChange) OR triggers[i].twoSided) THEN
 				other := world.Region(neighbor);
 				CASE kind OF
 				LowerHighest:
 					result := MAX(result, other.floor)
-				| LowerLowest, Lift, Perpetual:
+				| LowerLowest, Lift, Perpetual, LowerChange:
 					result := MIN(result, other.floor)
 				| RaiseNearest:
 					IF other.floor > region.floor THEN
@@ -217,6 +235,31 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		END;
 		RETURN result
 	END Target;
+
+	(* Capture the first adjacent model at the destination in WAD linedef order, before motion starts. *)
+	PROCEDURE LowerModel(world: GameGeometry.World; sector: SIGNED32);
+	VAR i, neighbor: SIGNED32;
+	BEGIN
+		motions[sector].texture := world.Region(sector).floorTexture;
+		COPY(flats[sector], motions[sector].flat);
+		motions[sector].special := specials[sector];
+		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
+			neighbor := -1;
+			IF triggers[i].twoSided THEN
+				IF triggers[i].front = sector THEN
+					neighbor := triggers[i].back
+				ELSIF triggers[i].back = sector THEN
+					neighbor := triggers[i].front
+				END
+			END;
+			IF (neighbor >= 0) & (neighbor # sector) & (world.Region(neighbor).floor = motions[sector].target) THEN
+				motions[sector].texture := world.Region(neighbor).floorTexture;
+				COPY(flats[neighbor], motions[sector].flat);
+				motions[sector].special := specials[neighbor];
+				RETURN
+			END
+		END
+	END LowerModel;
 
 	PROCEDURE Start(world: GameGeometry.World; sector: SIGNED32; CONST trigger: Trigger): BOOLEAN;
 	VAR region: GameGeometry.Sector;
@@ -240,18 +283,23 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		END;
 		region := world.Region(sector);
 		motions[sector].perpetual := trigger.kind = Perpetual;
+		motions[sector].change := trigger.kind = LowerChange;
 		motions[sector].lift := (trigger.kind = Lift) OR motions[sector].perpetual;
 		motions[sector].high := region.floor;
 		motions[sector].target := Target(world, sector, trigger.kind);
 		motions[sector].speed := DoomConfig.values.floorSpeed;
 		motions[sector].direction := Up;
-		IF (trigger.kind = LowerHighest) OR (trigger.kind = LowerLowest) OR (trigger.kind = Lift) THEN
+		IF (trigger.kind = LowerHighest) OR (trigger.kind = LowerLowest) OR (trigger.kind = Lift) OR
+			(trigger.kind = LowerChange) THEN
 			motions[sector].direction := Down;
 			motions[sector].target := MIN(region.floor, motions[sector].target)
 		ELSE
 			motions[sector].target := MAX(region.floor, motions[sector].target)
 		END;
 		motions[sector].low := motions[sector].target;
+		IF motions[sector].change THEN
+			LowerModel(world, sector)
+		END;
 		IF motions[sector].perpetual THEN
 			motions[sector].low := Target(world, sector, LowerLowest);
 			motions[sector].high := MAX(region.floor, Target(world, sector, LowerHighest));
@@ -298,6 +346,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			motions[sector].speed := speed;
 			motions[sector].lift := FALSE;
 			motions[sector].perpetual := FALSE;
+			motions[sector].change := FALSE;
 			INC(active);
 			found := FALSE;
 			line := first[sector];
@@ -431,6 +480,14 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 					world := candidate;
 					feet := floor;
 					IF heights[i] = motions[i].target THEN
+						IF motions[i].change THEN
+							candidate := world.WithFloorTexture(i, motions[i].texture);
+							ASSERT(candidate # NIL);
+							world := candidate;
+							COPY(motions[i].flat, flats[i]);
+							specials[i] := motions[i].special;
+							motions[i].change := FALSE
+						END;
 						IF motions[i].lift & ((motions[i].direction = Down) OR motions[i].perpetual) THEN
 							motions[i].direction := Waiting;
 							motions[i].timer := DoomConfig.values.platformWait
@@ -459,6 +516,8 @@ BEGIN
 		trigger.kind := LowerHighest
 	| SwitchLowerLowest, WalkLowerLowest, ButtonLowerLowest, RepeatLowerLowest:
 		trigger.kind := LowerLowest
+	| WalkLowerChange, RepeatLowerChange:
+		trigger.kind := LowerChange
 	| SwitchRaiseNearest, ButtonRaiseNearest, WalkRaiseNearest, RepeatRaiseNearest:
 		trigger.kind := RaiseNearest
 	| WalkRaiseCeiling, GunRaiseCeiling, ButtonRaiseCeiling, RepeatRaiseCeiling, SwitchRaiseCeiling:
@@ -478,7 +537,8 @@ BEGIN
 	CASE special OF
 	WalkLowerHighest, RepeatLowerHighest, WalkLowerLowest, RepeatLowerLowest, WalkRaiseNearest, RepeatRaiseNearest,
 		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift,
-		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs:
+		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs,
+		WalkLowerChange, RepeatLowerChange:
 		trigger.activation := Walk
 	| GunRaiseCeiling:
 		trigger.activation := Gun
@@ -487,7 +547,7 @@ BEGIN
 	CASE special OF
 	ButtonLowerHighest, RepeatLowerHighest, ButtonLowerLowest, RepeatLowerLowest, ButtonRaiseNearest, RepeatRaiseNearest,
 		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift,
-		RepeatPerpetual, RepeatStopLift:
+		RepeatPerpetual, RepeatStopLift, RepeatLowerChange:
 		trigger.repeat := TRUE
 	ELSE
 	END;

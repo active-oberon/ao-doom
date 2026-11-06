@@ -334,6 +334,22 @@ def platform_lumps(start=87, stop=89, floor=32):
     return lumps
 
 
+def lower_change_lumps(special=84, floor=96, tie=False, reverse=False):
+    lumps = floor_lumps(special, floor=floor)
+    sectors = bytearray(lumps[8][1])
+    sectors[4:12] = b"CEILING\0"
+    sectors[2 * 26 + 4:2 * 26 + 12] = b"ALT\0\0\0\0\0"
+    struct.pack_into("<h", sectors, 2 * 26, 0 if tie else 32)
+    for sector, special in enumerate((5, 9, 7)):
+        struct.pack_into("<H", sectors, sector * 26 + 22, special)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    if reverse:
+        lines = bytearray(lumps[2][1])
+        lines[8 * 14:10 * 14] = lines[9 * 14:10 * 14] + lines[8 * 14:9 * 14]
+        lumps[2] = ("LINEDEFS", bytes(lines))
+    return lumps + [("ALT", bytes([2]) * 4096)]
+
+
 def stair_lumps(special=7):
     lumps = grouped_door_lumps()
     crossing = special in (8, 100)
@@ -768,6 +784,53 @@ def fixtures(directory):
     priority[3] = ("SIDEDEFS", bytes(sides))
     files["switch-priority.wad"] = wad(priority)
     files["floor-lift.wad"] = wad(floor_lumps())
+    files["floor-change-37.wad"] = wad(lower_change_lumps(37))
+    files["floor-change-84.wad"] = wad(lower_change_lumps())
+    files["floor-change-tie.wad"] = wad(lower_change_lumps(tie=True))
+    files["floor-change-order.wad"] = wad(lower_change_lumps(tie=True, reverse=True))
+    files["floor-change-no-model.wad"] = wad(lower_change_lumps(floor=-16))
+    files["floor-change-zero.wad"] = wad(lower_change_lumps(floor=0))
+    unflagged = lower_change_lumps()
+    lines = bytearray(unflagged[2][1])
+    struct.pack_into("<H", lines, 8 * 14 + 4, 0)
+    unflagged[2] = ("LINEDEFS", bytes(lines))
+    files["floor-change-unflagged.wad"] = wad(unflagged)
+    no_textures = lower_change_lumps()
+    files["floor-change-untextured.wad"] = wad(no_textures[:11])
+    files["floor-change-riding.wad"] = wad(sprite_lumps(lower_change_lumps(),
+        [(128, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
+    grouped = grouped_door_lumps()
+    lines, sectors = bytearray(grouped[2][1]), bytearray(grouped[8][1])
+    struct.pack_into("<2H", lines, 12 * 14 + 6, 84, 7)
+    for sector in (1, 3):
+        struct.pack_into("<h", sectors, sector * 26, 96)
+        struct.pack_into("<h", sectors, sector * 26 + 2, 192)
+    for sector, name, special in ((0, b"CEILING\0", 5), (2, b"ALT\0\0\0\0\0", 7)):
+        sectors[sector * 26 + 4:sector * 26 + 12] = name
+        struct.pack_into("<H", sectors, sector * 26 + 22, special)
+    grouped[2], grouped[8] = ("LINEDEFS", bytes(lines)), ("SECTORS", bytes(sectors))
+    files["floor-change-grouped.wad"] = wad(grouped + [("ALT", bytes([2]) * 4096)])
+    game_change = floor_lumps(84, crossing=True, floor=96)
+    sectors = bytearray(game_change[8][1])
+    sectors[26 + 4:26 + 12] = b"CEILING\0"
+    struct.pack_into("<H", sectors, 26 + 22, 5)
+    struct.pack_into("<H", sectors, 52 + 22, 9)
+    game_change[8] = ("SECTORS", bytes(sectors))
+    files["floor-change-game.wad"] = wad(game_change)
+    chain = stair_lumps(127)
+    lines = bytearray(chain[2][1])
+    struct.pack_into("<2H", lines, 12 * 14 + 6, 84, 7)
+    chain[2] = ("LINEDEFS", bytes(lines))
+    sectors = bytearray(chain[8][1])
+    for sector in (0, 2, 3, 4):
+        sectors[sector * 26 + 4:sector * 26 + 12] = b"CEILING\0"
+    struct.pack_into("<h", sectors, 26, 32)
+    chain[8] = ("SECTORS", bytes(sectors))
+    files["floor-change-stairs.wad"] = wad(chain)
+    sides = bytearray(chain[3][1])
+    sides[16 * 30 + 12:16 * 30 + 20] = b"MISSING\0"
+    chain[3] = ("SIDEDEFS", bytes(sides))
+    files["floor-change-stairs-hidden.wad"] = wad(chain)
     for special in (7, 8, 100, 127):
         files[f"stairs-{special}.wad"] = wad(stair_lumps(special))
     stairs = stair_lumps(127)

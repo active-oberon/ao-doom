@@ -19,6 +19,7 @@ CONST UnitsPerWorld* = 64.0;
 	LineSpecial* = 6;
 	LineTag* = 8;
 	SectorTag* = 24;
+	SectorSpecial* = 22;
 	ThingType* = 6;
 	ThingFlags* = 8;
 	MaximumRecords* = 65536;

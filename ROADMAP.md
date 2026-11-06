@@ -106,9 +106,20 @@ Application logs now include use results, focus, inventory, damage, death,
 weapon and ammunition changes outside the simulation/rendering methods.
 Evidence and limits are in scratch/stairs-check.md.
 
+## Delivered lowering floors with surface changes
+
+Crossing actions 37/84 lower tagged floors and copy the first matching
+neighbor's captured floor surface and sector special after successful arrival.
+The existing floor speed, occupancy/riding and shared action table apply.
+Updated names participate in later stair chains, with conservative directed
+reachability for hidden-material validation when surface-changing actions exist.
+The engine adds immutable `World.WithFloorTexture`; model choice, sector
+metadata and timing remain game-owned. Sector-special effects, other changing
+floor variants and donuts remain open. Evidence: docs/FLOOR_CHANGES.md.
+
 ## Remaining delivery areas
 
-- Map progression: remaining floor/ceiling actions and lifts, surface changes,
+- Map progression: remaining floor/ceiling actions and lifts, other surface changes,
   donuts, crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,

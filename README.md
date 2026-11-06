@@ -5,11 +5,12 @@ A Doom clone in Active Oberon built on the separate
 The target is a complete Active Oberon implementation of classic Doom and Doom II
 on a reusable sector-based engine. Current coverage is partial; the remaining
 work and acceptance criteria are in [ROADMAP.md](ROADMAP.md).
-These sources require ao-game-engine commit `d90c17d` or a compatible later
-revision providing `GameAnimation`, `World.TraceRay`, `World.MovePlayerObserved`
+These sources require matching ao-game-engine sources providing
+`GameAnimation`, `World.TraceRay`, `World.MovePlayerObserved`
 and `GameGeometry.Crossing`, together with `World.WithFloors` and
 `World.TouchesSector` for moving floors and occupant checks. Switches/buttons
 use `World.WithWallTexture` and its three material-part identifiers.
+Surface-changing floors also require `World.WithFloorTexture`.
 
 ## Current state
 
@@ -81,7 +82,15 @@ Mandatory `platforms.perpetual_speed_per_tick` supplies their speed (1 map unit
 per tick in the standard profile, valid range 0.01-64). Custom complete profiles
 must add this field. Initial directions use MiniA2's local random generator;
 the shared classic random sequence and exact classic mover timing remain open.
-Remaining floor variants, surface changes, crushers and sound are not implemented.
+Walk actions 37/84 lower tagged floors to the lowest neighboring level and
+copy a matching neighbor's floor texture and sector special at completion.
+The first matching two-sided boundary in WAD order supplies the model; its
+surface is captured when the action starts. Busy targets keep their current
+motion. Changed floor names also affect later stair chains. Existing floor
+speed YAML applies without additional fields. Sector specials are retained as
+game metadata; sector damage, secrets and other special effects remain open.
+See [floor surface changes](docs/FLOOR_CHANGES.md). Other surface-changing
+variants, remaining floors, crushers and sound are not implemented.
 Stair actions 7/8 build slow steps and 100/127 build fast steps through use or
 crossing triggers. Chains follow two-sided lines from front to back, in WAD
 order, while floor names match; untagged neighbors join the chain. Busy steps

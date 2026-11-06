@@ -2,6 +2,26 @@
 
 Updated: 2026-11-02
 
+## Continuation: lower-and-change floors (2026-11-02)
+
+The user requested continued work after publishing the door occupancy stage
+as 0e7babb. Added walk actions 37/84: lower to the lowest neighbor, capture the
+first matching neighbor in WAD order at activation, then transfer floor image,
+name and sector special only at successful arrival. No extra YAML fields.
+Sector-special effects remain unsupported; current codes are exposed through
+DoomFloors.SectorSpecial. Existing shared ownership, riding and consumption
+apply. Changed names participate in later stair chains; when changing-floor
+actions exist, stair lower-wall validation conservatively follows directed
+reachability across original flat-name boundaries.
+
+The sibling engine adds World.WithFloorTexture and scoped SectorSmoke tests,
+plus README documentation. It copies sector records while retaining sealed
+geometry, partitions, wall materials and moving heights; NIL clears a texture.
+Native engine/game checks and Linux window compilation are recorded in
+docs/FLOOR_CHANGES.md. Build: build/floor-changes/ao-doom. No new Windows, A2,
+A64/QEMU, interactive X11 or original IWAD evidence. No commit/push approval
+is pending for this stage. Next: other surface-changing floors and donuts.
+
 ## Continuation: door actor obstruction (2026-11-02)
 
 The user requested continued Doom development and authorized sibling engine
