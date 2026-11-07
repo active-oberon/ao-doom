@@ -8,10 +8,11 @@ The root `DoomHost.Mod`/`DoomArgs.Mod` and `DoomMouse.Mod` support Linux/X11;
 ## Standalone Windows and Linux
 
 Install the native MiniA2 SDK (`ob`), Task and Python 3. The SDK must contain
-the YAML and Logging modules required by the game. The engine can be in
+the YAML and Logging modules required by the game, plus `Inputs.FocusMsg` and
+the corresponding X11 focus-event driver on Linux. The engine can be in
 `../ao-game-engine`, or in `target/deps/ao-game-engine`. Alternatively, pass
 `ENGINE_DIR=/path/to/ao-game-engine` to Task. A compatible engine revision is
-`d90c17d0e74eeb615ff2ba1cd0f6d2c4a832a12c`.
+`0434a6e774cb408d1063c1e8af666f8a09e18859` (includes `World.WithFloorTexture`).
 
 ```powershell
 task build-windows

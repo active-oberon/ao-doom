@@ -901,6 +901,47 @@ def fixtures(directory):
         crossing = special in floor_walks
         start = (-24 if crossing else 0) if special in floor_nearest else 96
         files[f"floor-{special}.wad"] = wad(floor_lumps(special, crossing, start, portal=False))
+    for special in (36, 58, 70, 71, 92, 98, 129, 130, 131, 132, 140):
+        crossing = special in (36, 58, 92, 98, 129, 130)
+        nearest = special in (129, 130, 131, 132)
+        start = (-24 if crossing else 0) if nearest else 96
+        extra = floor_lumps(special, crossing, start, portal=False)
+        if not crossing:
+            extra[1] = ("THINGS", struct.pack("<5h", -232, 0, 180, 1, 7))
+        sectors = bytearray(extra[8][1])
+        for index in range(3):
+            struct.pack_into("<h", sectors, index * 26 + 2, 1024)
+        extra[8] = ("SECTORS", bytes(sectors))
+        files[f"floor-{special}.wad"] = wad(extra)
+    for name, neighbor in (("equal", 96), ("close", 92), ("above", 128)):
+        extra = floor_lumps(70, floor=96, portal=False)
+        sectors = bytearray(extra[8][1])
+        struct.pack_into("<h", sectors, 52, neighbor)
+        extra[8] = ("SECTORS", bytes(sectors))
+        files[f"floor-turbo-{name}.wad"] = wad(extra)
+    extra = floor_lumps(132, floor=64, portal=False)
+    files["floor-fast-no-higher.wad"] = wad(extra)
+    files["floor-step-blocked.wad"] = wad(floor_lumps(92, True, 176, portal=False))
+    for special in (70, 71, 131, 132, 140):
+        files[f"switch-{special}.wad"] = wad(switch_lumps(special, floor=True))
+    step_game = floor_lumps(58, crossing=True, floor=0)
+    sectors = bytearray(step_game[8][1])
+    struct.pack_into("<H", sectors, 26 + 24, 7)
+    struct.pack_into("<H", sectors, 52 + 24, 0)
+    step_game[8] = ("SECTORS", bytes(sectors))
+    files["floor-step-game.wad"] = wad(step_game)
+    struct.pack_into("<h", sectors, 26, 96)
+    step_game[8] = ("SECTORS", bytes(sectors))
+    files["floor-step-game-blocked.wad"] = wad(step_game)
+    changed_raise = lower_change_lumps()
+    lines, sectors = bytearray(changed_raise[2][1]), bytearray(changed_raise[8][1])
+    a, b = struct.unpack_from("<2H", lines, 7 * 14)
+    struct.pack_into("<2H", lines, 7 * 14, b, a)
+    struct.pack_into("<2H", lines, 7 * 14 + 6, 140, 7)
+    for index in range(3):
+        struct.pack_into("<h", sectors, index * 26 + 2, 1024)
+    changed_raise[2], changed_raise[8] = ("LINEDEFS", bytes(lines)), ("SECTORS", bytes(sectors))
+    files["floor-change-raise.wad"] = wad(changed_raise)
     files["floor-lift-ride.wad"] = wad(floor_lumps(ride=True))
     riders = sprite_lumps(floor_lumps(ride=True), things=[(128, 64, 0, 2035, 7),
                                                        (128, -64, 0, 2014, 7),

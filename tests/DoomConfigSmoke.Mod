@@ -190,6 +190,7 @@ BEGIN
 	DoomConfig.CompleteAndRequired;
 	DoomConfig.CampaignBounds;
 	DoomConfig.SwitchBounds;
+	DoomConfig.FloorBounds;
 	DoomConfig.PaletteBounds;
 	DoomConfig.DemoAppearanceBounds;
 	DoomConfig.RejectInvalidAndPreserve;

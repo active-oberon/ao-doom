@@ -37,6 +37,17 @@ CONST WalkLowerHighest = 19;
 	WalkStairs = 8;
 	WalkFastStairs = 100;
 	SwitchFastStairs = 127;
+	WalkRaiseStep = 58;
+	RepeatRaiseStep = 92;
+	SwitchRaiseLarge = 140;
+	WalkTurboLower = 36;
+	ButtonTurboLower = 70;
+	SwitchTurboLower = 71;
+	RepeatTurboLower = 98;
+	RepeatFastNearest = 129;
+	WalkFastNearest = 130;
+	SwitchFastNearest = 131;
+	ButtonFastNearest = 132;
 	Unsupported = 0;
 	Using = 1;
 	Walk = 2;
@@ -50,6 +61,9 @@ CONST WalkLowerHighest = 19;
 	StopLift = 7;
 	Stairs = 8;
 	LowerChange = 9;
+	RaiseStep = 10;
+	RaiseLarge = 11;
+	TurboLower = 12;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -200,12 +214,16 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	BEGIN
 		region := world.Region(sector);
 		result := region.floor;
-		IF kind = LowerHighest THEN
+		IF (kind = LowerHighest) OR (kind = TurboLower) THEN
 			result := MIN(FLOAT64)
 		ELSIF kind = RaiseNearest THEN
 			result := MAX(FLOAT64)
 		ELSIF kind = RaiseCeiling THEN
 			result := region.ceiling
+		ELSIF kind = RaiseStep THEN
+			RETURN region.floor + DoomConfig.values.floorRaiseStep
+		ELSIF kind = RaiseLarge THEN
+			RETURN region.floor + DoomConfig.values.floorLargeRaiseStep
 		END;
 		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 			neighbor := -1;
@@ -217,7 +235,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			IF (neighbor >= 0) & (neighbor # sector) & ((kind # LowerChange) OR triggers[i].twoSided) THEN
 				other := world.Region(neighbor);
 				CASE kind OF
-				LowerHighest:
+				LowerHighest, TurboLower:
 					result := MAX(result, other.floor)
 				| LowerLowest, Lift, Perpetual, LowerChange:
 					result := MIN(result, other.floor)
@@ -232,6 +250,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		END;
 		IF (result = MIN(FLOAT64)) OR (result = MAX(FLOAT64)) THEN
 			RETURN region.floor
+		END;
+		IF (kind = TurboLower) & (result # region.floor) THEN
+			result := result + DoomConfig.values.floorTurboLowerGap
 		END;
 		RETURN result
 	END Target;
@@ -288,9 +309,12 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		motions[sector].high := region.floor;
 		motions[sector].target := Target(world, sector, trigger.kind);
 		motions[sector].speed := DoomConfig.values.floorSpeed;
+		IF trigger.fast THEN
+			motions[sector].speed := DoomConfig.values.fastFloorSpeed
+		END;
 		motions[sector].direction := Up;
-		IF (trigger.kind = LowerHighest) OR (trigger.kind = LowerLowest) OR (trigger.kind = Lift) OR
-			(trigger.kind = LowerChange) THEN
+		IF (trigger.kind = LowerHighest) OR (trigger.kind = LowerLowest) OR
+			(trigger.kind = TurboLower) OR (trigger.kind = Lift) OR (trigger.kind = LowerChange) THEN
 			motions[sector].direction := Down;
 			motions[sector].target := MIN(region.floor, motions[sector].target)
 		ELSE
@@ -530,6 +554,14 @@ BEGIN
 		trigger.kind := StopLift
 	| SwitchStairs, WalkStairs, WalkFastStairs, SwitchFastStairs:
 		trigger.kind := Stairs
+	| WalkRaiseStep, RepeatRaiseStep:
+		trigger.kind := RaiseStep
+	| SwitchRaiseLarge:
+		trigger.kind := RaiseLarge
+	| WalkTurboLower, ButtonTurboLower, SwitchTurboLower, RepeatTurboLower:
+		trigger.kind := TurboLower
+	| RepeatFastNearest, WalkFastNearest, SwitchFastNearest, ButtonFastNearest:
+		trigger.kind := RaiseNearest
 	ELSE
 		RETURN
 	END;
@@ -538,7 +570,8 @@ BEGIN
 	WalkLowerHighest, RepeatLowerHighest, WalkLowerLowest, RepeatLowerLowest, WalkRaiseNearest, RepeatRaiseNearest,
 		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift,
 		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs,
-		WalkLowerChange, RepeatLowerChange:
+		WalkLowerChange, RepeatLowerChange, WalkRaiseStep, RepeatRaiseStep, WalkTurboLower, RepeatTurboLower,
+		RepeatFastNearest, WalkFastNearest:
 		trigger.activation := Walk
 	| GunRaiseCeiling:
 		trigger.activation := Gun
@@ -547,13 +580,16 @@ BEGIN
 	CASE special OF
 	ButtonLowerHighest, RepeatLowerHighest, ButtonLowerLowest, RepeatLowerLowest, ButtonRaiseNearest, RepeatRaiseNearest,
 		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift,
-		RepeatPerpetual, RepeatStopLift, RepeatLowerChange:
+		RepeatPerpetual, RepeatStopLift, RepeatLowerChange, RepeatRaiseStep, ButtonTurboLower, RepeatTurboLower,
+		RepeatFastNearest, ButtonFastNearest:
 		trigger.repeat := TRUE
 	ELSE
 	END;
 	trigger.fast := (special = RepeatFastLift) OR (special = WalkFastLift) OR
 		(special = SwitchFastLift) OR (special = ButtonFastLift) OR
-		(special = WalkFastStairs) OR (special = SwitchFastStairs)
+		(special = WalkFastStairs) OR (special = SwitchFastStairs) OR
+		(trigger.kind = TurboLower) OR (special = RepeatFastNearest) OR (special = WalkFastNearest) OR
+		(special = SwitchFastNearest) OR (special = ButtonFastNearest)
 END Classify;
 
 END DoomFloors.

@@ -64,6 +64,18 @@ volumes keep the preview behavior and do not stop planes. Remaining floor
 variants, crushers, surface changes, sound and classic
 ordering/timing fidelity remain open. Evidence is in scratch/floors-check.md.
 
+## Delivered additional floor variants
+
+Actions 58/92 raise by a configured fixed step; 140 raises by a larger step.
+Actions 36/70/71/98 lower quickly to the highest neighboring floor plus a gap
+when its height differs, without raising the target sector. Actions 129-132
+raise quickly to the next higher floor. Mandatory YAML supplies fast speed,
+both fixed raises and the lowering gap. Existing shared ownership, obstruction,
+switches, surface snapshots and player riding apply. Regression coverage includes
+lower-and-change followed by a fixed raise, accepted versus blocked crossings
+and failed map replacement during motion. See docs/FLOOR_VARIANTS.md.
+Other surface changes, donuts, crushers, sound and exact classic timing remain open.
+
 ## Delivered switch and button stage
 
 Implemented use/gun actions toggle authored front-side texture pairs; repeat

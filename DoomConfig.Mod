@@ -149,6 +149,7 @@ Settings* = RECORD
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
 	floorSpeed*, platformSpeed*, fastPlatformSpeed*, perpetualPlatformSpeed*: FLOAT64;
+	fastFloorSpeed*, floorRaiseStep*, floorLargeRaiseStep*, floorTurboLowerGap*: FLOAT64;
 	stairSpeed*, fastStairSpeed*, stairStep*, fastStairStep*: FLOAT64;
 	mouseSensitivity*, aimSensitivity*, pitchLimit*, aimZoom*: FLOAT64;
 	invertMouse*: BOOLEAN;
@@ -1133,8 +1134,12 @@ BEGIN
 		~Integer(object, "close_wait_ticks", 1, MAX(SIGNED32), candidate.doorCloseWait, error) OR
 		~Real(object, "use_range", 1, 1024, DoomFormat.UnitsPerWorld, candidate.useRange, error) OR
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) OR
-		~Section(root, "floors", "|speed_per_tick|", object, error) OR
+		~Section(root, "floors", "|speed_per_tick|fast_speed_per_tick|raise_step|large_raise_step|turbo_lower_gap|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.floorSpeed, error) OR
+		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastFloorSpeed, error) OR
+		~Real(object, "raise_step", 0.01, 1024, DoomFormat.UnitsPerWorld, candidate.floorRaiseStep, error) OR
+		~Real(object, "large_raise_step", 0.01, 1024, DoomFormat.UnitsPerWorld, candidate.floorLargeRaiseStep, error) OR
+		~Real(object, "turbo_lower_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.floorTurboLowerGap, error) OR
 		~Section(root, "stairs", "|speed_per_tick|fast_speed_per_tick|step|fast_step|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.stairSpeed, error) OR
 		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastStairSpeed, error) OR
@@ -1330,6 +1335,32 @@ BEGIN
 	ASSERT(settings.width = 640);
 	object.Set(key, original)
 END RejectField;
+
+PROCEDURE {TEST} FloorBounds*;
+VAR value: JSON.Value;
+	root, floors: JSON.Object;
+	settings: Settings;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	ASSERT(YAML.Load(DefaultFile, value, error));
+	root := value(JSON.Object);
+	ASSERT(Decode(root, settings, error));
+	ASSERT(settings.fastFloorSpeed = 4.0 / DoomFormat.UnitsPerWorld);
+	ASSERT(settings.floorRaiseStep = 24.0 / DoomFormat.UnitsPerWorld);
+	ASSERT(settings.floorLargeRaiseStep = 512.0 / DoomFormat.UnitsPerWorld);
+	ASSERT(settings.floorTurboLowerGap = 8.0 / DoomFormat.UnitsPerWorld);
+	value := root.Get("floors");
+	floors := value(JSON.Object);
+	settings.width := 640;
+	RejectField(root, floors, "fast_speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, floors, "fast_speed_per_tick", JSON.NewNumber(65), settings);
+	RejectField(root, floors, "raise_step", JSON.NewNumber(0), settings);
+	RejectField(root, floors, "raise_step", JSON.NewNumber(1025), settings);
+	RejectField(root, floors, "large_raise_step", JSON.NewNumber(-1), settings);
+	RejectField(root, floors, "large_raise_step", JSON.NewNumber(1025), settings);
+	RejectField(root, floors, "turbo_lower_gap", JSON.NewNumber(-1), settings);
+	RejectField(root, floors, "turbo_lower_gap", JSON.NewNumber(129), settings)
+END FloorBounds;
 
 PROCEDURE {TEST} SwitchBounds*;
 VAR value: JSON.Value;

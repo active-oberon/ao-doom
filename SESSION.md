@@ -1,6 +1,40 @@
 # ao-doom session handoff
 
-Updated: 2026-11-02
+Updated: 2026-11-07
+
+## Continuation: GitHub sync and additional floors (2026-11-07)
+
+The user requested synchronization with GitHub and continued Doom development.
+Game main fast-forwarded from 8bd3862 to 7b1f7c8, including door obstruction
+and lower-and-change floors. The existing uncommitted floor variants were
+saved in stash `ao-doom before GitHub sync 2026-11-07`, applied and reconciled
+with the new floor kinds. The backup stash is retained. Both the sibling
+engine and ignored target/deps/ao-game-engine fast-forwarded to 0434a6e and
+remain clean; default builds now find the compatible sibling engine.
+
+Completed eleven floor variants: fixed raises 58/92/140, turbo lowering
+36/70/71/98 and fast-nearest raises 129-132. Complete YAML profiles require
+the four new floor settings described in docs/FLOOR_VARIANTS.md. Added
+DoomFloorVariantsSmoke with six test procedures, including surface-change
+composition, player riding, accepted/blocked crossings and failed replacement.
+
+Final Windows and Linux native checks pass 40 groups with 449 generated WAD
+fixtures. Windows build: build/floor-variants-final-windows/ao-doom.exe.
+Linux build: build/floor-variants-final-linux/ao-doom. Four Linux X11 scenarios
+pass: built-in controls/focus/shutdown, fast-nearest crossing, fixed-step
+crossing, and turbo switch presentation. Linux uses isolated YAML/Logging
+and current Inputs/KbdMouse sources over the September SDK; linking to /tmp
+avoids its DrvFS chmod failure. Neither SDK nor MiniA2 sources were modified.
+See docs/FLOOR_VARIANTS.md and scratch/floor-variants-final-{windows,linux}.log;
+the local Linux helper is scratch/verify_synced_linux.py.
+
+The user explicitly requested committing and pushing this completed stage
+to origin/main. This checkpoint accompanies that delivery. The backup stash
+is retained, and there are no unresolved merge entries.
+Linux/Windows remain the priority; A2 is deferred. No new A2, A64/QEMU,
+original IWAD campaign or interactive Windows evidence. Next map stage:
+other surface-changing floors and donuts, then remaining planes, crushers,
+teleporters and sector effects. Existing sound/timing limitations remain.
 
 ## Continuation: lower-and-change floors (2026-11-02)
 

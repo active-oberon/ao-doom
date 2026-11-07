@@ -10,7 +10,8 @@ These sources require matching ao-game-engine sources providing
 and `GameGeometry.Crossing`, together with `World.WithFloors` and
 `World.TouchesSector` for moving floors and occupant checks. Switches/buttons
 use `World.WithWallTexture` and its three material-part identifiers.
-Surface-changing floors also require `World.WithFloorTexture`.
+Surface-changing floors also require `World.WithFloorTexture`, available in
+engine commit `0434a6e774cb408d1063c1e8af666f8a09e18859` or a compatible later revision.
 
 ## Current state
 
@@ -62,7 +63,7 @@ non-solid objects do not obstruct doors. Ceiling-attached solid decorations
 follow their ceiling until the available height is exhausted. Invalid spawn
 volumes retain the existing preview policy. Door sounds and monster activation
 remain unimplemented. See [door occupancy checks](docs/DOOR_OCCUPANTS.md).
-Floors now support 17 lower/raise actions: lower to the highest or lowest
+Floors support the original 17 lower/raise actions: lower to the highest or lowest
 neighbor floor, raise to the next higher floor, or raise to the surrounding
 ceiling. Eight normal/fast lift actions lower to the lowest neighboring floor,
 wait and return to their original height. Use, accepted player crossings and
@@ -91,6 +92,12 @@ speed YAML applies without additional fields. Sector specials are retained as
 game metadata; sector damage, secrets and other special effects remain open.
 See [floor surface changes](docs/FLOOR_CHANGES.md). Other surface-changing
 variants, remaining floors, crushers and sound are not implemented.
+Eleven additional floor actions cover fixed 24/512-unit raises, turbo lowering
+and fast raises to the next higher neighbor. Complete profiles must add
+`floors.fast_speed_per_tick`, `raise_step`, `large_raise_step` and `turbo_lower_gap`
+(standard values 4, 24, 512 and 8). Existing shared occupancy, riding and switch
+presentation apply. See [floor variants](docs/FLOOR_VARIANTS.md) for action numbers,
+configuration bounds and verification.
 Stair actions 7/8 build slow steps and 100/127 build fast steps through use or
 crossing triggers. Chains follow two-sided lines from front to back, in WAD
 order, while floor names match; untagged neighbors join the chain. Busy steps
