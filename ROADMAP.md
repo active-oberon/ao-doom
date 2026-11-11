@@ -129,6 +129,18 @@ The engine adds immutable `World.WithFloorTexture`; model choice, sector
 metadata and timing remain game-owned. Sector-special effects, other changing
 floor variants and donuts remain open. Evidence: docs/FLOOR_CHANGES.md.
 
+## Delivered raising floors with surface changes
+
+Crossing actions 59/93 raise tagged idle floors by the configured fixed step.
+They immediately copy the triggering line's front-sector floor texture, name
+and special code, before the first movement tick. Busy targets retain their
+surface and owner; blocked motion retains the newly copied surface and resumes
+when clear. Changed names feed later stairs and their hidden-material validation.
+Existing YAML, shared immutable snapshots, riding and occupancy mechanisms apply
+without platform-specific gameplay code or new engine APIs. Windows/Linux checks,
+Linux X11 scenarios and a full-symbol A2 Win64 build cover this stage; the A2
+build does not establish runtime behavior. Evidence: docs/FLOOR_CHANGES.md.
+
 ## Remaining delivery areas
 
 - Map progression: remaining floor/ceiling actions and lifts, other surface changes,

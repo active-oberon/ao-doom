@@ -91,7 +91,12 @@ motion. Changed floor names also affect later stair chains. Existing floor
 speed YAML applies without additional fields. Sector specials are retained as
 game metadata; sector damage, secrets and other special effects remain open.
 See [floor surface changes](docs/FLOOR_CHANGES.md). Other surface-changing
-variants, remaining floors, crushers and sound are not implemented.
+platform variants, donuts, remaining floors, crushers and sound are not implemented.
+Walk actions 59/93 raise tagged idle floors by `floors.raise_step` and copy the
+triggering line's front-sector floor texture and special immediately on activation.
+Action 59 is one-shot; 93 repeats. Busy targets retain their surfaces; subsequent
+obstruction pauses motion without undoing the copied surface. The same shared
+gameplay modules compile for Windows, Linux and A2.
 Eleven additional floor actions cover fixed 24/512-unit raises, turbo lowering
 and fast raises to the next higher neighbor. Complete profiles must add
 `floors.fast_speed_per_tick`, `raise_step`, `large_raise_step` and `turbo_lower_gap`
