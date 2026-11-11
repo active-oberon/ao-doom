@@ -39,6 +39,8 @@ CONST WalkLowerHighest = 19;
 	SwitchFastStairs = 127;
 	WalkRaiseStep = 58;
 	RepeatRaiseStep = 92;
+	WalkRaiseStepChange = 59;
+	RepeatRaiseStepChange = 93;
 	SwitchRaiseLarge = 140;
 	WalkTurboLower = 36;
 	ButtonTurboLower = 70;
@@ -64,6 +66,7 @@ CONST WalkLowerHighest = 19;
 	RaiseStep = 10;
 	RaiseLarge = 11;
 	TurboLower = 12;
+	RaiseStepChange = 13;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -137,7 +140,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 			offset := lines.offset + i * DoomFormat.LineSize;
 			Classify(actions.Special(i), triggers[i]);
-			mutableFlats := mutableFlats OR (triggers[i].kind = LowerChange);
+			mutableFlats := mutableFlats OR (triggers[i].kind = LowerChange) OR (triggers[i].kind = RaiseStepChange);
 			triggers[i].tag := GameBytes.U16(archive.data^, offset + DoomFormat.LineTag);
 			triggers[i].twoSided := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags) DIV 4 MOD 2 = 1;
 			side := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
@@ -220,7 +223,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			result := MAX(FLOAT64)
 		ELSIF kind = RaiseCeiling THEN
 			result := region.ceiling
-		ELSIF kind = RaiseStep THEN
+		ELSIF (kind = RaiseStep) OR (kind = RaiseStepChange) THEN
 			RETURN region.floor + DoomConfig.values.floorRaiseStep
 		ELSIF kind = RaiseLarge THEN
 			RETURN region.floor + DoomConfig.values.floorLargeRaiseStep
@@ -392,7 +395,18 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		RETURN TRUE
 	END BuildStairs;
 
-	PROCEDURE Activate(world: GameGeometry.World; line: SIGNED32): BOOLEAN;
+	(* Trigger-model raises change the surface immediately, even if subsequent motion is blocked. *)
+	PROCEDURE ChangeSurface(VAR world: GameGeometry.World; sector, model: SIGNED32);
+	VAR candidate: GameGeometry.World;
+	BEGIN
+		candidate := world.WithFloorTexture(sector, world.Region(model).floorTexture);
+		ASSERT(candidate # NIL);
+		world := candidate;
+		COPY(flats[model], flats[sector]);
+		specials[sector] := specials[model]
+	END ChangeSurface;
+
+	PROCEDURE Activate(VAR world: GameGeometry.World; line: SIGNED32): BOOLEAN;
 	VAR i: SIGNED32;
 		started: BOOLEAN;
 	BEGIN
@@ -403,6 +417,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				IF triggers[line].kind = Stairs THEN
 					started := BuildStairs(world, i, triggers[line].fast) OR started
 				ELSIF Start(world, i, triggers[line]) THEN
+					IF triggers[line].kind = RaiseStepChange THEN
+						ChangeSurface(world, i, triggers[line].front)
+					END;
 					started := TRUE
 				END
 			END;
@@ -417,7 +434,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		RETURN started
 	END Activate;
 
-	PROCEDURE Use*(world: GameGeometry.World; x, y, angle: FLOAT64): BOOLEAN;
+	PROCEDURE Use*(VAR world: GameGeometry.World; x, y, angle: FLOAT64): BOOLEAN;
 	VAR line: SIGNED32;
 	BEGIN
 		line := actions.UseLine(world, x, y, angle);
@@ -439,7 +456,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		END
 	END Crossed;
 
-	PROCEDURE ApplyCrossings*(world: GameGeometry.World);
+	PROCEDURE ApplyCrossings*(VAR world: GameGeometry.World);
 	VAR i: SIGNED32;
 		started: BOOLEAN;
 	BEGIN
@@ -556,6 +573,8 @@ BEGIN
 		trigger.kind := Stairs
 	| WalkRaiseStep, RepeatRaiseStep:
 		trigger.kind := RaiseStep
+	| WalkRaiseStepChange, RepeatRaiseStepChange:
+		trigger.kind := RaiseStepChange
 	| SwitchRaiseLarge:
 		trigger.kind := RaiseLarge
 	| WalkTurboLower, ButtonTurboLower, SwitchTurboLower, RepeatTurboLower:
@@ -571,7 +590,7 @@ BEGIN
 		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift,
 		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs,
 		WalkLowerChange, RepeatLowerChange, WalkRaiseStep, RepeatRaiseStep, WalkTurboLower, RepeatTurboLower,
-		RepeatFastNearest, WalkFastNearest:
+		RepeatFastNearest, WalkFastNearest, WalkRaiseStepChange, RepeatRaiseStepChange:
 		trigger.activation := Walk
 	| GunRaiseCeiling:
 		trigger.activation := Gun
@@ -581,7 +600,7 @@ BEGIN
 	ButtonLowerHighest, RepeatLowerHighest, ButtonLowerLowest, RepeatLowerLowest, ButtonRaiseNearest, RepeatRaiseNearest,
 		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift,
 		RepeatPerpetual, RepeatStopLift, RepeatLowerChange, RepeatRaiseStep, ButtonTurboLower, RepeatTurboLower,
-		RepeatFastNearest, ButtonFastNearest:
+		RepeatFastNearest, ButtonFastNearest, RepeatRaiseStepChange:
 		trigger.repeat := TRUE
 	ELSE
 	END;
