@@ -7,6 +7,7 @@
 /target/
 /ao-doom
 /ao-doom.exe
+/scene.ppm
 
 # Local game data
 *.[wW][aA][dD]
