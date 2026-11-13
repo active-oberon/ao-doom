@@ -61,7 +61,7 @@ ray clipping, texture anchors and rendering. TouchesSector limits occupant check
 Player and grounded things ride accepted planes; valid solid volumes prevent
 pinching, and obstructed rising lifts reverse. Pre-existing invalid spawn
 volumes keep the preview behavior and do not stop planes. Remaining floor
-variants, crushers, surface changes, sound and classic
+variants, crushers, sound and classic
 ordering/timing fidelity remain open. Evidence is in scratch/floors-check.md.
 
 ## Delivered additional floor variants
@@ -74,7 +74,7 @@ both fixed raises and the lowering gap. Existing shared ownership, obstruction,
 switches, surface snapshots and player riding apply. Regression coverage includes
 lower-and-change followed by a fixed raise, accepted versus blocked crossings
 and failed map replacement during motion. See docs/FLOOR_VARIANTS.md.
-Other surface changes, crushers, sound and exact classic timing remain open.
+Remaining floor/ceiling actions, crushers, sound and exact classic timing remain open.
 
 ## Delivered switch and button stage
 
@@ -126,8 +126,8 @@ The existing floor speed, occupancy/riding and shared action table apply.
 Updated names participate in later stair chains, with conservative directed
 reachability for hidden-material validation when surface-changing actions exist.
 The engine adds immutable `World.WithFloorTexture`; model choice, sector
-metadata and timing remain game-owned. Sector-special effects and other changing
-floor variants remain open. Evidence: docs/FLOOR_CHANGES.md.
+metadata and timing remain game-owned. Sector-special effects remain open.
+Evidence: docs/FLOOR_CHANGES.md.
 
 ## Delivered raising floors with surface changes
 
@@ -154,9 +154,22 @@ Linux/Windows GUI scenarios and full-symbol A2 Unix64/Win64 builds pass with the
 limits recorded in docs/DONUTS.md. Classic unsafe malformed-map behavior,
 sound, crushing and exact mover timing remain open.
 
+## Delivered changing platforms
+
+Actions 14/15/20/22/47/66/67/68/95 immediately copy the triggering front-sector
+floor surface and raise by a fixed step or to the next higher neighbor.
+Fixed raises preserve sector effects; nearest raises clear the special code.
+Shared ownership, reversal/retry, stop/resume, switches and carried occupants
+use the existing controller and engine snapshots. Gun hits publish surfaces to
+the active game world while traces retain captured geometry. YAML supplies
+raising speed and the 32-unit step; the 24-unit step reuses floor tuning.
+Linux and Windows SDK checks, six GUI scenarios and full-symbol A2 Unix64/Win64
+builds pass with the limits in docs/CHANGING_PLATFORMS.md. Exact classic timing,
+original obstructed-raise quirks, sound and sector effects remain open.
+
 ## Remaining delivery areas
 
-- Map progression: remaining floor/ceiling actions and lifts, other surface changes,
+- Map progression: remaining floor/ceiling actions, including texture-height raises,
   crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,

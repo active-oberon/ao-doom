@@ -39,6 +39,8 @@ platforms:
   speed_per_tick: 4
   fast_speed_per_tick: 8
   perpetual_speed_per_tick: 1
+  raise_speed_per_tick: 0.5
+  large_raise_step: 32
   wait_ticks: 105
 switches:
   button_ticks: 35

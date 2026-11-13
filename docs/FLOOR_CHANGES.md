@@ -38,8 +38,8 @@ are supported through the engine's optional NIL surface.
 Behavior reference: id Software's
 [floor controller](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_floor.c)
 and [crossing actions](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_spec.c).
-Raising-platform variants, sounds, crushing and exact classic mover
-tick ordering remain open.
+Raising platforms are covered in [changing platforms](CHANGING_PLATFORMS.md).
+Sounds, crushing and exact classic mover tick ordering remain open.
 
 ## Raising actions 59/93
 

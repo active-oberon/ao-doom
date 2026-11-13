@@ -2,6 +2,21 @@ MODULE DoomSwitchesSmoke;
 
 IMPORT Doom, DoomConfig, DoomMap, DoomWad, DoomInventory, GameGeometry, GameMaterials, Strings, KernelLog, MathL;
 
+TYPE Shooter = OBJECT
+VAR map: DoomMap.Map;
+	PROCEDURE Fire(VAR target: DoomMap.Map);
+	BEGIN
+		map := target;
+		map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
+			8, 1, Hit);
+		target := map
+	END Fire;
+	PROCEDURE Hit(geometry: GameGeometry.World; line: SIGNED32);
+	BEGIN
+		map.floors.Shot(map.world, line)
+	END Hit;
+END Shooter;
+
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
 	error: ARRAY 256 OF CHAR;
@@ -25,6 +40,7 @@ END Front;
 
 PROCEDURE Variant(special: SIGNED32; floor, repeat, locked: BOOLEAN);
 VAR map: DoomMap.Map;
+	shooter: Shooter;
 	player: DoomInventory.State;
 	old: GameGeometry.World;
 	texture: GameMaterials.Texture;
@@ -47,8 +63,8 @@ BEGIN
 		player.keys := {0..5}
 	END;
 	IF special = 24 THEN
-		map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
-			8, 1, map.floors.Shot)
+		NEW(shooter);
+		shooter.Fire(map)
 	ELSIF special = 46 THEN
 		map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
 			8, 1, map.doors.Shot)

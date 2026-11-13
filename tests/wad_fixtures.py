@@ -363,6 +363,20 @@ def raise_change_lumps(special=93):
     return lumps + [("ALT", bytes([2]) * 4096)]
 
 
+def changing_platform_lumps(special=66, portal=False):
+    walk = special in (22, 95)
+    lumps = switch_lumps(special, floor=True, portal=walk or portal)
+    sectors = bytearray(lumps[8][1])
+    target = 2 if walk else 1
+    for sector, height, name, code in (
+            (0, 32, b"CEILING\0", 5), (1, 32 if walk else 0, b"ALT\0\0\0\0\0", 9),
+            (2, 0 if walk else 96, b"FLOOR\0\0\0", 7)):
+        struct.pack_into("<hh8s8shhh", sectors, sector * 26, height, 192,
+                         name, b"CEILING", 192, code, 7 if sector == target else 0)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps + [("ALT", bytes([2]) * 4096)]
+
+
 def donut_lumps(portal=False):
     lumps = switch_lumps(special=9, floor=True, portal=portal)
     sectors = bytearray(lumps[8][1])
@@ -833,6 +847,36 @@ def fixtures(directory):
     priority[3] = ("SIDEDEFS", bytes(sides))
     files["switch-priority.wad"] = wad(priority)
     files["floor-lift.wad"] = wad(floor_lumps())
+    for special in (14, 15, 20, 22, 47, 66, 67, 68, 95):
+        files[f"platform-change-{special}.wad"] = wad(changing_platform_lumps(special))
+    files["platform-change-gui.wad"] = wad(changing_platform_lumps(67, portal=True))
+    files["platform-change-gun-gui.wad"] = wad(changing_platform_lumps(47, portal=True))
+    changing = changing_platform_lumps(95)
+    sectors = bytearray(changing[8][1])
+    struct.pack_into("<h", sectors, 26, 0)
+    changing[8] = ("SECTORS", bytes(sectors))
+    files["platform-change-no-next.wad"] = wad(changing)
+    files["platform-change-actors.wad"] = wad(sprite_lumps(changing_platform_lumps(95),
+        [(384, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
+    changing = changing_platform_lumps(66)
+    lines = bytearray(changing[2][1])
+    struct.pack_into("<2H", lines, 8 * 14 + 6, 89, 7)
+    struct.pack_into("<2H", lines, 9 * 14 + 6, 87, 7)
+    changing[2] = ("LINEDEFS", bytes(lines))
+    files["platform-change-stasis.wad"] = wad(changing)
+    changing = changing_platform_lumps(14)
+    sides = bytearray(changing[3][1])
+    sides[8 * 30 + 12:8 * 30 + 20] = b"MISSING\0"
+    changing[3] = ("SIDEDEFS", bytes(sides))
+    files["platform-change-hidden.wad"] = wad(changing)
+    changing = stair_lumps(7)
+    lines = bytearray(changing[2][1])
+    struct.pack_into("<2H", lines, 11 * 14 + 6, 20, 7)
+    changing[2] = ("LINEDEFS", bytes(lines))
+    changing[8] = ("SECTORS", b"".join(struct.pack("<hh8s8shhh", 32 if i == 0 else 64 if i == 4 else 0,
+        192, b"CEILING" if i == 0 else b"FLOOR", b"CEILING", 192, 9, 7 if i in (1, 3) else 0)
+        for i in range(5)))
+    files["platform-change-grouped.wad"] = wad(changing)
     files["donut.wad"] = wad(donut_lumps())
     files["donut-gui.wad"] = wad(donut_lumps(portal=True))
     files["donut-nested.wad"] = wad(nested_donut_lumps())

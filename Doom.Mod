@@ -398,11 +398,12 @@ TYPE
 			exits.Crossed(x0, y0, x1, y1)
 		END Crossed;
 
+		(* Shot publishes floor surfaces to the active world while pellets retain their captured ray geometry. *)
 		PROCEDURE Shot(geometry: GameGeometry.World; line: SIGNED32);
 		BEGIN
 			IF doors # NIL THEN
 				doors.Shot(geometry, line);
-				floors.Shot(geometry, line)
+				floors.Shot(world, line)
 			END
 		END Shot;
 

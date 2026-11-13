@@ -44,7 +44,7 @@ players and grounded things. These actions preserve floor surfaces and sector
 specials, including values transferred by earlier actions 37/84. Original
 snapshots retain their previous heights and textures.
 
-Other surface-changing floors, crushers, sounds, monster activation
+Remaining floor/ceiling actions, crushers, sounds, monster activation
 and exact classic plane timing remain open.
 
 Complete profiles also require the later donut speed; see [donut floors](DONUTS.md).

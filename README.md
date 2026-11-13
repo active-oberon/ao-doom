@@ -90,8 +90,8 @@ surface is captured when the action starts. Busy targets keep their current
 motion. Changed floor names also affect later stair chains. Existing floor
 speed YAML applies without additional fields. Sector specials are retained as
 game metadata; sector damage, secrets and other special effects remain open.
-See [floor surface changes](docs/FLOOR_CHANGES.md). Other surface-changing
-platform variants, remaining floors, crushers and sound are not implemented.
+See [floor surface changes](docs/FLOOR_CHANGES.md). Remaining floors, crushers
+and sound are not implemented.
 Walk actions 59/93 raise tagged idle floors by `floors.raise_step` and copy the
 triggering line's front-sector floor texture and special immediately on activation.
 Action 59 is one-shot; 93 repeats. Busy targets retain their surfaces; subsequent
@@ -109,6 +109,13 @@ or blocked sectors retain their existing ownership. Complete profiles require
 `floors.donut_speed_per_tick` (standard 0.5 map units per tick). Linux, Windows
 and A2 share the existing engine snapshots and riding checks; see
 [donut floors](docs/DONUTS.md) for behavior, commands and validation limits.
+Raising-platform actions 14/15/20/22/47/66/67/68/95 now copy the trigger's
+front-sector floor surface immediately. Fixed raises preserve the target
+sector special; nearest raises clear it. Blocked platforms reverse and retry,
+and existing stop/resume actions preserve their original raising behavior.
+Complete profiles require `platforms.raise_speed_per_tick` and `large_raise_step`
+(standard 0.5 and 32); small raises reuse `floors.raise_step` (24). See
+[changing platforms](docs/CHANGING_PLATFORMS.md) for behavior and validation.
 Stair actions 7/8 build slow steps and 100/127 build fast steps through use or
 crossing triggers. Chains follow two-sided lines from front to back, in WAD
 order, while floor names match; untagged neighbors join the chain. Busy steps
@@ -732,7 +739,7 @@ Door motion publishes copied ceiling heights on shared immutable geometry, so
 rendering and collision use a consistent world snapshot. Floor motion and walking update eye height immediately; drops
 snap to the floor without gravity or view smoothing. Short checks do not prove
 whole-level traversal, original pixel accuracy or complete game compatibility.
-Remaining floor/ceiling actions, other lift variants and sound are unsupported.
+Remaining floor/ceiling actions and sound are unsupported.
 Tagged-door evidence is in
 [the tagged-door report](scratch/tagged-doors-check.md) and
 [the floor/lift report](scratch/floors-check.md).

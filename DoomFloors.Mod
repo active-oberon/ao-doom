@@ -51,6 +51,15 @@ CONST WalkLowerHighest = 19;
 	SwitchFastNearest = 131;
 	ButtonFastNearest = 132;
 	SwitchDonut = 9;
+	SwitchPlatformLarge = 14;
+	SwitchPlatformStep = 15;
+	SwitchPlatformNearest = 20;
+	WalkPlatformNearest = 22;
+	GunPlatformNearest = 47;
+	ButtonPlatformStep = 66;
+	ButtonPlatformLarge = 67;
+	ButtonPlatformNearest = 68;
+	RepeatPlatformNearest = 95;
 	Unsupported = 0;
 	Using = 1;
 	Walk = 2;
@@ -69,6 +78,9 @@ CONST WalkLowerHighest = 19;
 	TurboLower = 12;
 	RaiseStepChange = 13;
 	Donut = 14;
+	PlatformStep = 15;
+	PlatformLarge = 16;
+	PlatformNearest = 17;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -86,7 +98,7 @@ END;
 Motion = RECORD
 	direction, oldDirection, timer: SIGNED32;
 	target, low, high, speed: FLOAT64;
-	lift, perpetual, change: BOOLEAN;
+	lift, perpetual, change, raising: BOOLEAN;
 	texture: GameMaterials.Texture;
 	flat: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 	special: SIGNED32
@@ -144,7 +156,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			offset := lines.offset + i * DoomFormat.LineSize;
 			Classify(actions.Special(i), triggers[i]);
 			mutableFlats := mutableFlats OR (triggers[i].kind = LowerChange) OR
-				(triggers[i].kind = RaiseStepChange) OR (triggers[i].kind = Donut);
+				(triggers[i].kind = RaiseStepChange) OR (triggers[i].kind = Donut) OR
+				(triggers[i].kind = PlatformStep) OR (triggers[i].kind = PlatformLarge) OR
+				(triggers[i].kind = PlatformNearest);
 			triggers[i].tag := GameBytes.U16(archive.data^, offset + DoomFormat.LineTag);
 			triggers[i].twoSided := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags) DIV 4 MOD 2 = 1;
 			side := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
@@ -271,14 +285,16 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		result := region.floor;
 		IF (kind = LowerHighest) OR (kind = TurboLower) THEN
 			result := MIN(FLOAT64)
-		ELSIF kind = RaiseNearest THEN
+		ELSIF (kind = RaiseNearest) OR (kind = PlatformNearest) THEN
 			result := MAX(FLOAT64)
 		ELSIF kind = RaiseCeiling THEN
 			result := region.ceiling
-		ELSIF (kind = RaiseStep) OR (kind = RaiseStepChange) THEN
+		ELSIF (kind = RaiseStep) OR (kind = RaiseStepChange) OR (kind = PlatformStep) THEN
 			RETURN region.floor + DoomConfig.values.floorRaiseStep
 		ELSIF kind = RaiseLarge THEN
 			RETURN region.floor + DoomConfig.values.floorLargeRaiseStep
+		ELSIF kind = PlatformLarge THEN
+			RETURN region.floor + DoomConfig.values.platformLargeRaiseStep
 		END;
 		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 			neighbor := -1;
@@ -294,7 +310,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 					result := MAX(result, other.floor)
 				| LowerLowest, Lift, Perpetual, LowerChange:
 					result := MIN(result, other.floor)
-				| RaiseNearest:
+				| RaiseNearest, PlatformNearest:
 					IF other.floor > region.floor THEN
 						result := MIN(result, other.floor)
 					END
@@ -360,7 +376,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		region := world.Region(sector);
 		motions[sector].perpetual := trigger.kind = Perpetual;
 		motions[sector].change := trigger.kind = LowerChange;
-		motions[sector].lift := (trigger.kind = Lift) OR motions[sector].perpetual;
+		motions[sector].raising := (trigger.kind = PlatformStep) OR (trigger.kind = PlatformLarge) OR
+			(trigger.kind = PlatformNearest);
+		motions[sector].lift := (trigger.kind = Lift) OR motions[sector].perpetual OR motions[sector].raising;
 		motions[sector].high := region.floor;
 		motions[sector].target := Target(world, sector, trigger.kind);
 		motions[sector].speed := DoomConfig.values.floorSpeed;
@@ -390,6 +408,10 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				motions[sector].direction := Up;
 				motions[sector].target := motions[sector].high
 			END
+		ELSIF motions[sector].raising THEN
+			motions[sector].low := region.floor;
+			motions[sector].high := motions[sector].target;
+			motions[sector].speed := DoomConfig.values.raisingPlatformSpeed
 		ELSIF motions[sector].lift THEN
 			motions[sector].speed := DoomConfig.values.platformSpeed;
 			IF trigger.fast THEN
@@ -426,6 +448,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			motions[sector].lift := FALSE;
 			motions[sector].perpetual := FALSE;
 			motions[sector].change := FALSE;
+			motions[sector].raising := FALSE;
 			INC(active);
 			found := FALSE;
 			line := first[sector];
@@ -472,12 +495,14 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		motions[sector].lift := FALSE;
 		motions[sector].perpetual := FALSE;
 		motions[sector].change := FALSE;
+		motions[sector].raising := FALSE;
 		motions[ring].direction := Up;
 		motions[ring].target := height;
 		motions[ring].speed := DoomConfig.values.donutSpeed;
 		motions[ring].lift := FALSE;
 		motions[ring].perpetual := FALSE;
 		motions[ring].change := TRUE;
+		motions[ring].raising := FALSE;
 		motions[ring].texture := world.Region(model).floorTexture;
 		COPY(flats[model], motions[ring].flat);
 		motions[ring].special := 0;
@@ -485,15 +510,14 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		RETURN TRUE
 	END StartDonut;
 
-	(* Trigger-model raises change the surface immediately, even if subsequent motion is blocked. *)
+	(* ChangeSurface publishes the model texture and name while each action retains its own sector-effect policy. *)
 	PROCEDURE ChangeSurface(VAR world: GameGeometry.World; sector, model: SIGNED32);
 	VAR candidate: GameGeometry.World;
 	BEGIN
 		candidate := world.WithFloorTexture(sector, world.Region(model).floorTexture);
 		ASSERT(candidate # NIL);
 		world := candidate;
-		COPY(flats[model], flats[sector]);
-		specials[sector] := specials[model]
+		COPY(flats[model], flats[sector])
 	END ChangeSurface;
 
 	PROCEDURE Activate(VAR world: GameGeometry.World; line: SIGNED32): BOOLEAN;
@@ -509,8 +533,14 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				ELSIF triggers[line].kind = Donut THEN
 					started := StartDonut(world, i) OR started
 				ELSIF Start(world, i, triggers[line]) THEN
-					IF triggers[line].kind = RaiseStepChange THEN
-						ChangeSurface(world, i, triggers[line].front)
+					IF (triggers[line].kind = RaiseStepChange) OR (triggers[line].kind = PlatformStep) OR
+						(triggers[line].kind = PlatformLarge) OR (triggers[line].kind = PlatformNearest) THEN
+						ChangeSurface(world, i, triggers[line].front);
+						IF triggers[line].kind = RaiseStepChange THEN
+							specials[i] := specials[triggers[line].front]
+						ELSIF triggers[line].kind = PlatformNearest THEN
+							specials[i] := 0
+						END
 					END;
 					started := TRUE
 				END
@@ -560,7 +590,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		END
 	END ApplyCrossings;
 
-	PROCEDURE Shot*(world: GameGeometry.World; line: SIGNED32);
+	PROCEDURE Shot*(VAR world: GameGeometry.World; line: SIGNED32);
 	VAR started: BOOLEAN;
 	BEGIN
 		IF (actions.Special(line) # 0) & (triggers[line].activation = Gun) THEN
@@ -584,7 +614,9 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		END;
 		FOR i := 0 TO SIGNED32(LEN(motions^)) - 1 DO
 			IF motions[i].direction = Waiting THEN
-				DEC(motions[i].timer);
+				IF motions[i].timer > 0 THEN
+					DEC(motions[i].timer)
+				END;
 				IF motions[i].timer = 0 THEN
 					motions[i].direction := Up;
 					motions[i].target := motions[i].high;
@@ -623,7 +655,11 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 						END;
 						IF motions[i].lift & ((motions[i].direction = Down) OR motions[i].perpetual) THEN
 							motions[i].direction := Waiting;
-							motions[i].timer := DoomConfig.values.platformWait
+							motions[i].timer := DoomConfig.values.platformWait;
+							IF motions[i].raising THEN
+								(* shortcut: changing platforms retry at their initial floor; revisit with exact classic mover compatibility. *)
+								motions[i].timer := 0
+							END
 						ELSE
 							motions[i].direction := Idle;
 							DEC(active);
@@ -671,6 +707,12 @@ BEGIN
 		trigger.kind := RaiseLarge
 	| SwitchDonut:
 		trigger.kind := Donut
+	| SwitchPlatformStep, ButtonPlatformStep:
+		trigger.kind := PlatformStep
+	| SwitchPlatformLarge, ButtonPlatformLarge:
+		trigger.kind := PlatformLarge
+	| SwitchPlatformNearest, ButtonPlatformNearest, WalkPlatformNearest, RepeatPlatformNearest, GunPlatformNearest:
+		trigger.kind := PlatformNearest
 	| WalkTurboLower, ButtonTurboLower, SwitchTurboLower, RepeatTurboLower:
 		trigger.kind := TurboLower
 	| RepeatFastNearest, WalkFastNearest, SwitchFastNearest, ButtonFastNearest:
@@ -684,9 +726,10 @@ BEGIN
 		WalkRaiseCeiling, RepeatRaiseCeiling, WalkLift, RepeatLift, RepeatFastLift, WalkFastLift,
 		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs,
 		WalkLowerChange, RepeatLowerChange, WalkRaiseStep, RepeatRaiseStep, WalkTurboLower, RepeatTurboLower,
-		RepeatFastNearest, WalkFastNearest, WalkRaiseStepChange, RepeatRaiseStepChange:
+		RepeatFastNearest, WalkFastNearest, WalkRaiseStepChange, RepeatRaiseStepChange,
+		WalkPlatformNearest, RepeatPlatformNearest:
 		trigger.activation := Walk
-	| GunRaiseCeiling:
+	| GunRaiseCeiling, GunPlatformNearest:
 		trigger.activation := Gun
 	ELSE
 	END;
@@ -694,7 +737,8 @@ BEGIN
 	ButtonLowerHighest, RepeatLowerHighest, ButtonLowerLowest, RepeatLowerLowest, ButtonRaiseNearest, RepeatRaiseNearest,
 		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift,
 		RepeatPerpetual, RepeatStopLift, RepeatLowerChange, RepeatRaiseStep, ButtonTurboLower, RepeatTurboLower,
-		RepeatFastNearest, ButtonFastNearest, RepeatRaiseStepChange:
+		RepeatFastNearest, ButtonFastNearest, RepeatRaiseStepChange,
+		ButtonPlatformStep, ButtonPlatformLarge, ButtonPlatformNearest, RepeatPlatformNearest:
 		trigger.repeat := TRUE
 	ELSE
 	END;

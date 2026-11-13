@@ -191,6 +191,7 @@ BEGIN
 	DoomConfig.CampaignBounds;
 	DoomConfig.SwitchBounds;
 	DoomConfig.FloorBounds;
+	DoomConfig.PlatformBounds;
 	DoomConfig.PaletteBounds;
 	DoomConfig.DemoAppearanceBounds;
 	DoomConfig.RejectInvalidAndPreserve;

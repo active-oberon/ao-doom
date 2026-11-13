@@ -2,6 +2,42 @@
 
 Updated: 2026-11-13
 
+## Continuation: raising platforms with surface changes (2026-11-13)
+
+The user published 568020c to origin/main and requested continued work. That
+publication is complete; no new push was requested. Linux/Windows priority,
+minimal A2 adaptation, reusable engine ownership and logical commits continue.
+
+- Added actions 14/15/20/22/47/66/67/68/95 for fixed and nearest raising
+  platforms. Front-sector texture/name changes happen at activation. Fixed
+  raises retain sector specials; nearest raises clear them. Shared ownership,
+  reversal/retry, stop/resume and actor/player riding remain in the existing
+  controller. The safe initial-bound/zero-wait retry policy is an explicit
+  classic-timing boundary; see docs/CHANGING_PLATFORMS.md.
+- Complete profiles require platforms.raise_speed_per_tick and large_raise_step
+  (standard 0.5 and 32). Small raises reuse floors.raise_step, standard 24.
+  DoomFloors.Shot now publishes through VAR world. Game gun callbacks update
+  the active world while each ray retains captured geometry; test callbacks
+  were updated for the mutable method signature.
+- The original action-14 test failed as expected. Final Linux and Windows SDK
+  suites pass 43 engine/game groups using 488 generated WAD fixtures. Windows
+  uses its native SDK under Wine. Four Linux GUI scenarios and separate Windows
+  physical E/mouse scenarios pass on an owned nested display; Windows gun frames
+  were visually inspected. Full-symbol A2 Unix64/Win64 builds and both 117-entry
+  packages pass. These are scoped checks, not campaign or A2 runtime evidence.
+- Engine 0434a6e already supplies all needed geometry/material/occupant APIs.
+  No engine, MiniA2 or SDK source changed; preserve MiniA2's unrelated dirty
+  compiler/LSP work. Root scene.ppm and previous builds remain untouched.
+- Ready Linux: cd build/changing-platforms-linux, then ./ao-doom
+  platform-change-gui.wad E1M1 (E) or platform-change-gun-gui.wad E1M1 (fire).
+  Windows executable/configuration/fixtures are in build/changing-platforms-windows.
+  A2 packages are in build/changing-platforms-a2-{unix,win}. Evidence and scripts
+  are under scratch/changing-platforms-* and verify-changing-platforms-*.py.
+- Original IWAD assets remain unavailable at the old local path; no original-map
+  or campaign checks were rerun. Native Windows, A2 runtime, A64 and hardware
+  remain unverified. Next map work: texture-height floor raises 30/96, remaining
+  ceilings/crushers, teleporters and sector effects.
+
 ## Continuation: Linux/Windows priority and donut floors (2026-11-13)
 
 The user resumed Doom development after pulling origin/main at 1dae016.

@@ -2,6 +2,21 @@ MODULE DoomFloorsSmoke;
 
 IMPORT DoomConfig, Doom, DoomMap, DoomWad, DoomInventory, DoomSprites, GameGeometry, GameSurface, Strings, KernelLog;
 
+TYPE Shooter = OBJECT
+VAR map: DoomMap.Map;
+	PROCEDURE Fire(VAR target: DoomMap.Map);
+	BEGIN
+		map := target;
+		map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
+			8, 1, Hit);
+		target := map
+	END Fire;
+	PROCEDURE Hit(geometry: GameGeometry.World; line: SIGNED32);
+	BEGIN
+		map.floors.Shot(map.world, line)
+	END Hit;
+END Shooter;
+
 PROCEDURE {TEST} LiftUse*;
 VAR game: Doom.Game;
 	old: GameGeometry.World;
@@ -40,6 +55,7 @@ END Advance;
 
 PROCEDURE Variant(special, initial, target, sector, units: SIGNED32; walk, gun, lift, repeat: BOOLEAN);
 VAR map: DoomMap.Map;
+	shooter: Shooter;
 	path: ARRAY 64 OF CHAR;
 	number: ARRAY 12 OF CHAR;
 	old: GameGeometry.World;
@@ -64,8 +80,8 @@ BEGIN
 		map.floors.ApplyCrossings(map.world)
 	ELSIF gun THEN
 		ASSERT(~map.floors.Use(map.world, map.x, map.y, map.angle));
-		map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
-			8, 1, map.floors.Shot)
+		NEW(shooter);
+		shooter.Fire(map)
 	ELSE
 		ASSERT(map.floors.Use(map.world, map.x, map.y, map.angle));
 		ASSERT(~map.floors.Use(map.world, map.x, map.y, map.angle))
@@ -229,6 +245,7 @@ END LiftReversal;
 
 PROCEDURE {TEST} SharedActionsAndBusySectors*;
 VAR map: DoomMap.Map;
+	shooter: Shooter;
 	player: DoomInventory.State;
 	feet: FLOAT64;
 	i: SIGNED32;
@@ -257,12 +274,11 @@ BEGIN
 	ASSERT(map.actions.Special(7) = 18);
 	Load("floor-24.wad", map);
 	ASSERT(map.actions.Claim(1));
-	map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
-		8, 1, map.floors.Shot);
+	NEW(shooter);
+	shooter.Fire(map);
 	ASSERT(map.actions.Special(7) = 0);
 	map.actions.Release(1);
-	map.sprites := map.sprites.ShootAimObserved(map.world, map.x, map.y, map.angle, map.eye, 0,
-		8, 1, map.floors.Shot);
+	shooter.Fire(map);
 	feet := 0;
 	Advance(map, 10, feet);
 	ASSERT(map.world.Region(1).floor = 1.5)
