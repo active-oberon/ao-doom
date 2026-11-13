@@ -29,6 +29,7 @@ floors:
   raise_step: 24
   large_raise_step: 512
   turbo_lower_gap: 8
+  donut_speed_per_tick: 0.5
 stairs:
   speed_per_tick: 0.25
   fast_speed_per_tick: 4

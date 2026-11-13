@@ -180,6 +180,7 @@ def gui_checks(destination, sdk, executable, platform):
              'door': 'door', 'locked-door': 'door-key', 'tagged-door': 'tagged-door-gui',
              'walk-door': 'tagged-door-90', 'gun-door': 'tagged-door-gun-portal',
              'lift': 'floor-lift-ride', 'platform': 'platform-riding', 'stairs': 'stairs-gui',
+             'donut': 'donut-gui',
              'walk-floor': 'floor-88', 'gun-floor': 'floor-gun', 'button': 'switch-button',
              'switch': 'switch-103', 'gun-switch': 'switch-24', 'exit': 'exits-use',
              'failed-exit': 'exits-missing'}

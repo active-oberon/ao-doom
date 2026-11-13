@@ -429,6 +429,8 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
                 time.sleep(0.3)
                 key(display, window, root, ord("w" if floor_mode == "walk" else "e"), release=True)
                 time.sleep(0.9 if floor_mode == "walk" else 0.5)
+                if floor_mode == "donut":
+                    time.sleep(3.3)
             changed = pixels(display, window)
             assert changed[:43 * 80] != initial[:43 * 80], "Moving floor did not change visible geometry"
             time.sleep(0.2)
@@ -442,7 +444,7 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             output, _ = process.communicate(timeout=5)
             assert process.returncode == 0, output
             check_logs(output, arguments)
-            if floor_mode in ("lift", "stairs"):
+            if floor_mode in ("lift", "stairs", "donut"):
                 require_logs(output, "map use attempted")
             print(f"Floor GUI check passed: {floor_mode}, motion, waiting/return and shutdown")
             return
@@ -753,7 +755,7 @@ def main():
     explosions = arguments[0] == "--explosions"
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
     tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
-    floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun",
+    floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun", "--donut": "donut",
                   "--platform": "perpetual", "--stairs": "stairs"}.get(arguments[0])
     switch_mode = {"--button": "button", "--switch": "switch", "--gun-switch": "gun"}.get(arguments[0])
     if door or pickup or locked_door or actor or combat or ai or hitscan or projectiles or modern or blast or explosions or exit_mode or tagged_mode or floor_mode or switch_mode:

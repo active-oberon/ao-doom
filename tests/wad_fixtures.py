@@ -363,6 +363,42 @@ def raise_change_lumps(special=93):
     return lumps + [("ALT", bytes([2]) * 4096)]
 
 
+def donut_lumps(portal=False):
+    lumps = switch_lumps(special=9, floor=True, portal=portal)
+    sectors = bytearray(lumps[8][1])
+    for sector, height, name, special, tag in (
+            (0, 32, b"CEILING\0", 5, 0), (1, 0, b"ALT\0\0\0\0\0", 9, 0),
+            (2, 96, b"FLOOR\0\0\0", 7, 7)):
+        struct.pack_into("<hh8s8shhh", sectors, sector * 26, height, 192,
+                         name, b"CEILING", 192, special, tag)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps + [("ALT", bytes([2]) * 4096)]
+
+
+def nested_donut_lumps():
+    lumps = donut_lumps()
+    vertices = [(x, y) for size in (256, 128, 64)
+                for x, y in ((-size, -size), (size, -size), (size, size), (-size, size))]
+    edges = [(i, (i + 1) % 4, 0, None) for i in range(3)]
+    edges += [(4 + (i + 1) % 4, 4 + i, 0, 1) for i in range(4)]
+    edges += [(0, 3, 0, None)]
+    edges += [(8 + (i + 1) % 4, 8 + i, 1, 2) for i in range(4)]
+    sides, lines = [], []
+    for index, (a, b, front, back) in enumerate(edges):
+        side = len(sides)
+        sides.append(struct.pack("<hh8s8s8sH", 0, 0, b"WALL", b"WALL",
+                                 b"SW1BRCOM" if index == 7 else b"WALL" if back is None else b"-", front))
+        if back is not None:
+            sides.append(struct.pack("<hh8s8s8sH", 0, 0, b"WALL", b"WALL", b"-", back))
+        lines.append(struct.pack("<7H", a, b, 1 if back is None else 4,
+                                 9 if index == 7 else 0, 7 if index == 7 else 0,
+                                 side, 65535 if back is None else side + 1))
+    lumps[2] = ("LINEDEFS", b"".join(lines))
+    lumps[3] = ("SIDEDEFS", b"".join(sides))
+    lumps[4] = ("VERTEXES", b"".join(struct.pack("<hh", x, y) for x, y in vertices))
+    return lumps
+
+
 def stair_lumps(special=7):
     lumps = grouped_door_lumps()
     crossing = special in (8, 100)
@@ -797,6 +833,43 @@ def fixtures(directory):
     priority[3] = ("SIDEDEFS", bytes(sides))
     files["switch-priority.wad"] = wad(priority)
     files["floor-lift.wad"] = wad(floor_lumps())
+    files["donut.wad"] = wad(donut_lumps())
+    files["donut-gui.wad"] = wad(donut_lumps(portal=True))
+    files["donut-nested.wad"] = wad(nested_donut_lumps())
+    donut = donut_lumps()
+    files["donut-untextured.wad"] = wad(donut[:11])
+    for label, height in (("equal", 32), ("wrong-height", 64)):
+        donut = donut_lumps()
+        sectors = bytearray(donut[8][1])
+        struct.pack_into("<h", sectors, 26, height)
+        donut[8] = ("SECTORS", bytes(sectors))
+        files[f"donut-{label}.wad"] = wad(donut)
+    donut = donut_lumps()
+    lines = bytearray(donut[2][1])
+    for index in (8, 9):
+        a, b, flags, special, tag, front, back = struct.unpack_from("<7H", lines, index * 14)
+        struct.pack_into("<7H", lines, index * 14, b, a, flags, special, tag, back, front)
+    donut[2] = ("LINEDEFS", bytes(lines))
+    files["donut-reversed.wad"] = wad(donut)
+    donut = donut_lumps()
+    lines = bytearray(donut[2][1])
+    a, b, _, _, _, front, back = struct.unpack_from("<7H", lines, 8 * 14)
+    struct.pack_into("<7H", lines, 8 * 14, a, b, 1, 0, 0, front, 65535)
+    lines.extend(struct.pack("<7H", b, a, 1, 0, 0, back, 65535))
+    donut[2] = ("LINEDEFS", bytes(lines))
+    files["donut-no-model.wad"] = wad(donut)
+    donut = donut_lumps()
+    sectors = bytearray(donut[8][1])
+    struct.pack_into("<H", sectors, 2 * 26 + 24, 0)
+    donut[8] = ("SECTORS", bytes(sectors))
+    files["donut-no-tag.wad"] = wad(donut)
+    donut = donut_lumps()
+    sides = bytearray(donut[3][1])
+    sides[8 * 30 + 12:8 * 30 + 20] = b"MISSING\0"
+    donut[3] = ("SIDEDEFS", bytes(sides))
+    files["donut-hidden-wall.wad"] = wad(donut)
+    files["donut-actors.wad"] = wad(sprite_lumps(donut_lumps(),
+        [(128, 0, 0, 2035, 7), (384, 0, 0, 2035, 7)]) + [("BAR1A0", sprite_patch(6))])
     files["floor-change-37.wad"] = wad(lower_change_lumps(37))
     files["floor-change-84.wad"] = wad(lower_change_lumps())
     files["floor-change-tie.wad"] = wad(lower_change_lumps(tie=True))

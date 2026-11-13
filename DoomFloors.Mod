@@ -50,6 +50,7 @@ CONST WalkLowerHighest = 19;
 	WalkFastNearest = 130;
 	SwitchFastNearest = 131;
 	ButtonFastNearest = 132;
+	SwitchDonut = 9;
 	Unsupported = 0;
 	Using = 1;
 	Walk = 2;
@@ -67,6 +68,7 @@ CONST WalkLowerHighest = 19;
 	RaiseLarge = 11;
 	TurboLower = 12;
 	RaiseStepChange = 13;
+	Donut = 14;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -105,8 +107,8 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 
 	PROCEDURE &Init*(archive: DoomWad.Archive; CONST lines, sides, sectors, vertices: DoomWad.Lump;
 		shared: DoomActions.Table);
-	VAR i, j, offset, side, a, b, sectorCount, head, count, sector: SIGNED32;
-		movingTags, stairTags, stairMoving: POINTER TO ARRAY OF BOOLEAN;
+	VAR i, j, offset, side, a, b, sectorCount, head, count, sector, ring, model: SIGNED32;
+		movingTags, stairTags, stairMoving, donutTags: POINTER TO ARRAY OF BOOLEAN;
 		pending: POINTER TO ARRAY OF SIGNED32;
 		mutableFlats: BOOLEAN;
 	BEGIN
@@ -125,6 +127,7 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		NEW(heights, sectorCount);
 		NEW(movingTags, DoomFormat.MaximumRecords);
 		NEW(stairTags, DoomFormat.MaximumRecords);
+		NEW(donutTags, DoomFormat.MaximumRecords);
 		NEW(stairMoving, sectorCount);
 		NEW(pending, sectorCount);
 		FOR i := 0 TO sectorCount - 1 DO
@@ -140,7 +143,8 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 			offset := lines.offset + i * DoomFormat.LineSize;
 			Classify(actions.Special(i), triggers[i]);
-			mutableFlats := mutableFlats OR (triggers[i].kind = LowerChange) OR (triggers[i].kind = RaiseStepChange);
+			mutableFlats := mutableFlats OR (triggers[i].kind = LowerChange) OR
+				(triggers[i].kind = RaiseStepChange) OR (triggers[i].kind = Donut);
 			triggers[i].tag := GameBytes.U16(archive.data^, offset + DoomFormat.LineTag);
 			triggers[i].twoSided := GameBytes.U16(archive.data^, offset + DoomFormat.LineFlags) DIV 4 MOD 2 = 1;
 			side := GameBytes.U16(archive.data^, offset + DoomFormat.LineFront);
@@ -161,6 +165,8 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			END;
 			IF triggers[i].kind = Stairs THEN
 				stairTags[triggers[i].tag] := TRUE
+			ELSIF triggers[i].kind = Donut THEN
+				donutTags[triggers[i].tag] := TRUE
 			END
 		END;
 		FOR i := SIGNED32(LEN(triggers^)) - 1 TO 0 BY -1 DO
@@ -177,6 +183,11 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 				stairMoving[i] := TRUE;
 				pending[count] := i;
 				INC(count)
+			END
+		END;
+		FOR i := 0 TO sectorCount - 1 DO
+			IF donutTags[tags[i]] & DonutSectors(i, ring, model) THEN
+				moving[ring] := TRUE
 			END
 		END;
 		head := 0;
@@ -209,6 +220,47 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	BEGIN
 		RETURN specials[sector]
 	END SectorSpecial;
+
+	PROCEDURE Neighbor(line, sector: SIGNED32): SIGNED32;
+	VAR neighbor: SIGNED32;
+	BEGIN
+		neighbor := -1;
+		IF triggers[line].twoSided THEN
+			IF triggers[line].front = sector THEN
+				neighbor := triggers[line].back
+			ELSIF triggers[line].back = sector THEN
+				neighbor := triggers[line].front
+			END
+		END;
+		IF neighbor = sector THEN
+			neighbor := -1
+		END;
+		RETURN neighbor
+	END Neighbor;
+
+	(* DonutSectors chooses the first ring and outer neighbor in WAD order without unsafe side assumptions. *)
+	PROCEDURE DonutSectors(sector: SIGNED32; VAR ring, model: SIGNED32): BOOLEAN;
+	VAR i, neighbor: SIGNED32;
+	BEGIN
+		ring := -1;
+		model := -1;
+		i := 0;
+		WHILE (i < LEN(triggers^)) & (ring < 0) DO
+			ring := Neighbor(i, sector);
+			INC(i)
+		END;
+		IF ring < 0 THEN
+			RETURN FALSE
+		END;
+		FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
+			neighbor := Neighbor(i, ring);
+			IF (neighbor >= 0) & (neighbor # sector) THEN
+				model := neighbor;
+				RETURN TRUE
+			END
+		END;
+		RETURN FALSE
+	END DonutSectors;
 
 	PROCEDURE Target(world: GameGeometry.World; sector, kind: SIGNED32): FLOAT64;
 	VAR i, neighbor: SIGNED32;
@@ -395,6 +447,44 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 		RETURN TRUE
 	END BuildStairs;
 
+	(* StartDonut claims both floors before changing either controller and captures the eventual ring surface. *)
+	PROCEDURE StartDonut(world: GameGeometry.World; sector: SIGNED32): BOOLEAN;
+	VAR ring, model: SIGNED32;
+		height: FLOAT64;
+	BEGIN
+		IF ~DonutSectors(sector, ring, model) THEN
+			RETURN FALSE
+		END;
+		height := world.Region(model).floor;
+		IF (height < world.Region(ring).floor) OR (height > world.Region(sector).floor) THEN
+			RETURN FALSE
+		END;
+		IF ~actions.Claim(sector) THEN
+			RETURN FALSE
+		END;
+		IF ~actions.Claim(ring) THEN
+			actions.Release(sector);
+			RETURN FALSE
+		END;
+		motions[sector].direction := Down;
+		motions[sector].target := height;
+		motions[sector].speed := DoomConfig.values.donutSpeed;
+		motions[sector].lift := FALSE;
+		motions[sector].perpetual := FALSE;
+		motions[sector].change := FALSE;
+		motions[ring].direction := Up;
+		motions[ring].target := height;
+		motions[ring].speed := DoomConfig.values.donutSpeed;
+		motions[ring].lift := FALSE;
+		motions[ring].perpetual := FALSE;
+		motions[ring].change := TRUE;
+		motions[ring].texture := world.Region(model).floorTexture;
+		COPY(flats[model], motions[ring].flat);
+		motions[ring].special := 0;
+		INC(active, 2);
+		RETURN TRUE
+	END StartDonut;
+
 	(* Trigger-model raises change the surface immediately, even if subsequent motion is blocked. *)
 	PROCEDURE ChangeSurface(VAR world: GameGeometry.World; sector, model: SIGNED32);
 	VAR candidate: GameGeometry.World;
@@ -416,6 +506,8 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 			IF tags[i] = triggers[line].tag THEN
 				IF triggers[line].kind = Stairs THEN
 					started := BuildStairs(world, i, triggers[line].fast) OR started
+				ELSIF triggers[line].kind = Donut THEN
+					started := StartDonut(world, i) OR started
 				ELSIF Start(world, i, triggers[line]) THEN
 					IF triggers[line].kind = RaiseStepChange THEN
 						ChangeSurface(world, i, triggers[line].front)
@@ -577,6 +669,8 @@ BEGIN
 		trigger.kind := RaiseStepChange
 	| SwitchRaiseLarge:
 		trigger.kind := RaiseLarge
+	| SwitchDonut:
+		trigger.kind := Donut
 	| WalkTurboLower, ButtonTurboLower, SwitchTurboLower, RepeatTurboLower:
 		trigger.kind := TurboLower
 	| RepeatFastNearest, WalkFastNearest, SwitchFastNearest, ButtonFastNearest:

@@ -91,7 +91,7 @@ motion. Changed floor names also affect later stair chains. Existing floor
 speed YAML applies without additional fields. Sector specials are retained as
 game metadata; sector damage, secrets and other special effects remain open.
 See [floor surface changes](docs/FLOOR_CHANGES.md). Other surface-changing
-platform variants, donuts, remaining floors, crushers and sound are not implemented.
+platform variants, remaining floors, crushers and sound are not implemented.
 Walk actions 59/93 raise tagged idle floors by `floors.raise_step` and copy the
 triggering line's front-sector floor texture and special immediately on activation.
 Action 59 is one-shot; 93 repeats. Busy targets retain their surfaces; subsequent
@@ -103,6 +103,12 @@ and fast raises to the next higher neighbor. Complete profiles must add
 (standard values 4, 24, 512 and 8). Existing shared occupancy, riding and switch
 presentation apply. See [floor variants](docs/FLOOR_VARIANTS.md) for action numbers,
 configuration bounds and verification.
+Use action 9 lowers tagged pillars and raises their adjacent rings to an outer
+neighbor's captured height. Ring surfaces change on successful arrival; busy
+or blocked sectors retain their existing ownership. Complete profiles require
+`floors.donut_speed_per_tick` (standard 0.5 map units per tick). Linux, Windows
+and A2 share the existing engine snapshots and riding checks; see
+[donut floors](docs/DONUTS.md) for behavior, commands and validation limits.
 Stair actions 7/8 build slow steps and 100/127 build fast steps through use or
 crossing triggers. Chains follow two-sided lines from front to back, in WAD
 order, while floor names match; untagged neighbors join the chain. Busy steps
