@@ -123,3 +123,21 @@ focus acquisition and `window started`. Computer Use was stopped by the user's
 physical Escape key, so further interactive checks were not performed. Native
 A2 boot, physical hardware, and a fresh Linux regression remain unverified in
 this Windows session. Linux's existing X11 GUI scenarios remain available.
+
+## A2 conditional-compilation check (2026-11-13)
+
+The A2 adapter uses Fox `#IF WIN THEN` / `#END` directives to select Windows
+key polling. Unix A2 receives key events directly and does not import `User32`.
+The previous markers were comments, so Unix compilation incorrectly required
+Windows symbols and the Windows adapter enabled both input paths.
+
+Both full-symbol builds pass, compiling 37 modules and producing ZIP packages
+whose 117 entries pass integrity checking:
+
+```sh
+python3 scripts/build.py --platform a2 --build-dir build/donuts-a2-unix --a2-root ../minia2/target/Linux64 --a2-platform Unix64 build
+python3 scripts/build.py --platform a2 --build-dir build/donuts-a2-win --a2-root ../minia2/target/Win64 --a2-platform Win64 build
+```
+
+These are compilation/package checks; no A2 desktop or bare-metal runtime was
+started for this adapter fix. Sources and symbols in MiniA2 remain unchanged.
