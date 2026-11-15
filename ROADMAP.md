@@ -167,9 +167,21 @@ Linux and Windows SDK checks, six GUI scenarios and full-symbol A2 Unix64/Win64
 builds pass with the limits in docs/CHANGING_PLATFORMS.md. Exact classic timing,
 original obstructed-raise quirks, sound and sector effects remain open.
 
+## Delivered texture-height floors
+
+Crossing actions 30/96 raise tagged floors by the shortest present lower wall
+texture on both sides of their two-sided boundaries. Targets capture current
+switch materials at activation. Existing floor speed, ownership, riding,
+obstruction and map replacement rules apply. The engine's copied `WallAt`
+accessor shares plane-anchor resolution with ray hits; Doom retains action
+classification and texture-height selection. Linux and Windows SDK checks,
+five GUI scenarios and A2 Unix64/Win64 builds pass. Absent lower materials are
+skipped rather than emulating vanilla texture-zero quirks; original-map and
+campaign evidence remains open. See docs/TEXTURE_FLOORS.md.
+
 ## Remaining delivery areas
 
-- Map progression: remaining floor/ceiling actions, including texture-height raises,
+- Map progression: remaining floor/ceiling actions,
   crushers, teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,

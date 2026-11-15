@@ -60,6 +60,8 @@ CONST WalkLowerHighest = 19;
 	ButtonPlatformLarge = 67;
 	ButtonPlatformNearest = 68;
 	RepeatPlatformNearest = 95;
+	WalkRaiseTexture = 30;
+	RepeatRaiseTexture = 96;
 	Unsupported = 0;
 	Using = 1;
 	Walk = 2;
@@ -81,6 +83,7 @@ CONST WalkLowerHighest = 19;
 	PlatformStep = 15;
 	PlatformLarge = 16;
 	PlatformNearest = 17;
+	RaiseTexture = 18;
 	Idle = 0;
 	Up = 1;
 	Down = -1;
@@ -279,10 +282,26 @@ VAR triggers: POINTER TO ARRAY OF Trigger;
 	PROCEDURE Target(world: GameGeometry.World; sector, kind: SIGNED32): FLOAT64;
 	VAR i, neighbor: SIGNED32;
 		region, other: GameGeometry.Sector;
+		wall: GameGeometry.Wall;
 		result: FLOAT64;
 	BEGIN
 		region := world.Region(sector);
 		result := region.floor;
+		IF kind = RaiseTexture THEN
+			result := MAX(FLOAT64);
+			FOR i := 0 TO world.Count() - 1 DO
+				wall := world.WallAt(i);
+				IF (wall.neighbor >= 0) & triggers[wall.id].twoSided &
+					((wall.sector = sector) OR (wall.neighbor = sector)) & (wall.lower # NIL) THEN
+					result := MIN(result, wall.lower.height / DoomFormat.UnitsPerWorld)
+				END
+			END;
+			IF result = MAX(FLOAT64) THEN
+				(* shortcut: absent lower textures are skipped; emulate vanilla texture-zero quirks for demo compatibility. *)
+				result := 0
+			END;
+			RETURN region.floor + result
+		END;
 		IF (kind = LowerHighest) OR (kind = TurboLower) THEN
 			result := MIN(FLOAT64)
 		ELSIF (kind = RaiseNearest) OR (kind = PlatformNearest) THEN
@@ -701,6 +720,8 @@ BEGIN
 		trigger.kind := Stairs
 	| WalkRaiseStep, RepeatRaiseStep:
 		trigger.kind := RaiseStep
+	| WalkRaiseTexture, RepeatRaiseTexture:
+		trigger.kind := RaiseTexture
 	| WalkRaiseStepChange, RepeatRaiseStepChange:
 		trigger.kind := RaiseStepChange
 	| SwitchRaiseLarge:
@@ -727,7 +748,7 @@ BEGIN
 		WalkPerpetual, RepeatPerpetual, WalkStopLift, RepeatStopLift, WalkStairs, WalkFastStairs,
 		WalkLowerChange, RepeatLowerChange, WalkRaiseStep, RepeatRaiseStep, WalkTurboLower, RepeatTurboLower,
 		RepeatFastNearest, WalkFastNearest, WalkRaiseStepChange, RepeatRaiseStepChange,
-		WalkPlatformNearest, RepeatPlatformNearest:
+		WalkPlatformNearest, RepeatPlatformNearest, WalkRaiseTexture, RepeatRaiseTexture:
 		trigger.activation := Walk
 	| GunRaiseCeiling, GunPlatformNearest:
 		trigger.activation := Gun
@@ -738,7 +759,7 @@ BEGIN
 		ButtonRaiseCeiling, RepeatRaiseCeiling, ButtonLift, RepeatLift, RepeatFastLift, ButtonFastLift,
 		RepeatPerpetual, RepeatStopLift, RepeatLowerChange, RepeatRaiseStep, ButtonTurboLower, RepeatTurboLower,
 		RepeatFastNearest, ButtonFastNearest, RepeatRaiseStepChange,
-		ButtonPlatformStep, ButtonPlatformLarge, ButtonPlatformNearest, RepeatPlatformNearest:
+		ButtonPlatformStep, ButtonPlatformLarge, ButtonPlatformNearest, RepeatPlatformNearest, RepeatRaiseTexture:
 		trigger.repeat := TRUE
 	ELSE
 	END;

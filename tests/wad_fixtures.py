@@ -334,6 +334,23 @@ def platform_lumps(start=87, stop=89, floor=32):
     return lumps
 
 
+def texture_floor_lumps(special=96):
+    lumps = floor_lumps(special, crossing=True, floor=16)
+    sectors = bytearray(lumps[8][1])
+    for sector in range(3):
+        struct.pack_into("<h", sectors, sector * 26 + 2, 512)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    sides = bytearray(lumps[3][1])
+    for side, name in ((8, b"TINY"), (9, b"TINY"), (10, b"TALL"), (11, b"SHORT")):
+        sides[side * 30 + 12:side * 30 + 20] = name.ljust(8, b"\0")
+    lumps[3] = ("SIDEDEFS", bytes(sides))
+    definitions = [lumps[14][1][8:]]
+    for name, height in ((b"SHORT", 24), (b"TALL", 48), (b"TINY", 8)):
+        definitions.append(struct.pack("<8sIhhIh5h", name, 0, 64, height, 0, 1, 0, 0, 0, 1, 0))
+    lumps[14] = ("TEXTURE1", struct.pack("<5i", 4, 20, 52, 84, 116) + b"".join(definitions))
+    return lumps
+
+
 def lower_change_lumps(special=84, floor=96, tie=False, reverse=False):
     lumps = floor_lumps(special, floor=floor)
     sectors = bytearray(lumps[8][1])
@@ -1059,6 +1076,47 @@ def fixtures(directory):
     flat[8] = ("SECTORS", bytes(sectors))
     files["platform-flat.wad"] = wad(flat)
     files["floor-gun.wad"] = wad(floor_lumps(24, floor=16))
+    for special in (30, 96):
+        files[f"floor-texture-{special}.wad"] = wad(texture_floor_lumps(special))
+    for variant in ("reverse", "absent", "unflagged", "missing", "negative", "grouped", "game", "blocked"):
+        extra = texture_floor_lumps()
+        lines, sides, sectors = (bytearray(extra[index][1]) for index in (2, 3, 8))
+        if variant == "reverse":
+            a, b, flags, special, tag, front, back = struct.unpack_from("<7H", lines, 9 * 14)
+            struct.pack_into("<7H", lines, 9 * 14, b, a, flags, special, tag, back, front)
+        elif variant == "absent":
+            for side in (10, 11):
+                sides[side * 30 + 12:side * 30 + 20] = b"-".ljust(8, b"\0")
+        elif variant == "unflagged":
+            struct.pack_into("<H", lines, 9 * 14 + 4, 0)
+        elif variant == "missing":
+            sides[11 * 30 + 12:11 * 30 + 20] = b"MISSING\0"
+        elif variant == "negative":
+            struct.pack_into("<h", sectors, 2 * 26, -32)
+        elif variant == "grouped":
+            struct.pack_into("<H", sectors, 26 + 24, 7)
+        else:
+            struct.pack_into("<h", sectors, 2 * 26, 0)
+            struct.pack_into("<H", sectors, 26 + 24, 7)
+            if variant == "blocked":
+                struct.pack_into("<H", lines, 8 * 14 + 4, 5)
+        extra[2], extra[3], extra[8] = ("LINEDEFS", bytes(lines)), ("SIDEDEFS", bytes(sides)), ("SECTORS", bytes(sectors))
+        files[f"floor-texture-{variant}.wad"] = wad(extra)
+    extra = texture_floor_lumps()
+    sides = bytearray(extra[3][1])
+    sides[10 * 30 + 12:10 * 30 + 20] = b"SHORT".ljust(8, b"\0")
+    sides[11 * 30 + 12:11 * 30 + 20] = b"TALL".ljust(8, b"\0")
+    extra[3] = ("SIDEDEFS", bytes(sides))
+    files["floor-texture-front.wad"] = wad(extra)
+    files["floor-texture-actors.wad"] = wad(sprite_lumps(texture_floor_lumps(),
+        things=[(384, 64, 0, 2014, 7), (384, -64, 0, 49, 7)]))
+    extra = switch_lumps(61, slot=12, floor=True, portal=True)
+    lines, sectors = bytearray(extra[2][1]), bytearray(extra[8][1])
+    struct.pack_into("<2H", lines, 7 * 14 + 6, 96, 7)
+    for sector in range(3):
+        struct.pack_into("<h", sectors, sector * 26 + 2, 512)
+    extra[2], extra[8] = ("LINEDEFS", bytes(lines)), ("SECTORS", bytes(sectors))
+    files["floor-texture-switch.wad"] = wad(extra)
     floor_walks = (5, 10, 19, 38, 82, 83, 88, 91, 119, 120, 121, 128)
     floor_nearest = (18, 69, 119, 128)
     floor_variants = (5, 10, 18, 19, 21, 23, 24, 38, 45, 60, 62, 64, 69, 82, 83, 88, 91, 101, 102,

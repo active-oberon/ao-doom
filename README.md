@@ -12,6 +12,7 @@ and `GameGeometry.Crossing`, together with `World.WithFloors` and
 use `World.WithWallTexture` and its three material-part identifiers.
 Surface-changing floors also require `World.WithFloorTexture`, available in
 engine commit `0434a6e774cb408d1063c1e8af666f8a09e18859` or a compatible later revision.
+Texture-height floor actions require the engine's `World.WallAt` snapshot accessor.
 
 ## Current state
 
@@ -116,6 +117,12 @@ and existing stop/resume actions preserve their original raising behavior.
 Complete profiles require `platforms.raise_speed_per_tick` and `large_raise_step`
 (standard 0.5 and 32); small raises reuse `floors.raise_step` (24). See
 [changing platforms](docs/CHANGING_PLATFORMS.md) for behavior and validation.
+Crossing actions 30/96 raise tagged floors by the shortest present lower wall
+texture on either side of their two-sided boundaries. The destination captures
+current switch materials at activation; repeat crossings compute a new target.
+Existing floor speed, ownership, riding and obstruction rules apply without
+new YAML settings. Absent lower textures are skipped; no candidates give zero
+travel. See [texture-height floors](docs/TEXTURE_FLOORS.md) for checks and limits.
 Stair actions 7/8 build slow steps and 100/127 build fast steps through use or
 crossing triggers. Chains follow two-sided lines from front to back, in WAD
 order, while floor names match; untagged neighbors join the chain. Busy steps
