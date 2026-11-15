@@ -45,6 +45,9 @@ CONST Raise = 1;
 	RedSwitchOpen = 135;
 	YellowButtonOpen = 136;
 	YellowSwitchOpen = 137;
+	WalkRaiseCeiling = 40;
+	SwitchLowerCeiling = 41;
+	ButtonLowerCeiling = 43;
 	Unsupported = 0;
 	Manual = 1;
 	Switch = 2;
@@ -54,6 +57,8 @@ CONST Raise = 1;
 	OpenDoor = 1;
 	CloseDoor = 2;
 	CloseWaitOpenDoor = 3;
+	LowerCeiling = 4;
+	RaiseCeiling = 5;
 	Closed = 0;
 	Opening = 1;
 	Closing = -1;
@@ -70,7 +75,7 @@ TYPE
 
 	Door = RECORD
 		direction, timer, kind: SIGNED32;
-		top, speed: FLOAT64
+		top, bottom, speed: FLOAT64
 	END;
 
 	Controller* = OBJECT
@@ -133,12 +138,16 @@ TYPE
 			RETURN moving[sector]
 		END Moving;
 
-		PROCEDURE Top(world: GameGeometry.World; sector: SIGNED32): FLOAT64;
+		PROCEDURE Top(world: GameGeometry.World; sector: SIGNED32; highest: BOOLEAN): FLOAT64;
 		VAR i, neighbor: SIGNED32;
 			height: FLOAT64;
 			region: GameGeometry.Sector;
 		BEGIN
 			height := MAX(FLOAT64);
+			IF highest THEN
+				(* shortcut: highest-ceiling raises never lower the initial height; revisit for vanilla edge-map fidelity. *)
+				height := world.Region(sector).ceiling
+			END;
 			FOR i := 0 TO SIGNED32(LEN(triggers^)) - 1 DO
 				neighbor := -1;
 				IF triggers[i].front = sector THEN
@@ -148,10 +157,14 @@ TYPE
 				END;
 				IF (neighbor >= 0) & (neighbor # sector) THEN
 					region := world.Region(neighbor);
-					height := MIN(height, region.ceiling)
+					IF highest THEN
+						height := MAX(height, region.ceiling)
+					ELSE
+						height := MIN(height, region.ceiling)
+					END
 				END
 			END;
-			IF height = MAX(FLOAT64) THEN
+			IF highest OR (height = MAX(FLOAT64)) THEN
 				RETURN height
 			END;
 			RETURN height - DoomConfig.values.doorTopGap
@@ -162,7 +175,8 @@ TYPE
 			top: FLOAT64;
 		BEGIN
 			IF doors[sector].direction # Closed THEN
-				IF (trigger.activation = Manual) & (trigger.kind = RaiseDoor) THEN
+				IF (trigger.activation = Manual) & (trigger.kind = RaiseDoor) &
+					(doors[sector].kind < LowerCeiling) THEN
 					IF doors[sector].direction = Closing THEN
 						doors[sector].direction := Opening
 					ELSE
@@ -175,23 +189,29 @@ TYPE
 			region := world.Region(sector);
 			top := region.ceiling;
 			IF (trigger.kind = RaiseDoor) OR (trigger.kind = OpenDoor) THEN
-				top := Top(world, sector);
+				top := Top(world, sector, FALSE);
 				IF (top = MAX(FLOAT64)) OR (top < region.floor) OR
 					((trigger.activation = Manual) & (top <= region.ceiling)) THEN
 					RETURN FALSE
 				END
+			ELSIF trigger.kind = RaiseCeiling THEN
+				top := Top(world, sector, TRUE)
 			END;
 			IF ~actions.Claim(sector) THEN
 				RETURN FALSE
 			END;
 			doors[sector].top := top;
+			doors[sector].bottom := region.floor;
 			doors[sector].kind := trigger.kind;
 			doors[sector].speed := DoomConfig.values.doorSpeed;
 			IF trigger.fast THEN
 				doors[sector].speed := DoomConfig.values.fastDoorSpeed
 			END;
+			IF (trigger.kind = LowerCeiling) OR (trigger.kind = RaiseCeiling) THEN
+				doors[sector].speed := DoomConfig.values.ceilingSpeed
+			END;
 			doors[sector].direction := Opening;
-			IF (trigger.kind = CloseDoor) OR (trigger.kind = CloseWaitOpenDoor) THEN
+			IF (trigger.kind = CloseDoor) OR (trigger.kind = CloseWaitOpenDoor) OR (trigger.kind = LowerCeiling) THEN
 				doors[sector].direction := Closing
 			END;
 			INC(active);
@@ -311,6 +331,8 @@ TYPE
 					previous := heights[i];
 					IF doors[i].direction = Opening THEN
 						heights[i] := MIN(doors[i].top, heights[i] + doors[i].speed)
+					ELSIF doors[i].kind = LowerCeiling THEN
+						heights[i] := MAX(doors[i].bottom, heights[i] - doors[i].speed)
 					ELSE
 						region := world.Region(i);
 						heights[i] := MAX(region.floor, heights[i] - doors[i].speed)
@@ -320,7 +342,7 @@ TYPE
 					IF ~candidate.Stand(x, y, radius, feet, height, step, floor) OR
 						((doors[i].direction = Closing) & (occupants # NIL) & ~occupants(world, candidate, i)) THEN
 						heights[i] := previous;
-						IF doors[i].kind # CloseDoor THEN
+						IF (doors[i].kind # CloseDoor) & (doors[i].kind # LowerCeiling) THEN
 							doors[i].direction := Opening
 						END
 					ELSE
@@ -336,7 +358,8 @@ TYPE
 							END
 						ELSIF doors[i].direction = Closing THEN
 							region := world.Region(i);
-							IF heights[i] = region.floor THEN
+							IF ((doors[i].kind = LowerCeiling) & (heights[i] = doors[i].bottom)) OR
+								((doors[i].kind # LowerCeiling) & (heights[i] = region.floor)) THEN
 								IF doors[i].kind = CloseWaitOpenDoor THEN
 									doors[i].direction := Waiting;
 									doors[i].timer := DoomConfig.values.doorCloseWait
@@ -362,11 +385,12 @@ BEGIN
 		trigger.activation := Manual
 	| SwitchRaise, SwitchClose, SwitchOpen, ButtonClose, ButtonOpen, ButtonRaise,
 		SwitchFastRaise, SwitchFastOpen, SwitchFastClose, ButtonFastRaise, ButtonFastOpen, ButtonFastClose,
-		BlueSwitchOpen, BlueButtonOpen, RedSwitchOpen, RedButtonOpen, YellowSwitchOpen, YellowButtonOpen:
+		BlueSwitchOpen, BlueButtonOpen, RedSwitchOpen, RedButtonOpen, YellowSwitchOpen, YellowButtonOpen,
+		SwitchLowerCeiling, ButtonLowerCeiling:
 		trigger.activation := Switch
 	| WalkOpen, WalkClose, WalkRaise, WalkCloseWaitOpen, WalkRepeatClose, WalkRepeatCloseWaitOpen,
 		WalkRepeatOpen, WalkRepeatRaise, WalkFastRaise, WalkFastOpen, WalkFastClose,
-		WalkRepeatFastRaise, WalkRepeatFastOpen, WalkRepeatFastClose:
+		WalkRepeatFastRaise, WalkRepeatFastOpen, WalkRepeatFastClose, WalkRaiseCeiling:
 		trigger.activation := Walk
 	| GunOpen:
 		trigger.activation := Gun
@@ -381,6 +405,10 @@ BEGIN
 		trigger.kind := CloseDoor
 	| WalkCloseWaitOpen, WalkRepeatCloseWaitOpen:
 		trigger.kind := CloseWaitOpenDoor
+	| SwitchLowerCeiling, ButtonLowerCeiling:
+		trigger.kind := LowerCeiling
+	| WalkRaiseCeiling:
+		trigger.kind := RaiseCeiling
 	ELSE
 		trigger.kind := RaiseDoor
 	END;
@@ -400,7 +428,7 @@ BEGIN
 	Raise, BlueRaise, YellowRaise, RedRaise, FastRaise, ButtonClose, ButtonOpen, ButtonRaise, GunOpen,
 		WalkRepeatClose, WalkRepeatCloseWaitOpen, WalkRepeatOpen, WalkRepeatRaise,
 		WalkRepeatFastRaise, WalkRepeatFastOpen, WalkRepeatFastClose, ButtonFastRaise, ButtonFastOpen, ButtonFastClose,
-		BlueButtonOpen, RedButtonOpen, YellowButtonOpen:
+		BlueButtonOpen, RedButtonOpen, YellowButtonOpen, ButtonLowerCeiling:
 		trigger.repeat := TRUE
 	ELSE
 		trigger.repeat := FALSE

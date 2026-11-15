@@ -64,6 +64,11 @@ non-solid objects do not obstruct doors. Ceiling-attached solid decorations
 follow their ceiling until the available height is exhausted. Invalid spawn
 volumes retain the existing preview policy. Door sounds and monster activation
 remain unimplemented. See [door occupancy checks](docs/DOOR_OCCUPANTS.md).
+Non-crushing ceiling actions 41/43 lower tagged ceilings to their captured floor
+through one-shot/repeat use; crossing action 40 raises them to the highest
+adjacent ceiling without a door gap. They reuse `DoomDoors`, immutable geometry
+and occupancy checks. Complete profiles must add `ceilings.speed_per_tick`
+(standard 1 map unit per tick). See [ceiling actions](docs/CEILINGS.md).
 Floors support the original 17 lower/raise actions: lower to the highest or lowest
 neighbor floor, raise to the next higher floor, or raise to the surrounding
 ceiling. Eight normal/fast lift actions lower to the lowest neighboring floor,
@@ -424,9 +429,10 @@ The file must contain every section and setting; missing fields also abort
 startup. `doom.yaml` is the only source of the standard profile, with no compiled
 fallback values. Failed reads preserve previously loaded settings.
 
-Distances use Doom map units. Player and door speeds are per simulation tick;
+Distances use Doom map units. Player and plane speeds are per simulation tick;
 turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
 timing, collision dimensions, motion, door interaction and panel layout/colors.
+`ceilings.speed_per_tick` is mandatory and accepts 0.01-64 map units per tick.
 `player.pickup_radius` and `pickup_below_feet` control item reach.
 `stairs` requires `speed_per_tick`, `fast_speed_per_tick`, `step` and `fast_step`.
 Speeds accept 0.01-64 map units per tick; steps accept 0.01-128 map units.

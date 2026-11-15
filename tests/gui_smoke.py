@@ -425,11 +425,11 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
                 button(display, window, root, 1, True)
                 time.sleep(3.3)
             else:
-                key(display, window, root, ord("w" if floor_mode == "walk" else "e"))
+                key(display, window, root, ord("w" if floor_mode in ("walk", "walk-ceiling") else "e"))
                 time.sleep(0.3)
-                key(display, window, root, ord("w" if floor_mode == "walk" else "e"), release=True)
+                key(display, window, root, ord("w" if floor_mode in ("walk", "walk-ceiling") else "e"), release=True)
                 time.sleep(0.9 if floor_mode == "walk" else 0.5)
-                if floor_mode in ("donut", "changing"):
+                if floor_mode in ("donut", "changing", "ceiling", "walk-ceiling"):
                     time.sleep(3.3)
             changed = pixels(display, window)
             assert changed[:43 * 80] != initial[:43 * 80], "Moving floor did not change visible geometry"
@@ -444,9 +444,9 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             output, _ = process.communicate(timeout=5)
             assert process.returncode == 0, output
             check_logs(output, arguments)
-            if floor_mode in ("lift", "stairs", "donut", "changing"):
+            if floor_mode in ("lift", "stairs", "donut", "changing", "ceiling"):
                 require_logs(output, "map use attempted")
-            print(f"Floor GUI check passed: {floor_mode}, motion, waiting/return and shutdown")
+            print(f"Plane GUI check passed: {floor_mode}, motion, settling and shutdown")
             return
         if tagged_mode:
             if tagged_mode == "gun":
@@ -756,6 +756,7 @@ def main():
     exit_mode = {"--exit": "normal", "--secret-exit": "secret", "--complete": "complete", "--failed-exit": "failed"}.get(arguments[0])
     tagged_mode = {"--tagged-door": "use", "--walk-door": "walk", "--gun-door": "gun"}.get(arguments[0])
     floor_mode = {"--lift": "lift", "--walk-floor": "walk", "--gun-floor": "gun", "--donut": "donut",
+                  "--ceiling": "ceiling", "--walk-ceiling": "walk-ceiling",
                   "--changing-platform": "changing", "--gun-platform": "gun",
                   "--platform": "perpetual", "--stairs": "stairs"}.get(arguments[0])
     switch_mode = {"--button": "button", "--switch": "switch", "--gun-switch": "gun"}.get(arguments[0])

@@ -23,6 +23,8 @@ doors:
   close_wait_ticks: 1050
   use_range: 64
   top_gap: 4
+ceilings:
+  speed_per_tick: 1
 floors:
   speed_per_tick: 1
   fast_speed_per_tick: 4

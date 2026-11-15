@@ -179,6 +179,18 @@ five GUI scenarios and A2 Unix64/Win64 builds pass. Absent lower materials are
 skipped rather than emulating vanilla texture-zero quirks; original-map and
 campaign evidence remains open. See docs/TEXTURE_FLOORS.md.
 
+## Delivered non-crushing ceilings
+
+Actions 41/43 lower tagged ceilings to their captured floor through one-shot
+or repeat use. Crossing action 40 raises them to the highest adjacent ceiling
+without a door gap. The existing ceiling controller, immutable engine snapshots,
+occupancy checks and shared sector ownership apply. Blocked lowering retains
+ownership and resumes without reversal or damage. Mandatory `ceilings` YAML
+owns the speed. Manual doors cannot reverse an active non-door ceiling.
+Action 40 retains the original ceiling-first ownership behavior, leaving floors
+unchanged. Safe bounds for isolated/already-high sectors, exact classic timing,
+sounds and crushing remain compatibility boundaries. See docs/CEILINGS.md.
+
 ## Remaining delivery areas
 
 - Map progression: remaining floor/ceiling actions,

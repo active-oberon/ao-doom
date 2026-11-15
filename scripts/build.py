@@ -182,6 +182,7 @@ def gui_checks(destination, sdk, executable, platform):
              'lift': 'floor-lift-ride', 'platform': 'platform-riding', 'stairs': 'stairs-gui',
              'donut': 'donut-gui',
              'changing-platform': 'platform-change-gui', 'gun-platform': 'platform-change-gun-gui',
+             'ceiling': 'ceiling-use-gui', 'walk-ceiling': 'ceiling-40',
              'walk-floor': 'floor-88', 'gun-floor': 'floor-gun', 'button': 'switch-button',
              'switch': 'switch-103', 'gun-switch': 'switch-24', 'exit': 'exits-use',
              'failed-exit': 'exits-missing'}

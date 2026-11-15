@@ -303,6 +303,19 @@ def grouped_door_lumps():
     return lumps
 
 
+def ceiling_lumps(special=41, portal=False):
+    walk = special == 40
+    lumps = switch_lumps(special, portal=walk or portal)
+    sectors = bytearray(lumps[8][1])
+    target = 2 if portal else 1
+    for sector, floor, ceiling in ((0, 0, 128), (1, 0, 160), (2, 0, 192)):
+        struct.pack_into("<hh", sectors, sector * 26, floor, ceiling)
+        struct.pack_into("<H", sectors, sector * 26 + 24, 7 if sector == target else 0)
+    struct.pack_into("<hh", sectors, target * 26, 16, 96)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps
+
+
 def floor_lumps(special=62, crossing=False, floor=96, portal=True, ride=False):
     lumps = sector_lumps(floor=floor, ceiling=192)
     lumps[1] = ("THINGS", struct.pack("<5h", 224 if ride else -32 if portal or crossing else -224, 0,
@@ -800,6 +813,35 @@ def fixtures(directory):
     single[6] = ("SSECTORS", struct.pack("<2H", 1, 0))
     files["bsp-single.wad"] = wad(single)
     files["door.wad"] = wad(door_lumps())
+    for special in (40, 41, 43):
+        files[f"ceiling-{special}.wad"] = wad(ceiling_lumps(special))
+    files["ceiling-use-gui.wad"] = wad(ceiling_lumps(41, portal=True))
+    for variant in ("high", "hidden", "manual", "grouped", "negative", "blocked"):
+        extra = ceiling_lumps(40 if variant in ("high", "hidden", "negative", "blocked") else 43)
+        lines, sides, sectors = (bytearray(extra[index][1]) for index in (2, 3, 8))
+        if variant == "high":
+            struct.pack_into("<h", sectors, 26 + 2, 224)
+        elif variant == "hidden":
+            sides[9 * 30 + 4:9 * 30 + 12] = b"MISSING\0"
+        elif variant == "manual":
+            struct.pack_into("<H", lines, 8 * 14 + 6, 1)
+        elif variant == "grouped":
+            struct.pack_into("<H", sectors, 2 * 26 + 24, 7)
+        elif variant == "negative":
+            for sector, floor, ceiling in ((0, -256, -128), (1, -160, -96), (2, -256, -64)):
+                struct.pack_into("<hh", sectors, sector * 26, floor, ceiling)
+        elif variant == "blocked":
+            struct.pack_into("<H", lines, 8 * 14 + 4, 5)
+        extra[2], extra[3], extra[8] = ("LINEDEFS", bytes(lines)), ("SIDEDEFS", bytes(sides)), ("SECTORS", bytes(sectors))
+        files[f"ceiling-{variant}.wad"] = wad(extra)
+    extra = map_lumps()
+    lines, sectors = bytearray(extra[2][1]), bytearray(extra[8][1])
+    struct.pack_into("<2H", lines, 3 * 14 + 6, 40, 7)
+    struct.pack_into("<H", sectors, 24, 7)
+    extra[2], extra[8] = ("LINEDEFS", bytes(lines)), ("SECTORS", bytes(sectors))
+    files["ceiling-isolated.wad"] = wad(extra)
+    files["ceiling-actors.wad"] = wad(sprite_lumps(ceiling_lumps(43),
+        things=[(128, 64, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
     for special in (42, 63, 114, 116):
         files[f"door-occupants-{special}.wad"] = wad(sprite_lumps(
             tagged_door_lumps(special, ceiling=128), [(128, 0, 0, 2035, 7)]) +
