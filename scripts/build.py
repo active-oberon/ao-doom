@@ -187,7 +187,8 @@ def gui_checks(destination, sdk, executable, platform):
              'switch': 'switch-103', 'gun-switch': 'switch-24', 'exit': 'exits-use',
              'failed-exit': 'exits-missing'}
     cases += [(f'--{mode}', fixture, 'E1M1') for mode, fixture in modes.items()]
-    cases += [('--walk-floor', 'floor-texture-game', 'E1M1')]
+    cases += [('--walk-floor', 'floor-texture-game', 'E1M1'),
+              ('--pickup', 'teleport-pickup', 'E1M1')]
     cases += [('--secret-exit', 'exits-secret', 'E1M3'), ('--complete', 'exits-end', 'E1M8')]
     for mode, fixture, marker in cases:
         run([sys.executable, ROOT / 'tests/gui_smoke.py', *([mode] if mode else []),

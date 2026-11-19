@@ -76,6 +76,17 @@ lower-and-change followed by a fixed raise, accepted versus blocked crossings
 and failed map replacement during motion. See docs/FLOOR_VARIANTS.md.
 Remaining floor/ceiling actions, crushers, sound and exact classic timing remain open.
 
+## Delivered player teleport stage
+
+Player crossing actions 39/97 select a type-14 destination by sector and thing
+order. Valid landings use the current floor and marker facing. Telefrag damage
+is published only with a successful landing. Crossing observations stop at
+the successful trigger, and complete YAML profiles supply reaction time and
+damage. Coverage includes front/back boundaries, consecutive triggers,
+one-shot consumption after failure, blocked landings and movement after the
+reaction pause. See the [configuration and behavior](README.md#current-state).
+Monster teleports, teleport fog and sound remain open.
+
 ## Delivered switch and button stage
 
 Implemented use/gun actions toggle authored front-side texture pairs; repeat
@@ -194,7 +205,7 @@ sounds and crushing remain compatibility boundaries. See docs/CEILINGS.md.
 ## Remaining delivery areas
 
 - Map progression: remaining floor/ceiling actions,
-  crushers, teleporters, sector damage and secrets, plus original exit visuals
+  crushers, monster teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,
   attack/pain/death states, projectiles, infighting, drops and boss actions.

@@ -69,6 +69,25 @@ through one-shot/repeat use; crossing action 40 raises them to the highest
 adjacent ceiling without a door gap. They reuse `DoomDoors`, immutable geometry
 and occupancy checks. Complete profiles must add `ceilings.speed_per_tick`
 (standard 1 map unit per tick). See [ceiling actions](docs/CEILINGS.md).
+Walk actions 39 and 97 teleport the player through a front-side crossing to
+the first eligible type-14 marker in the lowest matching tagged sector.
+Action 39 is consumed by the first crossing, including a reverse crossing or
+a failed landing. Action 97 repeats. The landing uses the current sector floor
+and the marker's facing direction. It must fit the player's collision volume.
+A solid decoration or an actor that survives telefrag damage cancels the
+landing and preserves the scene's actor health. The jump skips intervening
+triggers. Complete YAML profiles require:
+
+```yaml
+teleports:
+  reaction_ticks: 18
+  telefrag_damage: 10000
+```
+
+The reaction pauses movement and keyboard turning. Zero ticks disables the
+pause. Damage must be a positive integer. The marker and landing behavior
+apply to player crossings; monster teleports, fog and sound remain open.
+
 Floors support the original 17 lower/raise actions: lower to the highest or lowest
 neighbor floor, raise to the next higher floor, or raise to the surrounding
 ceiling. Eight normal/fast lift actions lower to the lowest neighboring floor,

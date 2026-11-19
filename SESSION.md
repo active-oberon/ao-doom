@@ -1,41 +1,29 @@
 # ao-doom session handoff
 
-Updated: 2026-11-18
+Updated: 2026-11-19
 
-## STOP / exit checkpoint: player teleports (2026-11-18)
+## Player teleport verification (2026-11-19)
 
-The user explicitly requested "сохрани память я выхожу". Stop all development,
-tests, GUI actions and background work. Resume only on a new explicit request.
-Detailed checkpoint: scratch/SESSION_HANDOFF_2026-11-18_TELEPORTS.md.
-
-- HEAD remains 886dd8c (non-crushing ceilings). New teleport work is uncommitted;
-  no commit or push was performed. Preserve the existing modified/untracked files.
-- Implemented draft player crossing actions 39/97 in new DoomTeleports.Mod,
-  integrated with DoomMap/Doom.Game. Added destination selection by tagged sector
-  order / first eligible thing 14, front-side crossings, W1 consumption including
-  failed/back-side attempts, immutable atomic telefrag preparation, safe landing
-  checks, observation clipping and configurable movement/keyboard-turn reaction.
-- DoomSprites.TeleportPlayer rejects solid decorations or surviving actors without
-  publishing partial damage. YAML adds required teleports.reaction_ticks (18) and
-  telefrag_damage (10000); custom profile uses 3 and 1. Config rejection coverage
-  was added. Fog, sound, monster teleportation and exact classic timing remain open.
-- Native Windows baseline passed 45 groups / 513 generated fixtures and built
-  build/teleports-baseline-windows/ao-doom.exe. New suite generates 531 fixtures,
-  compiles, but failed at DoomTeleportsSmoke.DirectionsAndConsumption's exact
-  angle assertion (source line 37). Diagnostic instrumented runner isolated that
-  line; separate TeleportProbe confirmed target sector 2, valid landing, consumed
-  line and successful transfer to x=6, y=-1, feet=1, angle approximately -pi/2.
-- Replaced three angle checks with tolerance 1e-7; THIS CHANGE IS NOT VERIFIED.
-  Other new tests have not passed yet. Do not claim completion or a passing new
-  suite. First diagnose actual angle error if tolerance still fails.
-- Windows ob.exe disappeared from C:/Users/andrq/AppData/Local/Programs/a2sdk
-  during this session and is still absent at exit. Cause unknown; do not assume
-  antivirus or change security settings. No SDK/engine/platform source was changed.
-- WSL enumeration worked once with elevation, but subsequent WSL environment
-  probes/launch approvals were interrupted/aborted. No Linux checks ran for this
-  stage. No new A2 build, GUI, original IWAD or campaign evidence.
-- Exit inspection found no running ob/wsl/ao-doom processes. Do not restart them.
-
+- Resumed the published player teleport draft at b4dd407. The earlier exit
+  checkpoint is in scratch/SESSION_HANDOFF_2026-11-18_TELEPORTS.md.
+- Used the Windows SDK bundle at ../minia2/target/bundle-win64. Both native
+  check runs failed on the 180-degree marker; the instrumented Windows run
+  showed positive pi. Selecting and wrapping the integer heading before the
+  FLOAT64 conversion fixed the failure in 01c1f84.
+- Added a crossing-boundary regression and saw it fail with the old side
+  comparison. In 88760cf, teleport activation agrees with the engine's
+  boundary-side convention. Two new WADs cover movement observation clipping,
+  suppressed later callbacks and the next crossing after a failed landing.
+- Windows and Linux each passed 46 native check groups with 533 generated WAD
+  fixtures. Both executables built. Linux ran in WSL with the September SDK
+  and staged YAML, Logging, Inputs and KbdMouse compatibility sources.
+  The Linux X11 pickup scenario passed with armor in the teleport destination.
+  Full-symbol A2 Win64 compiled 38 modules and passed ZIP integrity testing.
+- Original IWADs, campaigns, native Windows GUI and A2 runtime were not tested.
+  Exact classic trigger ordering, monster teleports, fog and sound remain open.
+  The Crapper, Dryer and Mutator tools were unavailable.
+- Output is under build/teleports-boundary-windows, build/teleports-verify-linux
+  and build/teleports-a2-win. Local diagnostic logs are under scratch/teleports-*.
 
 ## Continuation: raising platforms with surface changes (2026-11-13)
 
