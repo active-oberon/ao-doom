@@ -46,7 +46,13 @@ BEGIN
 	ASSERT(map.actions.Special(8) = 97);
 	ASSERT(Cross(map, -0.5, 0, 0.5, 0));
 	ASSERT(Cross(map, -0.5, 0, 0.5, 0));
-	ASSERT(map.actions.Special(8) = 97)
+	ASSERT(map.actions.Special(8) = 97);
+	ASSERT(Cross(map, -0.5, 0, 0, 0));
+	ASSERT(~Cross(map, 0, 0, -0.5, 0));
+	ASSERT(map.actions.Special(8) = 97);
+	Load("teleport-39.wad", map);
+	ASSERT(~Cross(map, 0, 0, -0.5, 0));
+	ASSERT(map.actions.Special(8) = 0)
 END DirectionsAndConsumption;
 
 PROCEDURE {TEST} DestinationSelection*;
@@ -119,6 +125,31 @@ BEGIN
 	ASSERT(map.eye = 0.5 + DoomConfig.values.playerEye);
 	ASSERT(world.Region(2).floor = 1)
 END SafeLandingAndTelefrags;
+
+PROCEDURE {TEST} ObservationStopsAtTeleport*;
+VAR map: DoomMap.Map;
+	x, y, feet: FLOAT64;
+BEGIN
+	Load("teleport-followup.wad", map);
+	x := 4.5; y := 0;
+	map.teleports.Observe(map.world, map.sprites, -0.5, 0, x, y);
+	ASSERT((x = 0) & (y = 0));
+	ASSERT((map.actions.Special(8) = 0) & (map.actions.Special(9) = 39));
+	x := 4.5;
+	map.teleports.Observe(map.world, map.sprites, 3.5, 0, x, y);
+	ASSERT((x = 3.5) & (y = 0));
+	ASSERT(map.actions.Special(9) = 39);
+	ASSERT(map.teleports.Take(map.x, map.y, feet, map.angle));
+	ASSERT(~map.teleports.Take(map.x, map.y, feet, map.angle));
+	ASSERT(Cross(map, 3.5, 0, 4.5, 0));
+	ASSERT(map.actions.Special(9) = 0);
+	Load("teleport-followup-after-failure.wad", map);
+	x := 4.5; y := 0;
+	map.teleports.Observe(map.world, map.sprites, -0.5, 0, x, y);
+	ASSERT(ABS(x - 4) < 0.0000001);
+	ASSERT((map.actions.Special(8) = 0) & (map.actions.Special(9) = 0));
+	ASSERT(map.teleports.Take(map.x, map.y, feet, map.angle))
+END ObservationStopsAtTeleport;
 
 PROCEDURE {TEST} GameMovementAndReaction*;
 VAR game: Doom.Game;
@@ -226,6 +257,7 @@ BEGIN
 	DirectionsAndConsumption;
 	DestinationSelection;
 	SafeLandingAndTelefrags;
+	ObservationStopsAtTeleport;
 	GameMovementAndReaction;
 	BlockedMovementAndReplacement;
 	CustomSettings

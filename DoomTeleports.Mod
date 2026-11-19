@@ -134,7 +134,8 @@ TYPE
 				END;
 				side := (x0 - lines[selected].geometry.ax) * (lines[selected].geometry.by - lines[selected].geometry.ay) -
 					(y0 - lines[selected].geometry.ay) * (lines[selected].geometry.bx - lines[selected].geometry.ax);
-				IF (side <= 0) & Activate(world, scene, selected) THEN
+				(* Crossing classifies points on the line with the back side. *)
+				IF (side < 0) & Activate(world, scene, selected) THEN
 					x1 := x0 + (x1 - x0) * nearest;
 					y1 := y0 + (y1 - y0) * nearest;
 					RETURN
