@@ -5,6 +5,7 @@ IMPORT DoomConfig, DoomFormat, DoomActions, DoomWad, DoomSprites, GameBytes, Gam
 CONST Once = 39;
 	Repeat = 97;
 	DestinationThing = 14;
+	DegreesPerFacing = 45;
 
 TYPE
 	Line = RECORD
@@ -26,7 +27,7 @@ TYPE
 
 		PROCEDURE &Init*(archive: DoomWad.Archive; CONST source, vertices, things, sectors: DoomWad.Lump;
 			world: GameGeometry.World; shared: DoomActions.Table);
-		VAR i, offset, a, b, flags, sector: SIGNED32;
+		VAR i, offset, a, b, flags, sector, heading: SIGNED32;
 			x, y: FLOAT64;
 		BEGIN
 			actions := shared;
@@ -58,11 +59,13 @@ TYPE
 						destinations[sector].x := x;
 						destinations[sector].y := y;
 						(* Map things use Doom's eight authored facing directions. *)
-						destinations[sector].angle := -(GameBytes.U16(archive.data^, offset + 4) MOD
-							DoomFormat.DegreesPerCircle DIV 45) * MathL.pi / 4;
-						IF destinations[sector].angle < -MathL.pi THEN
-							destinations[sector].angle := destinations[sector].angle + 2 * MathL.pi
-						END
+						heading := -(GameBytes.U16(archive.data^, offset + 4) MOD
+							DoomFormat.DegreesPerCircle DIV DegreesPerFacing) * DegreesPerFacing;
+						IF heading < -DoomFormat.DegreesPerHalfCircle THEN
+							INC(heading, DoomFormat.DegreesPerCircle)
+						END;
+						destinations[sector].angle := FLOAT64(heading) * MathL.pi /
+							FLOAT64(DoomFormat.DegreesPerHalfCircle)
 					END
 				END
 			END
