@@ -1,6 +1,6 @@
 MODULE Doom;
 
-IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, DoomActions, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomFloors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
+IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, DoomTeleports, DoomActions, GameLoop, GameGeometry, GameSurface, GameRenderer, GameMaterials, GameText, DoomWad, DoomMap, DoomDoors, DoomFloors, DoomSprites, DoomInventory, DoomHud, MathL, Logging, Streams, KernelLog;
 
 CONST LevelChanged* = 1;
 	CampaignComplete* = 2;
@@ -37,6 +37,8 @@ TYPE
 		floors: DoomFloors.Controller;
 		actions: DoomActions.Table;
 		exits: DoomExits.Controller;
+		teleports: DoomTeleports.Controller;
+		reaction: SIGNED32;
 		archive: DoomWad.Archive;
 		mapName: ARRAY DoomFormat.NameLength + 1 OF CHAR;
 		transition: Transition;
@@ -80,6 +82,8 @@ TYPE
 			floors := NIL;
 			actions := NIL;
 			exits := NIL;
+			teleports := NIL;
+			reaction := 0;
 			archive := NIL;
 			mapName[0] := 0X;
 			transition := NIL;
@@ -148,6 +152,8 @@ TYPE
 			floors := map.floors;
 			actions := map.actions;
 			exits := map.exits;
+			teleports := map.teleports;
+			reaction := 0;
 			sprites := map.sprites;
 			use := FALSE;
 			firing := FALSE;
@@ -303,7 +309,7 @@ TYPE
 
 		PROCEDURE Step*(tick: SIGNED64);
 		VAR dx, dy, speed, feet: FLOAT64;
-			used: BOOLEAN;
+			used, reacting: BOOLEAN;
 			kind, line: SIGNED32;
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
@@ -314,13 +320,21 @@ TYPE
 				RETURN
 			END;
 			IF inventory.health > 0 THEN
-				pose.angle := pose.angle + turn * DoomConfig.values.turnSpeed;
+				reacting := reaction > 0;
+				IF reacting THEN
+					DEC(reaction)
+				ELSE
+					pose.angle := pose.angle + turn * DoomConfig.values.turnSpeed
+				END;
 				IF pose.angle > MathL.pi THEN
 					pose.angle := pose.angle - 2 * MathL.pi
 				ELSIF pose.angle < -MathL.pi THEN
 					pose.angle := pose.angle + 2 * MathL.pi
 				END;
 				speed := DoomConfig.values.moveSpeed;
+				IF reacting THEN
+					speed := 0
+				END;
 				IF (forward # 0) & (strafe # 0) THEN
 					speed := speed / MathL.sqrt(2)
 				END;
@@ -362,6 +376,10 @@ TYPE
 						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, MoveFloorActors);
 					ASSERT(world.MovePlayerObserved(pose.x, pose.y, feet, dx, dy,
 						DoomConfig.values.playerRadius, DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.Free, Crossed));
+					IF teleports.Take(pose.x, pose.y, feet, pose.angle) THEN
+						reaction := DoomConfig.values.teleportReactionTicks;
+						pose.pitch := 0
+					END;
 					doors.ApplyCrossings(world);
 					floors.ApplyCrossings(world);
 					pose.eye := feet + DoomConfig.values.playerEye;
@@ -393,6 +411,7 @@ TYPE
 
 		PROCEDURE Crossed(x0, y0, x1, y1: FLOAT64);
 		BEGIN
+			teleports.Observe(world, sprites, x0, y0, x1, y1);
 			doors.Crossed(x0, y0, x1, y1);
 			floors.Crossed(x0, y0, x1, y1);
 			exits.Crossed(x0, y0, x1, y1)

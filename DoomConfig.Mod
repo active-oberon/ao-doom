@@ -149,6 +149,7 @@ Settings* = RECORD
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
 	ceilingSpeed*: FLOAT64;
+	teleportReactionTicks*, telefragDamage*: SIGNED32;
 	floorSpeed*, platformSpeed*, fastPlatformSpeed*, perpetualPlatformSpeed*: FLOAT64;
 	fastFloorSpeed*, floorRaiseStep*, floorLargeRaiseStep*, floorTurboLowerGap*: FLOAT64;
 	donutSpeed*: FLOAT64;
@@ -1113,7 +1114,7 @@ BEGIN
 		RETURN FALSE
 	END;
 	root := value(JSON.Object);
-	IF ~Keys(root, "|video|simulation|player|doors|ceilings|floors|stairs|platforms|switches|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
+	IF ~Keys(root, "|video|simulation|player|doors|ceilings|teleports|floors|stairs|platforms|switches|hud|demo|inventory|things|combat|controls|mouse|campaign|", error) OR
 		~Section(root, "video", "|width|height|", object, error) OR
 		~Integer(object, "width", MinimumWidth, MaximumDimension, candidate.width, error) OR
 		~Integer(object, "height", MinimumHeight, MaximumDimension, candidate.height, error) OR
@@ -1139,6 +1140,9 @@ BEGIN
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) OR
 		~Section(root, "ceilings", "|speed_per_tick|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.ceilingSpeed, error) OR
+		~Section(root, "teleports", "|reaction_ticks|telefrag_damage|", object, error) OR
+		~Integer(object, "reaction_ticks", 0, MAX(SIGNED32), candidate.teleportReactionTicks, error) OR
+		~Integer(object, "telefrag_damage", 1, MAX(SIGNED32), candidate.telefragDamage, error) OR
 		~Section(root, "floors", "|speed_per_tick|fast_speed_per_tick|raise_step|large_raise_step|turbo_lower_gap|donut_speed_per_tick|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.floorSpeed, error) OR
 		~Real(object, "fast_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastFloorSpeed, error) OR
@@ -1665,6 +1669,15 @@ BEGIN
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(65), settings);
 	RejectField(root, object, "speed_per_tick", JSON.NewString("1"), settings);
+	value := root.Get("teleports");
+	object := value(JSON.Object);
+	RejectField(root, object, "reaction_ticks", NIL, settings);
+	RejectField(root, object, "reaction_ticks", JSON.NewNumber(-1), settings);
+	RejectField(root, object, "reaction_ticks", JSON.NewNumber(1.5), settings);
+	RejectField(root, object, "reaction_ticks", JSON.NewString("18"), settings);
+	RejectField(root, object, "telefrag_damage", NIL, settings);
+	RejectField(root, object, "telefrag_damage", JSON.NewNumber(0), settings);
+	RejectField(root, object, "telefrag_damage", JSON.NewNumber(MAX(SIGNED32) + 1.0), settings);
 	value := root.Get("floors");
 	object := value(JSON.Object);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);

@@ -376,6 +376,29 @@ TYPE
 			RETURN snapshot
 		END Damage;
 
+		(* TeleportPlayer prepares an atomic telefrag snapshot. Solid decorations or
+		   survivors reject the landing without publishing any partial damage. *)
+		PROCEDURE TeleportPlayer*(x, y, radius: FLOAT64): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				IF (actors[i].radius > 0) & ((actors[i].initialHealth = 0) OR (hitpoints[i] > 0)) &
+					(ABS(states[i].x - x) < radius + actors[i].radius) &
+					(ABS(states[i].y - y) < radius + actors[i].radius) THEN
+					IF actors[i].initialHealth = 0 THEN
+						RETURN NIL
+					END;
+					snapshot := snapshot.Damage(i, DoomConfig.values.telefragDamage);
+					IF snapshot.hitpoints[i] > 0 THEN
+						RETURN NIL
+					END
+				END
+			END;
+			RETURN snapshot
+		END TeleportPlayer;
+
 		(* Shoot retains horizontal aim for existing callers. *)
 		PROCEDURE Shoot*(world: GameGeometry.World; x, y, angle, eye, range: FLOAT64; damage: SIGNED32): Scene;
 		BEGIN

@@ -23,6 +23,9 @@ doors:
   top_gap: 8
 ceilings:
   speed_per_tick: 3
+teleports:
+  reaction_ticks: 3
+  telefrag_damage: 1
 floors:
   speed_per_tick: 2
   fast_speed_per_tick: 8

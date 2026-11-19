@@ -484,6 +484,23 @@ def switch_lumps(special=61, slot=20, portal=False, floor=False, on=False, missi
     return lumps + [("PSWITCH", patch)]
 
 
+def teleport_lumps(special=39, destinations=None, blocking=False):
+    lumps = sector_lumps(floor=0, ceiling=128, blocking=blocking)
+    lines = bytearray(lumps[2][1])
+    # Front of the teleport faces the player on the west side.
+    struct.pack_into("<HH", lines, 8 * 14, 5, 1)
+    struct.pack_into("<HH", lines, 8 * 14 + 6, special, 7)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    sectors = bytearray(lumps[8][1])
+    struct.pack_into("<h", sectors, 2 * 26 + 24, 7)
+    struct.pack_into("<h", sectors, 2 * 26, 64)
+    lumps[8] = ("SECTORS", bytes(sectors))
+    if destinations is None:
+        destinations = [(384, 64, 90, 14, 7)]
+    lumps[1] = ("THINGS", lumps[1][1] + b"".join(struct.pack("<5h", *thing) for thing in destinations))
+    return lumps
+
+
 def fixtures(directory):
     directory.mkdir(parents=True, exist_ok=True)
     lumps = map_lumps()
@@ -1374,6 +1391,46 @@ def fixtures(directory):
     data = damaged[2][1]
     damaged[2] = ("LINEDEFS", data[:8 * 14 + 4] + struct.pack("<H", 0) + data[8 * 14 + 6:])
     files["bad-two-sided.wad"] = wad(damaged)
+    for special in (39, 97):
+        files[f"teleport-{special}.wad"] = wad(teleport_lumps(special))
+    files["teleport-blocked.wad"] = wad(teleport_lumps(blocking=True))
+    files["teleport-missing.wad"] = wad(teleport_lumps(destinations=[]))
+    files["teleport-flags.wad"] = wad(teleport_lumps(destinations=[
+        (320, 0, 0, 14, 1), (352, 0, 0, 14, 23), (384, 64, 90, 14, 7)]))
+    files["teleport-outside.wad"] = wad(teleport_lumps(destinations=[(2048, 0, 0, 14, 7)]))
+    files["teleport-angle.wad"] = wad(teleport_lumps(destinations=[(384, 64, 315, 14, 7)]))
+    files["teleport-wall.wad"] = wad(teleport_lumps(destinations=[(508, 64, 90, 14, 7)]))
+    files["teleport-first.wad"] = wad(teleport_lumps(destinations=[
+        (384, 64, 90, 14, 7), (416, 0, 180, 14, 7)]))
+    order = teleport_lumps(destinations=[(384, 64, 90, 14, 7), (128, 32, 180, 14, 7)])
+    sectors = bytearray(order[8][1])
+    struct.pack_into("<h", sectors, 26 + 24, 7)
+    order[8] = ("SECTORS", bytes(sectors))
+    files["teleport-sector-order.wad"] = wad(order)
+    closed = teleport_lumps()
+    sectors = bytearray(closed[8][1])
+    struct.pack_into("<h", sectors, 2 * 26 + 2, 80)
+    closed[8] = ("SECTORS", bytes(sectors))
+    files["teleport-low.wad"] = wad(closed)
+    fallback = teleport_lumps(destinations=[(508, 0, 90, 14, 7), (384, 64, 90, 14, 7)])
+    files["teleport-no-fallback.wad"] = wad(fallback)
+    enemy = sprite_lumps(teleport_lumps(), things=[(384, 64, 0, 3004, 7)])
+    enemy += [("POSSA0", sprite_patch(5))]
+    files["teleport-enemy.wad"] = wad(enemy)
+    multi = sprite_lumps(teleport_lumps(), things=[(384, 64, 0, 3004, 7), (400, 64, 0, 9, 7)])
+    multi += [("POSSA0", sprite_patch(5))]
+    files["teleport-multiple.wad"] = wad(multi)
+    decoration = sprite_lumps(teleport_lumps(), things=[(384, 64, 0, 3004, 7), (384, 64, 0, 2028, 7)])
+    decoration += [("POSSA0", sprite_patch(5)), ("COLUA0", sprite_patch(6))]
+    files["teleport-decoration.wad"] = wad(decoration)
+    pickup = sprite_lumps(teleport_lumps(), things=[(384, 64, 0, 2015, 7)])
+    files["teleport-pickup.wad"] = wad(pickup)
+    remote = teleport_lumps()
+    lines = bytearray(remote[2][1])
+    struct.pack_into("<HH", lines, 9 * 14 + 6, 52, 0)
+    remote[2] = ("LINEDEFS", bytes(lines))
+    files["teleport-remote-exit.wad"] = wad(remote)
+    files["teleport-gui.wad"] = wad(teleport_lumps(97))
     for name, data in files.items():
         (directory / name).write_bytes(data)
     profile = (pathlib.Path(__file__).resolve().parent.parent / "doom.yaml").read_text()

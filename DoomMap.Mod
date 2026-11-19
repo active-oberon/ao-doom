@@ -1,6 +1,6 @@
 MODULE DoomMap;
 
-IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomFloors, DoomActions, DoomSwitches, DoomExits, DoomSprites, GameBytes, GameGeometry, MathL;
+IMPORT DoomConfig, DoomFormat, DoomWad, DoomTextures, DoomBsp, DoomDoors, DoomFloors, DoomActions, DoomSwitches, DoomExits, DoomTeleports, DoomSprites, GameBytes, GameGeometry, MathL;
 
 CONST MaximumValidationWork = 64 * 1024 * 1024;
 
@@ -11,6 +11,7 @@ TYPE
 		floors*: DoomFloors.Controller;
 		actions*: DoomActions.Table;
 		exits*: DoomExits.Controller;
+		teleports*: DoomTeleports.Controller;
 		sprites*: DoomSprites.Scene;
 		x*, y*, angle*, eye*: FLOAT64
 	END;
@@ -167,6 +168,7 @@ BEGIN
 	map.floors := NIL;
 	map.actions := NIL;
 	map.exits := NIL;
+	map.teleports := NIL;
 	map.sprites := NIL;
 	error[0] := 0X;
 	IF ~DoomConfig.loaded THEN
@@ -378,6 +380,7 @@ BEGIN
 	map.floors := floors;
 	map.actions := actions;
 	NEW(map.exits, archive, lines, vertices, actions);
+	NEW(map.teleports, archive, lines, vertices, things, sectors, world, actions);
 	map.x := x;
 	map.y := y;
 	map.angle := angle;
