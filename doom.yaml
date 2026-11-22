@@ -135,7 +135,7 @@ demo:
   wall_height: 179.2
   light: 255
   objective_text: FIND THE GREEN EXIT
-  complete_text: EXIT REACHED
+  complete_text: EXIT REACHED - USE TO RETRY
   bricks:
     texture_size: 64
     course_height: 16

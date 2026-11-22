@@ -24,7 +24,8 @@ It uses fixed simulation steps at 35 Hz in the standard YAML profile. It support
 keyboard movement, turning, wall collision and sliding. The built-in corridor
 scene runs without any game assets. Launch without arguments to play it. Pass
 both partitions and approach the green panel on the far wall to finish the
-route. Press Escape to close the window.
+route. Press the Use key (E by default) to start again or Escape to close the
+window.
 
 The WAD loader validates classic Doom archives and loads maps with multiple
 sectors. Classic SEGS/SSECTORS/NODES provide validated BSP sector lookup;

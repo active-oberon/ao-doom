@@ -269,6 +269,10 @@ BEGIN
 	game.Render(frame);
 	ASSERT((frame.Pixel(x, y) = color) & (frame.Pixel(x + 2, y + 4) # color));
 	NEW(simulation, game.Step);
+	game.Look(0, -30);
+	game.Fire(TRUE);
+	ASSERT(simulation.Advance(1));
+	game.Fire(FALSE);
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(70));
 	ASSERT(~game.Finished());
@@ -278,7 +282,10 @@ BEGIN
 	ASSERT(simulation.Advance(55));
 	ASSERT((game.State().x > 11.5) & ~game.Finished());
 	game.Controls(0, -1, 0);
-	ASSERT(simulation.Advance(60));
+	ASSERT(simulation.Advance(34));
+	ASSERT(~game.Finished());
+	game.Use;
+	ASSERT(simulation.Advance(2));
 	ASSERT(game.Finished());
 	game.Render(frame);
 	ASSERT(frame.Pixel(x + 2, y + 4) = color);
@@ -289,6 +296,18 @@ BEGIN
 	ASSERT((game.State().x = pose.x) & (game.State().y = pose.y) & (game.State().angle = pose.angle));
 	ASSERT(~game.Load("bad-vertex.wad", "E1M1", error));
 	ASSERT(game.Finished());
+	ASSERT(game.Inventory().ammo[DoomInventory.Bullets] < DoomConfig.values.inventory.initialBullets);
+	game.Use;
+	ASSERT(game.Finished());
+	ASSERT(simulation.Advance(3));
+	pose := game.State();
+	ASSERT(~game.Finished() & (pose.x = 2) & (pose.y = 4) & (pose.angle = 0) & (pose.pitch = 0));
+	ASSERT((game.Weapon().nextShot = 0) & (game.Inventory().ammo[DoomInventory.Bullets] = DoomConfig.values.inventory.initialBullets));
+	game.Render(frame);
+	ASSERT((frame.Pixel(x, y) = color) & (frame.Pixel(x + 2, y + 4) # color));
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(1));
+	ASSERT(game.State().x > pose.x);
 	ASSERT(game.Load("valid.wad", "E1M1", error));
 	ASSERT(~game.Finished());
 	simulation.Close

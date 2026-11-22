@@ -133,7 +133,7 @@ demo:
   wall_height: 192
   light: 160
   objective_text: FIND THE ORANGE EXIT
-  complete_text: ROUTE COMPLETE
+  complete_text: ROUTE COMPLETE - USE TO RETRY
   bricks:
     texture_size: 32
     course_height: 8

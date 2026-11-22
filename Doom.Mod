@@ -75,15 +75,7 @@ TYPE
 			Wall(6, 8, 5, 8, colors.pillar);
 			Wall(5, 8, 5, 7, colors.pillar);
 			world.Seal;
-			pose.x := 2;
-			pose.y := 4;
-			pose.angle := 0;
-			pose.pitch := 0;
-			pose.eye := DoomConfig.values.demoEye;
 			ticks := 0;
-			forward := 0;
-			strafe := 0;
-			turn := 0;
 			doors := NIL;
 			floors := NIL;
 			actions := NIL;
@@ -94,9 +86,23 @@ TYPE
 			mapName[0] := 0X;
 			transition := NIL;
 			interaction := NIL;
-			completed := FALSE;
 			transitionFailed := FALSE;
 			sprites := NIL;
+			StartDemo
+		END Init;
+
+		(* StartDemo resets the run while keeping the simulation tick sequence. *)
+		PROCEDURE StartDemo;
+		BEGIN
+			pose.x := 2;
+			pose.y := 4;
+			pose.angle := 0;
+			pose.pitch := 0;
+			pose.eye := DoomConfig.values.demoEye;
+			forward := 0;
+			strafe := 0;
+			turn := 0;
+			completed := FALSE;
 			DoomInventory.Reset(inventory);
 			use := FALSE;
 			firing := FALSE;
@@ -104,7 +110,7 @@ TYPE
 			aiming := FALSE;
 			DoomCombat.Reset(weapon, inventory);
 			ASSERT(world.Free(pose.x, pose.y, DoomConfig.values.playerRadius))
-		END Init;
+		END StartDemo;
 
 		PROCEDURE Wall(ax, ay, bx, by: FLOAT64; color: SIGNED32);
 		VAR wall: GameGeometry.Wall;
@@ -260,7 +266,11 @@ TYPE
 		(* Use queues one interaction so input is consumed on the simulation tick. *)
 		PROCEDURE Use*;
 		BEGIN {EXCLUSIVE}
-			use := ~completed
+			IF archive = NIL THEN
+				use := completed
+			ELSE
+				use := ~completed
+			END
 		END Use;
 
 		PROCEDURE Fire*(held: BOOLEAN);
@@ -321,8 +331,12 @@ TYPE
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
 			IF completed THEN
-				use := FALSE;
-				reloading := FALSE;
+				IF use & (archive = NIL) THEN
+					StartDemo
+				ELSE
+					use := FALSE;
+					reloading := FALSE
+				END;
 				RETURN
 			END;
 			IF inventory.health > 0 THEN
