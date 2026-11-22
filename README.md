@@ -22,7 +22,9 @@ An A2 desktop adapter uses `WMWindowManager` and the same game loop. See
 A2 packages, installation and the limits of the current runtime checks.
 It uses fixed simulation steps at 35 Hz in the standard YAML profile. It supports
 keyboard movement, turning, wall collision and sliding. The built-in corridor
-scene runs without any game assets.
+scene runs without any game assets. Launch without arguments to play it. Pass
+both partitions and approach the green panel on the far wall to finish the
+route. Press Escape to close the window.
 
 The WAD loader validates classic Doom archives and loads maps with multiple
 sectors. Classic SEGS/SSECTORS/NODES provide validated BSP sector lookup;
@@ -556,6 +558,10 @@ footprint collision remains a later physics refinement.
 `demo.colors` controls the procedural scene's outer walls, partitions and pillar,
 including their brick textures. `demo.eye` and `demo.wall_height` use Doom map
 units; the eye must not exceed the wall height. `demo.light` ranges from 0 to 255.
+`demo.colors.exit_marker` sets the exit panel color. Set `demo.objective_text`
+and `demo.complete_text` to the messages shown before and after reaching the
+panel. The pixel font displays uppercase letters, digits, spaces, `%`, `-`
+and `.`. Complete custom profiles require all three fields.
 `demo.bricks` sets the square texture size, course height, brick width and mortar
 width in pixels; alternating courses shift by half a brick width. Texture sizes
 range from 1 to 1024; bricks must fit the texture and retain an interior. A mortar

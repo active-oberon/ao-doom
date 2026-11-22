@@ -132,6 +132,8 @@ demo:
   eye: 80
   wall_height: 192
   light: 160
+  objective_text: FIND THE ORANGE EXIT
+  complete_text: ROUTE COMPLETE
   bricks:
     texture_size: 32
     course_height: 8
@@ -144,6 +146,7 @@ demo:
     left_partition: 0x778899
     right_partition: 0xaabbcc
     pillar: 0xddeeff
+    exit_marker: 0xe88932
 hud:
   height: 24
   margin: 8

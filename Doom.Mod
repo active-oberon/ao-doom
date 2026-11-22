@@ -5,6 +5,10 @@ IMPORT DoomFormat, DoomConfig, DoomCombat, DoomCampaign, DoomExits, DoomTeleport
 CONST LevelChanged* = 1;
 	CampaignComplete* = 2;
 	TransitionFailed* = 3;
+	DemoEastWall = 12;
+	DemoExitDepth = 1.5;
+	DemoExitMinY = 1;
+	DemoExitMaxY = 3;
 
 VAR log-: Logging.Logger;
 	logWriter: Streams.Writer;
@@ -55,10 +59,12 @@ TYPE
 		BEGIN
 			ASSERT(DoomConfig.loaded);
 			colors := DoomConfig.values.demoColors;
-			NEW(world, 12);
-			Wall(0, 0, 12, 0, colors.horizontalWall);
-			Wall(12, 0, 12, 10, colors.verticalWall);
-			Wall(12, 10, 0, 10, colors.horizontalWall);
+			NEW(world, 14);
+			Wall(0, 0, DemoEastWall, 0, colors.horizontalWall);
+			Wall(DemoEastWall, 0, DemoEastWall, DemoExitMinY, colors.verticalWall);
+			Wall(DemoEastWall, DemoExitMinY, DemoEastWall, DemoExitMaxY, colors.exitMarker);
+			Wall(DemoEastWall, DemoExitMaxY, DemoEastWall, 10, colors.verticalWall);
+			Wall(DemoEastWall, 10, 0, 10, colors.horizontalWall);
 			Wall(0, 10, 0, 0, colors.verticalWall);
 			Wall(4, 0, 4, 3, colors.leftPartition);
 			Wall(4, 5, 4, 10, colors.leftPartition);
@@ -343,7 +349,12 @@ TYPE
 				dy := (forward * MathL.sin(pose.angle) +
 					strafe * MathL.cos(pose.angle)) * speed;
 				IF world.SectorCount() = 0 THEN
-					ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius))
+					ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius));
+					IF (pose.x >= DemoEastWall - DemoExitDepth) & (pose.y >= DemoExitMinY) & (pose.y <= DemoExitMaxY) THEN
+						completed := TRUE;
+						aiming := FALSE;
+						RETURN
+					END
 				ELSE
 					feet := pose.eye - DoomConfig.values.playerEye;
 					IF use THEN
@@ -509,7 +520,15 @@ TYPE
 			DoomHud.Draw(status, frame);
 			DoomCombat.DrawStatus(equipped, status, frame);
 			DoomCombat.DrawAim(frame, flashed);
-			IF finished THEN
+			IF geometry.SectorCount() = 0 THEN
+				IF finished THEN
+					GameText.Draw(frame, DoomConfig.values.hud.margin, DoomConfig.values.hud.topRow,
+						DoomConfig.values.hud.value, DoomConfig.values.demoCompleteText)
+				ELSE
+					GameText.Draw(frame, DoomConfig.values.hud.margin, DoomConfig.values.hud.topRow,
+						DoomConfig.values.hud.value, DoomConfig.values.demoObjectiveText)
+				END
+			ELSIF finished THEN
 				GameText.Draw(frame, DoomConfig.values.campaign.statusX, DoomConfig.values.campaign.statusY,
 					DoomConfig.values.campaign.statusColor, DoomConfig.values.campaign.completeText)
 			ELSIF failed THEN

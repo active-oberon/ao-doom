@@ -1,7 +1,7 @@
 MODULE DoomControlsSmoke;
 
 IMPORT DoomConfig, DoomInput, DoomCombat, DoomInventory, DoomThings, DoomSprites, DoomWad, DoomMap,
-	Doom, GameSurface, MathL, KernelLog;
+	Doom, GameLoop, GameSurface, MathL, KernelLog;
 
 PROCEDURE Load(VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -253,6 +253,47 @@ BEGIN
 	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error))
 END CustomMouse;
 
+PROCEDURE {TEST} DemoExit*;
+VAR game: Doom.Game;
+	simulation: GameLoop.Simulation;
+	frame: GameSurface.Frame;
+	pose: Doom.Pose;
+	x, y, color: SIGNED32;
+	error: ARRAY 256 OF CHAR;
+BEGIN
+	NEW(game);
+	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
+	x := DoomConfig.values.hud.margin;
+	y := DoomConfig.values.hud.topRow;
+	color := DoomConfig.values.hud.value;
+	game.Render(frame);
+	ASSERT((frame.Pixel(x, y) = color) & (frame.Pixel(x + 2, y + 4) # color));
+	NEW(simulation, game.Step);
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(70));
+	ASSERT(~game.Finished());
+	game.Controls(0, 1, 0);
+	ASSERT(simulation.Advance(23));
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(55));
+	ASSERT((game.State().x > 11.5) & ~game.Finished());
+	game.Controls(0, -1, 0);
+	ASSERT(simulation.Advance(60));
+	ASSERT(game.Finished());
+	game.Render(frame);
+	ASSERT(frame.Pixel(x + 2, y + 4) = color);
+	pose := game.State();
+	ASSERT((pose.y >= 1) & (pose.y <= 3));
+	game.Controls(-1, 0, 1);
+	ASSERT(simulation.Advance(20));
+	ASSERT((game.State().x = pose.x) & (game.State().y = pose.y) & (game.State().angle = pose.angle));
+	ASSERT(~game.Load("bad-vertex.wad", "E1M1", error));
+	ASSERT(game.Finished());
+	ASSERT(game.Load("valid.wad", "E1M1", error));
+	ASSERT(~game.Finished());
+	simulation.Close
+END DemoExit;
+
 PROCEDURE Do*;
 VAR error: ARRAY 256 OF CHAR;
 BEGIN
@@ -263,6 +304,7 @@ BEGIN
 	OwnedArsenal;
 	LookAimAndReset;
 	CustomMouse;
+	DemoExit;
 	KernelLog.String("DoomControlsSmoke: mouse, reload, selection, arsenal and automatic pickup checks passed.");
 	KernelLog.Ln
 END Do;

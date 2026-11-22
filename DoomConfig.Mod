@@ -48,7 +48,7 @@ TYPE HudSettings* = RECORD
 END;
 
 DemoPalette* = RECORD
-	horizontalWall*, verticalWall*, leftPartition*, rightPartition*, pillar*: SIGNED32
+	horizontalWall*, verticalWall*, leftPartition*, rightPartition*, pillar*, exitMarker*: SIGNED32
 END;
 
 BrickSettings* = RECORD
@@ -162,6 +162,7 @@ Settings* = RECORD
 	hud*: HudSettings;
 	campaign*: CampaignSettings;
 	demoColors*: DemoPalette;
+	demoObjectiveText*, demoCompleteText*: ARRAY 32 OF CHAR;
 	demoEye*, demoWallHeight*: FLOAT64;
 	demoLight*: SIGNED32;
 	demoBricks*: BrickSettings;
@@ -1007,33 +1008,33 @@ BEGIN
 	RETURN TRUE
 END Switches;
 
-PROCEDURE CampaignLabel(object: JSON.Object; CONST key: ARRAY OF CHAR; VAR text, error: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE StatusLabel(object: JSON.Object; CONST key: ARRAY OF CHAR; VAR text, error: ARRAY OF CHAR): BOOLEAN;
 VAR value: JSON.Value;
 	i: SIGNED32;
 	length: SIZE;
 BEGIN
 	value := object.Get(key);
 	IF (value = NIL) OR ~(value IS JSON.String) THEN
-		COPY("Expected campaign label: ", error);
+		COPY("Expected status label: ", error);
 		Strings.AppendX(error, key);
 		RETURN FALSE
 	END;
 	length := Strings.Length(value(JSON.String).value^);
 	IF (length < 1) OR (length >= LEN(text)) THEN
-		COPY("Invalid campaign label length: ", error);
+		COPY("Invalid status label length: ", error);
 		Strings.AppendX(error, key);
 		RETURN FALSE
 	END;
 	FOR i := 0 TO SIGNED32(length) - 1 DO
 		IF (value(JSON.String).value[i] < " ") OR (value(JSON.String).value[i] > "~") THEN
-			COPY("Invalid campaign label: ", error);
+			COPY("Invalid status label: ", error);
 			Strings.AppendX(error, key);
 			RETURN FALSE
 		END
 	END;
 	COPY(value(JSON.String).value^, text);
 	RETURN TRUE
-END CampaignLabel;
+END StatusLabel;
 
 PROCEDURE Campaign(root: JSON.Object; VAR settings: Settings; VAR error: ARRAY OF CHAR): BOOLEAN;
 VAR object, route: JSON.Object;
@@ -1046,8 +1047,8 @@ BEGIN
 		~Integer(object, "status_x", 0, settings.width - 1, settings.campaign.statusX, error) OR
 		~Integer(object, "status_y", 0, settings.height - 1, settings.campaign.statusY, error) OR
 		~Integer(object, "status_color", 0, 0FFFFFFH, settings.campaign.statusColor, error) OR
-		~CampaignLabel(object, "complete_text", settings.campaign.completeText, error) OR
-		~CampaignLabel(object, "error_text", settings.campaign.errorText, error) THEN
+		~StatusLabel(object, "complete_text", settings.campaign.completeText, error) OR
+		~StatusLabel(object, "error_text", settings.campaign.errorText, error) THEN
 		RETURN FALSE
 	END;
 	IF (settings.campaign.statusY + HudGlyphHeight > settings.height - settings.hud.height) OR
@@ -1164,22 +1165,25 @@ BEGIN
 		~Integer(object, "wait_ticks", 1, MAX(SIGNED32), candidate.platformWait, error) THEN
 		RETURN FALSE
 	END;
-	IF ~Section(root, "demo", "|eye|wall_height|light|bricks|colors|", demo, error) OR
+	IF ~Section(root, "demo", "|eye|wall_height|light|objective_text|complete_text|bricks|colors|", demo, error) OR
 		~Real(demo, "eye", 0, 1024, DoomFormat.UnitsPerWorld, candidate.demoEye, error) OR
 		~Real(demo, "wall_height", 1, 1024, DoomFormat.UnitsPerWorld, candidate.demoWallHeight, error) OR
 		~Integer(demo, "light", 0, 255, candidate.demoLight, error) OR
+		~StatusLabel(demo, "objective_text", candidate.demoObjectiveText, error) OR
+		~StatusLabel(demo, "complete_text", candidate.demoCompleteText, error) OR
 		~Section(demo, "bricks", "|texture_size|course_height|brick_width|mortar_width|mortar_shade|", object, error) OR
 		~Integer(object, "texture_size", 1, MaximumTextureDimension, candidate.demoBricks.textureSize, error) OR
 		~Integer(object, "course_height", 1, MaximumTextureDimension, candidate.demoBricks.courseHeight, error) OR
 		~Integer(object, "brick_width", 1, MaximumTextureDimension, candidate.demoBricks.brickWidth, error) OR
 		~Integer(object, "mortar_width", 0, MaximumTextureDimension, candidate.demoBricks.mortarWidth, error) OR
 		~Integer(object, "mortar_shade", 1, 256, candidate.demoBricks.mortarShade, error) OR
-		~Section(demo, "colors", "|horizontal_wall|vertical_wall|left_partition|right_partition|pillar|", object, error) OR
+		~Section(demo, "colors", "|horizontal_wall|vertical_wall|left_partition|right_partition|pillar|exit_marker|", object, error) OR
 		~Integer(object, "horizontal_wall", 0, 0FFFFFFH, candidate.demoColors.horizontalWall, error) OR
 		~Integer(object, "vertical_wall", 0, 0FFFFFFH, candidate.demoColors.verticalWall, error) OR
 		~Integer(object, "left_partition", 0, 0FFFFFFH, candidate.demoColors.leftPartition, error) OR
 		~Integer(object, "right_partition", 0, 0FFFFFFH, candidate.demoColors.rightPartition, error) OR
-		~Integer(object, "pillar", 0, 0FFFFFFH, candidate.demoColors.pillar, error) THEN
+		~Integer(object, "pillar", 0, 0FFFFFFH, candidate.demoColors.pillar, error) OR
+		~Integer(object, "exit_marker", 0, 0FFFFFFH, candidate.demoColors.exitMarker, error) THEN
 		RETURN FALSE
 	END;
 	IF candidate.demoEye > candidate.demoWallHeight THEN
@@ -1230,6 +1234,11 @@ BEGIN
 		(candidate.hud.keyStartX + (DoomFormat.KeyKinds - 1) * candidate.hud.keySpacing + HudCharacterAdvance > candidate.width) OR
 		(candidate.hud.hintX + Strings.Length("NEED YELLOW KEY") * HudCharacterAdvance > candidate.width) THEN
 		COPY("HUD layout must fit inside the configured frame", error);
+		RETURN FALSE
+	END;
+	IF candidate.hud.margin + MAX(Strings.Length(candidate.demoObjectiveText),
+		Strings.Length(candidate.demoCompleteText)) * HudCharacterAdvance > candidate.width THEN
+		COPY("Demo labels must fit the frame", error);
 		RETURN FALSE
 	END;
 	IF (candidate.playerEye > candidate.playerHeight) OR (candidate.playerStep > candidate.playerHeight) THEN
@@ -1614,6 +1623,8 @@ BEGIN
 	RejectField(root, demo, "light", JSON.NewNumber(256), settings);
 	RejectField(root, demo, "light", JSON.NewNumber(-1), settings);
 	RejectField(root, demo, "light", JSON.NewNumber(1.5), settings);
+	RejectField(root, demo, "objective_text", JSON.NewString(""), settings);
+	RejectField(root, demo, "complete_text", JSON.NewNull(), settings);
 	RejectField(root, demo, "bricks", JSON.NewNull(), settings);
 	RejectField(root, bricks, "texture_size", JSON.NewNumber(0), settings);
 	RejectField(root, bricks, "texture_size", JSON.NewNumber(MaximumTextureDimension + 1), settings);

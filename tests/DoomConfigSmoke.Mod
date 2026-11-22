@@ -46,6 +46,7 @@ BEGIN
 	WallColor(game, 2, 4, 0, 1, 0112233H);
 	WallColor(game, 2, 4, -1, 0, 0445566H);
 	WallColor(game, 10, 4, 1, 0, 0445566H);
+	WallColor(game, 10, 2, 1, 0, 0E88932H);
 	WallColor(game, 2, 2, 1, 0, 0778899H);
 	WallColor(game, 2, 6, 1, 0, 0778899H);
 	WallColor(game, 7, 2, 1, 0, 0AABBCCH);
