@@ -9,7 +9,6 @@ CONST CharacterAdvance = DoomConfig.HudCharacterAdvance;
 	DemoClockColumns = DemoClockSecondDigits + 3;
 	DemoClockLimitSeconds = 10000;
 	CentisecondsPerSecond = 100;
-	DemoBestLabel = "BEST";
 
 VAR ammoLabels: ARRAY DoomInventory.AmmoKinds OF ARRAY 4 OF CHAR;
 	keyHints: ARRAY DoomInventory.KeyColors OF ARRAY 16 OF CHAR;
@@ -119,10 +118,23 @@ BEGIN
 	Number(frame, x + CharacterAdvance, appearance.topRow, appearance.value, centiseconds MOD CentisecondsPerSecond, 2)
 END DemoClock;
 
+PROCEDURE LabeledDemoClock(frame: GameSurface.Frame; right: SIGNED32; CONST appearance: DoomConfig.HudSettings;
+	CONST label: ARRAY OF CHAR; ticks: SIGNED64): SIGNED32;
+VAR x, labelWidth: SIGNED32;
+BEGIN
+	labelWidth := (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance;
+	x := right - labelWidth - (DemoClockColumns + 1) * CharacterAdvance;
+	IF ticks > 0 THEN
+		GameText.Draw(frame, x, appearance.topRow, appearance.value, label);
+		DemoClock(frame, x + labelWidth, appearance, ticks)
+	END;
+	RETURN x
+END LabeledDemoClock;
+
 (* DrawDemo keeps run times beside the objective without overlapping its text. *)
-PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks, bestTicks: SIGNED64);
+PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks, bestTicks, splitTicks: SIGNED64);
 VAR appearance: DoomConfig.HudSettings;
-	clockX, bestLabelWidth, labelLimit, labelX: SIGNED32;
+	clockX, bestX, splitX, labelLimit, labelX: SIGNED32;
 	label: ARRAY 32 OF CHAR;
 BEGIN
 	IF frame.width < DoomConfig.values.width THEN
@@ -136,12 +148,14 @@ BEGIN
 	END;
 	clockX := frame.width - (DemoClockColumns + 1) * CharacterAdvance;
 	DemoClock(frame, clockX, appearance, ticks);
+	bestX := LabeledDemoClock(frame, clockX, appearance, "BEST", bestTicks);
+	splitX := LabeledDemoClock(frame, bestX, appearance, "SPLIT", splitTicks);
 	labelLimit := clockX;
 	IF bestTicks > 0 THEN
-		bestLabelWidth := (SIGNED32(Strings.Length(DemoBestLabel)) + 1) * CharacterAdvance;
-		labelLimit := clockX - bestLabelWidth - (DemoClockColumns + 1) * CharacterAdvance;
-		GameText.Draw(frame, labelLimit, appearance.topRow, appearance.value, DemoBestLabel);
-		DemoClock(frame, labelLimit + bestLabelWidth, appearance, bestTicks)
+		labelLimit := bestX
+	END;
+	IF splitTicks > 0 THEN
+		labelLimit := splitX
 	END;
 	labelX := MIN(appearance.margin, labelLimit - (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance);
 	GameText.Draw(frame, labelX, appearance.topRow, appearance.value, label)

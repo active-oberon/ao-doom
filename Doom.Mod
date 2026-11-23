@@ -6,6 +6,7 @@ CONST LevelChanged* = 1;
 	CampaignComplete* = 2;
 	TransitionFailed* = 3;
 	DemoEastWall = 12;
+	DemoSecondPartition = 8;
 	DemoExitDepth = 1.5;
 	DemoExitMinY = 1;
 	DemoExitMaxY = 3;
@@ -36,7 +37,7 @@ TYPE
 	VAR world-: GameGeometry.World;
 		pose: Pose;
 		ticks: SIGNED64;
-		demoStartTick, demoRunTicks, demoBestTicks: SIGNED64;
+		demoStartTick, demoRunTicks, demoBestTicks, demoSplitTicks: SIGNED64;
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
 		floors: DoomFloors.Controller;
@@ -69,8 +70,8 @@ TYPE
 			Wall(0, 10, 0, 0, colors.verticalWall);
 			Wall(4, 0, 4, 3, colors.leftPartition);
 			Wall(4, 5, 4, 10, colors.leftPartition);
-			Wall(8, 0, 8, 5, colors.rightPartition);
-			Wall(8, 7, 8, 10, colors.rightPartition);
+			Wall(DemoSecondPartition, 0, DemoSecondPartition, 5, colors.rightPartition);
+			Wall(DemoSecondPartition, 7, DemoSecondPartition, 10, colors.rightPartition);
 			Wall(5, 7, 6, 7, colors.pillar);
 			Wall(6, 7, 6, 8, colors.pillar);
 			Wall(6, 8, 5, 8, colors.pillar);
@@ -107,6 +108,7 @@ TYPE
 			completed := FALSE;
 			demoStartTick := 0;
 			demoRunTicks := 0;
+			demoSplitTicks := 0;
 			DoomInventory.Reset(inventory);
 			use := FALSE;
 			firing := FALSE;
@@ -327,8 +329,33 @@ TYPE
 			RETURN weapon
 		END Weapon;
 
+		(* StepDemo records milestones only after the engine accepts movement. *)
+		PROCEDURE StepDemo(dx, dy: FLOAT64);
+		VAR previousX, previousY: FLOAT64;
+		BEGIN
+			previousX := pose.x;
+			previousY := pose.y;
+			ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius));
+			IF (demoStartTick = 0) & ((pose.x # previousX) OR (pose.y # previousY)) THEN
+				demoStartTick := ticks
+			END;
+			IF demoStartTick # 0 THEN
+				demoRunTicks := ticks - demoStartTick + 1
+			END;
+			IF (demoSplitTicks = 0) & (pose.x >= DemoSecondPartition) THEN
+				demoSplitTicks := demoRunTicks
+			END;
+			IF (pose.x >= DemoEastWall - DemoExitDepth) & (pose.y >= DemoExitMinY) & (pose.y <= DemoExitMaxY) THEN
+				IF (demoBestTicks = 0) OR (demoRunTicks < demoBestTicks) THEN
+					demoBestTicks := demoRunTicks
+				END;
+				completed := TRUE;
+				aiming := FALSE
+			END
+		END StepDemo;
+
 		PROCEDURE Step*(tick: SIGNED64);
-		VAR dx, dy, speed, feet, previousX, previousY: FLOAT64;
+		VAR dx, dy, speed, feet: FLOAT64;
 			used, reacting: BOOLEAN;
 			kind, line: SIGNED32;
 		BEGIN {EXCLUSIVE}
@@ -367,21 +394,8 @@ TYPE
 				dy := (forward * MathL.sin(pose.angle) +
 					strafe * MathL.cos(pose.angle)) * speed;
 				IF world.SectorCount() = 0 THEN
-					previousX := pose.x;
-					previousY := pose.y;
-					ASSERT(world.Move(pose.x, pose.y, dx, dy, DoomConfig.values.playerRadius));
-					IF (demoStartTick = 0) & ((pose.x # previousX) OR (pose.y # previousY)) THEN
-						demoStartTick := tick
-					END;
-					IF demoStartTick # 0 THEN
-						demoRunTicks := tick - demoStartTick + 1
-					END;
-					IF (pose.x >= DemoEastWall - DemoExitDepth) & (pose.y >= DemoExitMinY) & (pose.y <= DemoExitMaxY) THEN
-						IF (demoBestTicks = 0) OR (demoRunTicks < demoBestTicks) THEN
-							demoBestTicks := demoRunTicks
-						END;
-						completed := TRUE;
-						aiming := FALSE;
+					StepDemo(dx, dy);
+					IF completed THEN
 						RETURN
 					END
 				ELSE
@@ -495,7 +509,7 @@ TYPE
 
 		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene;
 			VAR status: DoomInventory.State; VAR flashed, aimed, finished, failed: BOOLEAN; VAR equipped: DoomCombat.Weapon;
-			VAR runTicks, bestTicks: SIGNED64);
+			VAR runTicks, bestTicks, splitTicks: SIGNED64);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
 			geometry := world;
@@ -507,7 +521,8 @@ TYPE
 			failed := transitionFailed;
 			equipped := weapon;
 			runTicks := demoRunTicks;
-			bestTicks := demoBestTicks
+			bestTicks := demoBestTicks;
+			splitTicks := demoSplitTicks
 		END Capture;
 
 		PROCEDURE Render*(frame: GameSurface.Frame);
@@ -518,11 +533,12 @@ TYPE
 			flashed, aimed, finished, failed: BOOLEAN;
 			equipped: DoomCombat.Weapon;
 			target: GameSurface.Frame;
-			runTicks, bestTicks: SIGNED64;
+			runTicks, bestTicks, splitTicks: SIGNED64;
 			margin, x, y, sx, sy: SIGNED32;
 			zoom, center: FLOAT64;
 		BEGIN
-			Capture(snapshot, geometry, actors, status, flashed, aimed, finished, failed, equipped, runTicks, bestTicks);
+			Capture(snapshot, geometry, actors, status, flashed, aimed, finished, failed, equipped,
+				runTicks, bestTicks, splitTicks);
 			target := frame;
 			zoom := 1;
 			IF aimed THEN
@@ -554,7 +570,7 @@ TYPE
 			DoomCombat.DrawStatus(equipped, status, frame);
 			DoomCombat.DrawAim(frame, flashed);
 			IF geometry.SectorCount() = 0 THEN
-				DoomHud.DrawDemo(frame, finished, runTicks, bestTicks)
+				DoomHud.DrawDemo(frame, finished, runTicks, bestTicks, splitTicks)
 			ELSIF finished THEN
 				GameText.Draw(frame, DoomConfig.values.campaign.statusX, DoomConfig.values.campaign.statusY,
 					DoomConfig.values.campaign.statusColor, DoomConfig.values.campaign.completeText)

@@ -391,6 +391,48 @@ BEGIN
 	simulation.Close
 END DemoBest;
 
+PROCEDURE {TEST} DemoSplit*;
+VAR game: Doom.Game;
+	simulation: GameLoop.Simulation;
+	frame: GameSurface.Frame;
+	splitX: SIGNED32;
+BEGIN
+	NEW(game);
+	NEW(simulation, game.Step);
+	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
+	splitX := frame.width - 140;
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(70));
+	game.Controls(0, 1, 0);
+	ASSERT(simulation.Advance(23));
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(3));
+	ASSERT(game.State().x < 8);
+	game.Render(frame);
+	CheckDemoText(frame, splitX, "             ");
+	ASSERT(simulation.Advance(1));
+	ASSERT(game.State().x >= 8);
+	game.Render(frame);
+	CheckDemoText(frame, splitX, "SPLIT 0002.77");
+	game.Controls(-1, 0, 0);
+	ASSERT(simulation.Advance(14));
+	ASSERT(game.State().x < 8);
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(65));
+	game.Render(frame);
+	CheckDemoText(frame, splitX, "SPLIT 0002.77");
+	game.Controls(0, -1, 0);
+	ASSERT(simulation.Advance(35));
+	ASSERT(game.Finished());
+	game.Render(frame);
+	CheckDemoText(frame, splitX, "SPLIT 0002.77");
+	game.Use;
+	ASSERT(simulation.Advance(1));
+	game.Render(frame);
+	CheckDemoText(frame, splitX, "             ");
+	simulation.Close
+END DemoSplit;
+
 PROCEDURE Do*;
 VAR error: ARRAY 256 OF CHAR;
 BEGIN
@@ -403,6 +445,7 @@ BEGIN
 	CustomMouse;
 	DemoExit;
 	DemoBest;
+	DemoSplit;
 	KernelLog.String("DoomControlsSmoke: mouse, reload, selection, arsenal and automatic pickup checks passed.");
 	KernelLog.Ln
 END Do;
