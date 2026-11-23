@@ -5,6 +5,9 @@ IMPORT DoomConfig, DoomInventory, GameSurface, GameText, Strings;
 CONST CharacterAdvance = DoomConfig.HudCharacterAdvance;
 	StatDigits = DoomConfig.HudStatDigits;
 	PickupDigits = DoomConfig.HudPickupDigits;
+	DemoClockSecondDigits = 4;
+	DemoClockLimitSeconds = 10000;
+	CentisecondsPerSecond = 100;
 
 VAR ammoLabels: ARRAY DoomInventory.AmmoKinds OF ARRAY 4 OF CHAR;
 	keyHints: ARRAY DoomInventory.KeyColors OF ARRAY 16 OF CHAR;
@@ -101,6 +104,33 @@ BEGIN
 	Field(appearance, frame, appearance.weaponsX, y + appearance.bottomRow, "WEAPONS", WeaponCount(player), 1);
 	Keys(appearance, player, frame, y + appearance.bottomRow)
 END Draw;
+
+(* DrawDemo reserves space for the elapsed time beside the configured objective. *)
+PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks: SIGNED64);
+VAR appearance: DoomConfig.HudSettings;
+	tickRate, centiseconds, clockX, labelX: SIGNED32;
+	label: ARRAY 32 OF CHAR;
+BEGIN
+	IF frame.width < DoomConfig.values.width THEN
+		RETURN
+	END;
+	appearance := DoomConfig.values.hud;
+	IF finished THEN
+		COPY(DoomConfig.values.demoCompleteText, label)
+	ELSE
+		COPY(DoomConfig.values.demoObjectiveText, label)
+	END;
+	clockX := frame.width - (DemoClockSecondDigits + 4) * CharacterAdvance;
+	labelX := MIN(appearance.margin, clockX - (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance);
+	GameText.Draw(frame, labelX, appearance.topRow, appearance.value, label);
+	tickRate := DoomConfig.values.ticksPerSecond;
+	centiseconds := SIGNED32(MIN(ticks, DemoClockLimitSeconds * tickRate) * CentisecondsPerSecond DIV tickRate);
+	centiseconds := MIN(centiseconds, DemoClockLimitSeconds * CentisecondsPerSecond - 1);
+	Number(frame, clockX, appearance.topRow, appearance.value, centiseconds DIV CentisecondsPerSecond, DemoClockSecondDigits);
+	INC(clockX, DemoClockSecondDigits * CharacterAdvance);
+	GameText.Draw(frame, clockX, appearance.topRow, appearance.value, ".");
+	Number(frame, clockX + CharacterAdvance, appearance.topRow, appearance.value, centiseconds MOD CentisecondsPerSecond, 2)
+END DrawDemo;
 
 PROCEDURE {TEST} Panel*;
 VAR frame, small: GameSurface.Frame;
