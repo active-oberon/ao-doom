@@ -343,18 +343,22 @@ BEGIN
 	simulation.Close
 END DemoExit;
 
-PROCEDURE FinishDemoRun(game: Doom.Game; simulation: GameLoop.Simulation; wait: SIGNED32);
+PROCEDURE FinishDemoRun(game: Doom.Game; simulation: GameLoop.Simulation; beforeSplit, afterSplit: SIGNED32);
 BEGIN
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(70));
 	game.Controls(0, 0, 0);
-	IF wait > 0 THEN
-		ASSERT(simulation.Advance(wait))
+	IF beforeSplit > 0 THEN
+		ASSERT(simulation.Advance(beforeSplit))
 	END;
 	game.Controls(0, 1, 0);
 	ASSERT(simulation.Advance(23));
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(55));
+	game.Controls(0, 0, 0);
+	IF afterSplit > 0 THEN
+		ASSERT(simulation.Advance(afterSplit))
+	END;
 	game.Controls(0, -1, 0);
 	ASSERT(simulation.Advance(35));
 	ASSERT(game.Finished())
@@ -372,22 +376,35 @@ BEGIN
 	bestX := frame.width - 84;
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "            ");
-	FinishDemoRun(game, simulation, 35);
+	FinishDemoRun(game, simulation, 35, 0);
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0006.22");
 	game.Use;
 	ASSERT(simulation.Advance(1));
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0006.22");
-	FinishDemoRun(game, simulation, 70);
+	FinishDemoRun(game, simulation, 70, 0);
 	game.Render(frame);
 	CheckDemoText(frame, frame.width - 32, "0007.22");
 	CheckDemoText(frame, bestX, "BEST 0006.22");
+	CheckDemoText(frame, frame.width - 168, "SPLIT BEHIND 0004.77");
 	game.Use;
 	ASSERT(simulation.Advance(1));
-	FinishDemoRun(game, simulation, 0);
+	FinishDemoRun(game, simulation, 0, 70);
+	game.Render(frame);
+	CheckDemoText(frame, bestX, "BEST 0006.22");
+	CheckDemoText(frame, frame.width - 164, "SPLIT AHEAD 0002.77");
+	game.Use;
+	ASSERT(simulation.Advance(1));
+	FinishDemoRun(game, simulation, 0, 0);
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0005.22");
+	CheckDemoText(frame, frame.width - 164, "SPLIT AHEAD 0002.77");
+	game.Use;
+	ASSERT(simulation.Advance(1));
+	FinishDemoRun(game, simulation, 0, 0);
+	game.Render(frame);
+	CheckDemoText(frame, frame.width - 160, "SPLIT EVEN 0002.77");
 	simulation.Close
 END DemoBest;
 

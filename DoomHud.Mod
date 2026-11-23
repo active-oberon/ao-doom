@@ -132,10 +132,11 @@ BEGIN
 END LabeledDemoClock;
 
 (* DrawDemo keeps run times beside the objective without overlapping its text. *)
-PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks, bestTicks, splitTicks: SIGNED64);
+PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks, bestTicks, splitTicks, referenceSplitTicks: SIGNED64);
 VAR appearance: DoomConfig.HudSettings;
 	clockX, bestX, splitX, labelLimit, labelX: SIGNED32;
 	label: ARRAY 32 OF CHAR;
+	splitLabel: ARRAY 13 OF CHAR;
 BEGIN
 	IF frame.width < DoomConfig.values.width THEN
 		RETURN
@@ -149,12 +150,21 @@ BEGIN
 	clockX := frame.width - (DemoClockColumns + 1) * CharacterAdvance;
 	DemoClock(frame, clockX, appearance, ticks);
 	bestX := LabeledDemoClock(frame, clockX, appearance, "BEST", bestTicks);
-	splitX := LabeledDemoClock(frame, bestX, appearance, "SPLIT", splitTicks);
 	labelLimit := clockX;
 	IF bestTicks > 0 THEN
 		labelLimit := bestX
 	END;
 	IF splitTicks > 0 THEN
+		IF referenceSplitTicks = 0 THEN
+			COPY("SPLIT", splitLabel)
+		ELSIF splitTicks < referenceSplitTicks THEN
+			COPY("SPLIT AHEAD", splitLabel)
+		ELSIF splitTicks > referenceSplitTicks THEN
+			COPY("SPLIT BEHIND", splitLabel)
+		ELSE
+			COPY("SPLIT EVEN", splitLabel)
+		END;
+		splitX := LabeledDemoClock(frame, bestX, appearance, splitLabel, splitTicks);
 		labelLimit := splitX
 	END;
 	labelX := MIN(appearance.margin, labelLimit - (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance);
