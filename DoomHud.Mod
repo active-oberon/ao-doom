@@ -6,8 +6,10 @@ CONST CharacterAdvance = DoomConfig.HudCharacterAdvance;
 	StatDigits = DoomConfig.HudStatDigits;
 	PickupDigits = DoomConfig.HudPickupDigits;
 	DemoClockSecondDigits = 4;
+	DemoClockColumns = DemoClockSecondDigits + 3;
 	DemoClockLimitSeconds = 10000;
 	CentisecondsPerSecond = 100;
+	DemoBestLabel = "BEST";
 
 VAR ammoLabels: ARRAY DoomInventory.AmmoKinds OF ARRAY 4 OF CHAR;
 	keyHints: ARRAY DoomInventory.KeyColors OF ARRAY 16 OF CHAR;
@@ -105,10 +107,22 @@ BEGIN
 	Keys(appearance, player, frame, y + appearance.bottomRow)
 END Draw;
 
-(* DrawDemo reserves space for the elapsed time beside the configured objective. *)
-PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks: SIGNED64);
+PROCEDURE DemoClock(frame: GameSurface.Frame; x: SIGNED32; CONST appearance: DoomConfig.HudSettings; ticks: SIGNED64);
+VAR tickRate, centiseconds: SIGNED32;
+BEGIN
+	tickRate := DoomConfig.values.ticksPerSecond;
+	centiseconds := SIGNED32(MIN(ticks, DemoClockLimitSeconds * tickRate) * CentisecondsPerSecond DIV tickRate);
+	centiseconds := MIN(centiseconds, DemoClockLimitSeconds * CentisecondsPerSecond - 1);
+	Number(frame, x, appearance.topRow, appearance.value, centiseconds DIV CentisecondsPerSecond, DemoClockSecondDigits);
+	INC(x, DemoClockSecondDigits * CharacterAdvance);
+	GameText.Draw(frame, x, appearance.topRow, appearance.value, ".");
+	Number(frame, x + CharacterAdvance, appearance.topRow, appearance.value, centiseconds MOD CentisecondsPerSecond, 2)
+END DemoClock;
+
+(* DrawDemo keeps run times beside the objective without overlapping its text. *)
+PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks, bestTicks: SIGNED64);
 VAR appearance: DoomConfig.HudSettings;
-	tickRate, centiseconds, clockX, labelX: SIGNED32;
+	clockX, bestLabelWidth, labelLimit, labelX: SIGNED32;
 	label: ARRAY 32 OF CHAR;
 BEGIN
 	IF frame.width < DoomConfig.values.width THEN
@@ -120,16 +134,17 @@ BEGIN
 	ELSE
 		COPY(DoomConfig.values.demoObjectiveText, label)
 	END;
-	clockX := frame.width - (DemoClockSecondDigits + 4) * CharacterAdvance;
-	labelX := MIN(appearance.margin, clockX - (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance);
-	GameText.Draw(frame, labelX, appearance.topRow, appearance.value, label);
-	tickRate := DoomConfig.values.ticksPerSecond;
-	centiseconds := SIGNED32(MIN(ticks, DemoClockLimitSeconds * tickRate) * CentisecondsPerSecond DIV tickRate);
-	centiseconds := MIN(centiseconds, DemoClockLimitSeconds * CentisecondsPerSecond - 1);
-	Number(frame, clockX, appearance.topRow, appearance.value, centiseconds DIV CentisecondsPerSecond, DemoClockSecondDigits);
-	INC(clockX, DemoClockSecondDigits * CharacterAdvance);
-	GameText.Draw(frame, clockX, appearance.topRow, appearance.value, ".");
-	Number(frame, clockX + CharacterAdvance, appearance.topRow, appearance.value, centiseconds MOD CentisecondsPerSecond, 2)
+	clockX := frame.width - (DemoClockColumns + 1) * CharacterAdvance;
+	DemoClock(frame, clockX, appearance, ticks);
+	labelLimit := clockX;
+	IF bestTicks > 0 THEN
+		bestLabelWidth := (SIGNED32(Strings.Length(DemoBestLabel)) + 1) * CharacterAdvance;
+		labelLimit := clockX - bestLabelWidth - (DemoClockColumns + 1) * CharacterAdvance;
+		GameText.Draw(frame, labelLimit, appearance.topRow, appearance.value, DemoBestLabel);
+		DemoClock(frame, labelLimit + bestLabelWidth, appearance, bestTicks)
+	END;
+	labelX := MIN(appearance.margin, labelLimit - (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance);
+	GameText.Draw(frame, labelX, appearance.topRow, appearance.value, label)
 END DrawDemo;
 
 PROCEDURE {TEST} Panel*;

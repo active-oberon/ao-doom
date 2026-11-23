@@ -36,7 +36,7 @@ TYPE
 	VAR world-: GameGeometry.World;
 		pose: Pose;
 		ticks: SIGNED64;
-		demoStartTick, demoRunTicks: SIGNED64;
+		demoStartTick, demoRunTicks, demoBestTicks: SIGNED64;
 		forward, strafe, turn: SIGNED32;
 		doors: DoomDoors.Controller;
 		floors: DoomFloors.Controller;
@@ -77,6 +77,7 @@ TYPE
 			Wall(5, 8, 5, 7, colors.pillar);
 			world.Seal;
 			ticks := 0;
+			demoBestTicks := 0;
 			doors := NIL;
 			floors := NIL;
 			actions := NIL;
@@ -376,6 +377,9 @@ TYPE
 						demoRunTicks := tick - demoStartTick + 1
 					END;
 					IF (pose.x >= DemoEastWall - DemoExitDepth) & (pose.y >= DemoExitMinY) & (pose.y <= DemoExitMaxY) THEN
+						IF (demoBestTicks = 0) OR (demoRunTicks < demoBestTicks) THEN
+							demoBestTicks := demoRunTicks
+						END;
 						completed := TRUE;
 						aiming := FALSE;
 						RETURN
@@ -491,7 +495,7 @@ TYPE
 
 		PROCEDURE Capture(VAR snapshot: Pose; VAR geometry: GameGeometry.World; VAR actors: DoomSprites.Scene;
 			VAR status: DoomInventory.State; VAR flashed, aimed, finished, failed: BOOLEAN; VAR equipped: DoomCombat.Weapon;
-			VAR runTicks: SIGNED64);
+			VAR runTicks, bestTicks: SIGNED64);
 		BEGIN {EXCLUSIVE}
 			snapshot := pose;
 			geometry := world;
@@ -502,7 +506,8 @@ TYPE
 			finished := completed;
 			failed := transitionFailed;
 			equipped := weapon;
-			runTicks := demoRunTicks
+			runTicks := demoRunTicks;
+			bestTicks := demoBestTicks
 		END Capture;
 
 		PROCEDURE Render*(frame: GameSurface.Frame);
@@ -513,11 +518,11 @@ TYPE
 			flashed, aimed, finished, failed: BOOLEAN;
 			equipped: DoomCombat.Weapon;
 			target: GameSurface.Frame;
-			runTicks: SIGNED64;
+			runTicks, bestTicks: SIGNED64;
 			margin, x, y, sx, sy: SIGNED32;
 			zoom, center: FLOAT64;
 		BEGIN
-			Capture(snapshot, geometry, actors, status, flashed, aimed, finished, failed, equipped, runTicks);
+			Capture(snapshot, geometry, actors, status, flashed, aimed, finished, failed, equipped, runTicks, bestTicks);
 			target := frame;
 			zoom := 1;
 			IF aimed THEN
@@ -549,7 +554,7 @@ TYPE
 			DoomCombat.DrawStatus(equipped, status, frame);
 			DoomCombat.DrawAim(frame, flashed);
 			IF geometry.SectorCount() = 0 THEN
-				DoomHud.DrawDemo(frame, finished, runTicks)
+				DoomHud.DrawDemo(frame, finished, runTicks, bestTicks)
 			ELSIF finished THEN
 				GameText.Draw(frame, DoomConfig.values.campaign.statusX, DoomConfig.values.campaign.statusY,
 					DoomConfig.values.campaign.statusColor, DoomConfig.values.campaign.completeText)

@@ -661,28 +661,30 @@ def check(executable, arguments, door=False, pickup=False, locked_door=False, ac
             time.sleep(2)
             initial = pixels(display, window)
             assert initial == opened, "Door did not reopen"
+        # The demo clock keeps changing while the camera is still.
+        first_scene_pixel = 0 if any(arg.lower().endswith(".wad") for arg in arguments) else 2 * 80
         key(display, window, root, ord("i" if remapped else "w"))
         time.sleep(0.3)
         key(display, window, root, ord("i" if remapped else "w"), release=True)
         time.sleep(0.2)
-        moved = pixels(display, window)
-        assert moved != initial, "Forward input did not change the frame"
+        moved = pixels(display, window)[first_scene_pixel:]
+        assert moved != initial[first_scene_pixel:], "Forward input did not change the frame"
         time.sleep(0.15)
-        assert pixels(display, window) == moved, "Player kept moving after key release"
+        assert pixels(display, window)[first_scene_pixel:] == moved, "Player kept moving after key release"
         key(display, window, root, ord("d"))
         time.sleep(0.15)
         focus(display, window, False)
         time.sleep(0.2)
-        unfocused = pixels(display, window)
+        unfocused = pixels(display, window)[first_scene_pixel:]
         time.sleep(0.15)
-        assert pixels(display, window) == unfocused, "Player kept moving after focus loss"
+        assert pixels(display, window)[first_scene_pixel:] == unfocused, "Player kept moving after focus loss"
         key(display, window, root, ord("d"), release=True)
         focus(display, window, True)
         key(display, window, root, 0xFF53)
         time.sleep(0.2)
         key(display, window, root, 0xFF53, release=True)
         time.sleep(0.15)
-        assert pixels(display, window) != moved, "Turn input did not change the frame"
+        assert pixels(display, window)[first_scene_pixel:] != unfocused, "Turn input did not change the frame"
         shutdown(display, window, root)
         output, _ = process.communicate(timeout=5)
         assert process.returncode == 0, output

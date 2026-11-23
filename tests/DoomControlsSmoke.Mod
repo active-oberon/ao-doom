@@ -1,7 +1,7 @@
 MODULE DoomControlsSmoke;
 
 IMPORT DoomConfig, DoomInput, DoomCombat, DoomInventory, DoomThings, DoomSprites, DoomWad, DoomMap,
-	Doom, GameLoop, GameSurface, GameText, MathL, KernelLog;
+	Doom, GameLoop, GameSurface, GameText, MathL, Strings, KernelLog;
 
 PROCEDURE Load(VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -253,29 +253,28 @@ BEGIN
 	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error))
 END CustomMouse;
 
-PROCEDURE CheckDemoClock(frame: GameSurface.Frame; CONST expected: ARRAY OF CHAR);
+PROCEDURE CheckDemoText(frame: GameSurface.Frame; x: SIGNED32; CONST expected: ARRAY OF CHAR);
 VAR reference: GameSurface.Frame;
-	x, y, column, row, color: SIGNED32;
+	y, column, row, color: SIGNED32;
 BEGIN
-	NEW(reference, 28, 5);
+	NEW(reference, DoomConfig.HudCharacterAdvance * SIGNED32(Strings.Length(expected)), 5);
 	reference.Background(0, 0);
 	color := DoomConfig.values.hud.value;
 	GameText.Draw(reference, 0, 0, color, expected);
-	x := frame.width - 32;
 	y := DoomConfig.values.hud.topRow;
 	FOR row := 0 TO reference.height - 1 DO
 		FOR column := 0 TO reference.width - 1 DO
 			ASSERT((frame.Pixel(x + column, y + row) = color) = (reference.Pixel(column, row) = color))
 		END
 	END
-END CheckDemoClock;
+END CheckDemoText;
 
 PROCEDURE {TEST} DemoExit*;
 VAR game: Doom.Game;
 	simulation: GameLoop.Simulation;
 	frame: GameSurface.Frame;
 	pose: Doom.Pose;
-	x, y, color: SIGNED32;
+	x, y, color, clockX: SIGNED32;
 	error: ARRAY 256 OF CHAR;
 BEGIN
 	NEW(game);
@@ -283,6 +282,7 @@ BEGIN
 	x := DoomConfig.values.hud.margin;
 	y := DoomConfig.values.hud.topRow;
 	color := DoomConfig.values.hud.value;
+	clockX := frame.width - 32;
 	game.Render(frame);
 	ASSERT((frame.Pixel(x, y) = color) & (frame.Pixel(x + 2, y + 4) # color));
 	NEW(simulation, game.Step);
@@ -292,16 +292,16 @@ BEGIN
 	game.Fire(FALSE);
 	ASSERT(simulation.Advance(35));
 	game.Render(frame);
-	CheckDemoClock(frame, "0000.00");
+	CheckDemoText(frame, clockX, "0000.00");
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(70));
 	ASSERT(~game.Finished());
 	game.Render(frame);
-	CheckDemoClock(frame, "0002.00");
+	CheckDemoText(frame, clockX, "0002.00");
 	game.Controls(0, 0, 0);
 	ASSERT(simulation.Advance(35));
 	game.Render(frame);
-	CheckDemoClock(frame, "0003.00");
+	CheckDemoText(frame, clockX, "0003.00");
 	game.Controls(0, 1, 0);
 	ASSERT(simulation.Advance(23));
 	game.Controls(1, 0, 0);
@@ -315,14 +315,14 @@ BEGIN
 	ASSERT(game.Finished());
 	game.Render(frame);
 	ASSERT(frame.Pixel(x + 2, y + 4) = color);
-	CheckDemoClock(frame, "0006.22");
+	CheckDemoText(frame, clockX, "0006.22");
 	pose := game.State();
 	ASSERT((pose.y >= 1) & (pose.y <= 3));
 	game.Controls(-1, 0, 1);
 	ASSERT(simulation.Advance(20));
 	ASSERT((game.State().x = pose.x) & (game.State().y = pose.y) & (game.State().angle = pose.angle));
 	game.Render(frame);
-	CheckDemoClock(frame, "0006.22");
+	CheckDemoText(frame, clockX, "0006.22");
 	ASSERT(~game.Load("bad-vertex.wad", "E1M1", error));
 	ASSERT(game.Finished());
 	ASSERT(game.Inventory().ammo[DoomInventory.Bullets] < DoomConfig.values.inventory.initialBullets);
@@ -334,7 +334,7 @@ BEGIN
 	ASSERT((game.Weapon().nextShot = 0) & (game.Inventory().ammo[DoomInventory.Bullets] = DoomConfig.values.inventory.initialBullets));
 	game.Render(frame);
 	ASSERT((frame.Pixel(x, y) = color) & (frame.Pixel(x + 2, y + 4) # color));
-	CheckDemoClock(frame, "0000.00");
+	CheckDemoText(frame, clockX, "0000.00");
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(1));
 	ASSERT(game.State().x > pose.x);
@@ -342,6 +342,54 @@ BEGIN
 	ASSERT(~game.Finished());
 	simulation.Close
 END DemoExit;
+
+PROCEDURE FinishDemoRun(game: Doom.Game; simulation: GameLoop.Simulation; wait: SIGNED32);
+BEGIN
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(70));
+	game.Controls(0, 0, 0);
+	IF wait > 0 THEN
+		ASSERT(simulation.Advance(wait))
+	END;
+	game.Controls(0, 1, 0);
+	ASSERT(simulation.Advance(23));
+	game.Controls(1, 0, 0);
+	ASSERT(simulation.Advance(55));
+	game.Controls(0, -1, 0);
+	ASSERT(simulation.Advance(35));
+	ASSERT(game.Finished())
+END FinishDemoRun;
+
+PROCEDURE {TEST} DemoBest*;
+VAR game: Doom.Game;
+	simulation: GameLoop.Simulation;
+	frame: GameSurface.Frame;
+	bestX: SIGNED32;
+BEGIN
+	NEW(game);
+	NEW(simulation, game.Step);
+	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
+	bestX := frame.width - 84;
+	game.Render(frame);
+	CheckDemoText(frame, bestX, "            ");
+	FinishDemoRun(game, simulation, 35);
+	game.Render(frame);
+	CheckDemoText(frame, bestX, "BEST 0006.22");
+	game.Use;
+	ASSERT(simulation.Advance(1));
+	game.Render(frame);
+	CheckDemoText(frame, bestX, "BEST 0006.22");
+	FinishDemoRun(game, simulation, 70);
+	game.Render(frame);
+	CheckDemoText(frame, frame.width - 32, "0007.22");
+	CheckDemoText(frame, bestX, "BEST 0006.22");
+	game.Use;
+	ASSERT(simulation.Advance(1));
+	FinishDemoRun(game, simulation, 0);
+	game.Render(frame);
+	CheckDemoText(frame, bestX, "BEST 0005.22");
+	simulation.Close
+END DemoBest;
 
 PROCEDURE Do*;
 VAR error: ARRAY 256 OF CHAR;
@@ -354,6 +402,7 @@ BEGIN
 	LookAimAndReset;
 	CustomMouse;
 	DemoExit;
+	DemoBest;
 	KernelLog.String("DoomControlsSmoke: mouse, reload, selection, arsenal and automatic pickup checks passed.");
 	KernelLog.Ln
 END Do;
