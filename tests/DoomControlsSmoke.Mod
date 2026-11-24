@@ -310,7 +310,6 @@ BEGIN
 	game.Controls(0, -1, 0);
 	ASSERT(simulation.Advance(34));
 	ASSERT(~game.Finished());
-	game.Use;
 	ASSERT(simulation.Advance(2));
 	ASSERT(game.Finished());
 	game.Render(frame);
@@ -343,7 +342,7 @@ BEGIN
 	simulation.Close
 END DemoExit;
 
-PROCEDURE FinishDemoRun(game: Doom.Game; simulation: GameLoop.Simulation; beforeSplit, afterSplit: SIGNED32);
+PROCEDURE ApproachDemoExit(game: Doom.Game; simulation: GameLoop.Simulation; beforeSplit, afterSplit: SIGNED32);
 BEGIN
 	game.Controls(1, 0, 0);
 	ASSERT(simulation.Advance(70));
@@ -360,7 +359,14 @@ BEGIN
 		ASSERT(simulation.Advance(afterSplit))
 	END;
 	game.Controls(0, -1, 0);
-	ASSERT(simulation.Advance(35));
+	ASSERT(simulation.Advance(34));
+	ASSERT(~game.Finished())
+END ApproachDemoExit;
+
+PROCEDURE FinishDemoRun(game: Doom.Game; simulation: GameLoop.Simulation; beforeSplit, afterSplit: SIGNED32);
+BEGIN
+	ApproachDemoExit(game, simulation, beforeSplit, afterSplit);
+	ASSERT(simulation.Advance(1));
 	ASSERT(game.Finished())
 END FinishDemoRun;
 
@@ -368,6 +374,7 @@ PROCEDURE {TEST} DemoBest*;
 VAR game: Doom.Game;
 	simulation: GameLoop.Simulation;
 	frame: GameSurface.Frame;
+	pose: Doom.Pose;
 	bestX: SIGNED32;
 BEGIN
 	NEW(game);
@@ -383,6 +390,19 @@ BEGIN
 	ASSERT(simulation.Advance(1));
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0006.22");
+	ApproachDemoExit(game, simulation, 0, 0);
+	game.Look(0, -30);
+	game.Fire(TRUE);
+	game.Use;
+	ASSERT(game.State().x > 11.5);
+	ASSERT(simulation.Advance(3));
+	pose := game.State();
+	ASSERT(~game.Finished() & (pose.x = 2) & (pose.y = 4) & (pose.pitch = 0));
+	ASSERT(game.Inventory().ammo[DoomInventory.Bullets] = DoomConfig.values.inventory.initialBullets);
+	game.Render(frame);
+	CheckDemoText(frame, bestX, "BEST 0006.22");
+	CheckDemoText(frame, frame.width - 32, "0000.00");
+	CheckDemoText(frame, frame.width - 168, "                    ");
 	FinishDemoRun(game, simulation, 70, 0);
 	game.Render(frame);
 	CheckDemoText(frame, frame.width - 32, "0007.22");

@@ -272,14 +272,10 @@ TYPE
 			turn := rotate
 		END Controls;
 
-		(* Use queues one interaction so input is consumed on the simulation tick. *)
+		(* Use queues a demo restart or map interaction for the next simulation tick. *)
 		PROCEDURE Use*;
 		BEGIN {EXCLUSIVE}
-			IF archive = NIL THEN
-				use := completed
-			ELSE
-				use := ~completed
-			END
+			use := (archive = NIL) OR ~completed
 		END Use;
 
 		PROCEDURE Fire*(held: BOOLEAN);
@@ -365,13 +361,13 @@ TYPE
 		BEGIN {EXCLUSIVE}
 			ASSERT(tick = ticks + 1);
 			ticks := tick;
+			IF use & (archive = NIL) THEN
+				StartDemo;
+				RETURN
+			END;
 			IF completed THEN
-				IF use & (archive = NIL) THEN
-					StartDemo
-				ELSE
-					use := FALSE;
-					reloading := FALSE
-				END;
+				use := FALSE;
+				reloading := FALSE;
 				RETURN
 			END;
 			IF inventory.health > 0 THEN

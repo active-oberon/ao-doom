@@ -29,8 +29,8 @@ route. The clock shows seconds and hundredths from the first move to the exit.
 `AHEAD`, `BEHIND` or `EVEN` compares it with the split from the best completed
 run at the start of the attempt.
 `BEST` records the fastest finish in the current game session. Press the Use
-key (E by default) to reset the run clock and try again, or Escape to close
-the window.
+key (E by default) at any time to restart from the beginning and keep your
+record. Press Escape to close the window.
 
 The WAD loader validates classic Doom archives and loads maps with multiple
 sectors. Classic SEGS/SSECTORS/NODES provide validated BSP sector lookup;
