@@ -28,7 +28,9 @@ route. The clock shows seconds and hundredths from the first move to the exit.
 `SPLIT` shows the time at the first crossing of the second partition.
 `AHEAD`, `BEHIND` or `EVEN` compares it with the split from the best completed
 run at the start of the attempt.
-`BEST` records the fastest finish in the current game session. Press the Use
+`BEST` records the fastest finish in the current game session.
+`FASTER`, `SLOWER` or `TIED` shows the time difference from the previous record
+at the finish, starting with the second completed attempt. Press the Use
 key (E by default) at any time to restart from the beginning and keep your
 record. Press Escape to close the window.
 

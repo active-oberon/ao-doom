@@ -106,37 +106,38 @@ BEGIN
 	Keys(appearance, player, frame, y + appearance.bottomRow)
 END Draw;
 
-PROCEDURE DemoClock(frame: GameSurface.Frame; x: SIGNED32; CONST appearance: DoomConfig.HudSettings; ticks: SIGNED64);
+PROCEDURE DemoClock(frame: GameSurface.Frame; x, y, color: SIGNED32; ticks: SIGNED64);
 VAR tickRate, centiseconds: SIGNED32;
 BEGIN
 	tickRate := DoomConfig.values.ticksPerSecond;
 	centiseconds := SIGNED32(MIN(ticks, DemoClockLimitSeconds * tickRate) * CentisecondsPerSecond DIV tickRate);
 	centiseconds := MIN(centiseconds, DemoClockLimitSeconds * CentisecondsPerSecond - 1);
-	Number(frame, x, appearance.topRow, appearance.value, centiseconds DIV CentisecondsPerSecond, DemoClockSecondDigits);
+	Number(frame, x, y, color, centiseconds DIV CentisecondsPerSecond, DemoClockSecondDigits);
 	INC(x, DemoClockSecondDigits * CharacterAdvance);
-	GameText.Draw(frame, x, appearance.topRow, appearance.value, ".");
-	Number(frame, x + CharacterAdvance, appearance.topRow, appearance.value, centiseconds MOD CentisecondsPerSecond, 2)
+	GameText.Draw(frame, x, y, color, ".");
+	Number(frame, x + CharacterAdvance, y, color, centiseconds MOD CentisecondsPerSecond, 2)
 END DemoClock;
 
-PROCEDURE LabeledDemoClock(frame: GameSurface.Frame; right: SIGNED32; CONST appearance: DoomConfig.HudSettings;
-	CONST label: ARRAY OF CHAR; ticks: SIGNED64): SIGNED32;
+PROCEDURE LabeledDemoClock(frame: GameSurface.Frame; right, y, color: SIGNED32;
+	CONST label: ARRAY OF CHAR; ticks: SIGNED64; visible: BOOLEAN): SIGNED32;
 VAR x, labelWidth: SIGNED32;
 BEGIN
 	labelWidth := (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance;
 	x := right - labelWidth - (DemoClockColumns + 1) * CharacterAdvance;
-	IF ticks > 0 THEN
-		GameText.Draw(frame, x, appearance.topRow, appearance.value, label);
-		DemoClock(frame, x + labelWidth, appearance, ticks)
+	IF visible THEN
+		GameText.Draw(frame, x, y, color, label);
+		DemoClock(frame, x + labelWidth, y, color, ticks)
 	END;
 	RETURN x
 END LabeledDemoClock;
 
 (* DrawDemo keeps run times beside the objective without overlapping its text. *)
-PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN; ticks, bestTicks, splitTicks, referenceSplitTicks: SIGNED64);
+PROCEDURE DrawDemo*(frame: GameSurface.Frame; finished: BOOLEAN;
+	ticks, bestTicks, splitTicks, referenceSplitTicks, referenceBestTicks: SIGNED64);
 VAR appearance: DoomConfig.HudSettings;
-	clockX, bestX, splitX, labelLimit, labelX: SIGNED32;
+	clockX, bestX, splitX, labelLimit, labelX, resultY: SIGNED32;
 	label: ARRAY 32 OF CHAR;
-	splitLabel: ARRAY 13 OF CHAR;
+	timeLabel: ARRAY 13 OF CHAR;
 BEGIN
 	IF frame.width < DoomConfig.values.width THEN
 		RETURN
@@ -148,27 +149,38 @@ BEGIN
 		COPY(DoomConfig.values.demoObjectiveText, label)
 	END;
 	clockX := frame.width - (DemoClockColumns + 1) * CharacterAdvance;
-	DemoClock(frame, clockX, appearance, ticks);
-	bestX := LabeledDemoClock(frame, clockX, appearance, "BEST", bestTicks);
+	DemoClock(frame, clockX, appearance.topRow, appearance.value, ticks);
+	bestX := LabeledDemoClock(frame, clockX, appearance.topRow, appearance.value, "BEST", bestTicks, bestTicks > 0);
 	labelLimit := clockX;
 	IF bestTicks > 0 THEN
 		labelLimit := bestX
 	END;
 	IF splitTicks > 0 THEN
 		IF referenceSplitTicks = 0 THEN
-			COPY("SPLIT", splitLabel)
+			COPY("SPLIT", timeLabel)
 		ELSIF splitTicks < referenceSplitTicks THEN
-			COPY("SPLIT AHEAD", splitLabel)
+			COPY("SPLIT AHEAD", timeLabel)
 		ELSIF splitTicks > referenceSplitTicks THEN
-			COPY("SPLIT BEHIND", splitLabel)
+			COPY("SPLIT BEHIND", timeLabel)
 		ELSE
-			COPY("SPLIT EVEN", splitLabel)
+			COPY("SPLIT EVEN", timeLabel)
 		END;
-		splitX := LabeledDemoClock(frame, bestX, appearance, splitLabel, splitTicks);
+		splitX := LabeledDemoClock(frame, bestX, appearance.topRow, appearance.value, timeLabel, splitTicks, TRUE);
 		labelLimit := splitX
 	END;
 	labelX := MIN(appearance.margin, labelLimit - (SIGNED32(Strings.Length(label)) + 1) * CharacterAdvance);
-	GameText.Draw(frame, labelX, appearance.topRow, appearance.value, label)
+	GameText.Draw(frame, labelX, appearance.topRow, appearance.value, label);
+	IF finished & (referenceBestTicks > 0) THEN
+		IF ticks < referenceBestTicks THEN
+			COPY("FASTER", timeLabel)
+		ELSIF ticks > referenceBestTicks THEN
+			COPY("SLOWER", timeLabel)
+		ELSE
+			COPY("TIED", timeLabel)
+		END;
+		resultY := MAX(appearance.bottomRow, appearance.topRow + DoomConfig.HudGlyphHeight);
+		labelX := LabeledDemoClock(frame, frame.width, resultY, appearance.value, timeLabel, ABS(ticks - referenceBestTicks), TRUE)
+	END
 END DrawDemo;
 
 PROCEDURE {TEST} Panel*;

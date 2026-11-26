@@ -253,20 +253,24 @@ BEGIN
 	ASSERT(DoomConfig.Load(DoomConfig.DefaultFile, error))
 END CustomMouse;
 
-PROCEDURE CheckDemoText(frame: GameSurface.Frame; x: SIGNED32; CONST expected: ARRAY OF CHAR);
+PROCEDURE CheckHudText(frame: GameSurface.Frame; x, y: SIGNED32; CONST expected: ARRAY OF CHAR);
 VAR reference: GameSurface.Frame;
-	y, column, row, color: SIGNED32;
+	column, row, color: SIGNED32;
 BEGIN
-	NEW(reference, DoomConfig.HudCharacterAdvance * SIGNED32(Strings.Length(expected)), 5);
+	NEW(reference, DoomConfig.HudCharacterAdvance * SIGNED32(Strings.Length(expected)), DoomConfig.HudGlyphHeight);
 	reference.Background(0, 0);
 	color := DoomConfig.values.hud.value;
 	GameText.Draw(reference, 0, 0, color, expected);
-	y := DoomConfig.values.hud.topRow;
 	FOR row := 0 TO reference.height - 1 DO
 		FOR column := 0 TO reference.width - 1 DO
 			ASSERT((frame.Pixel(x + column, y + row) = color) = (reference.Pixel(column, row) = color))
 		END
 	END
+END CheckHudText;
+
+PROCEDURE CheckDemoText(frame: GameSurface.Frame; x: SIGNED32; CONST expected: ARRAY OF CHAR);
+BEGIN
+	CheckHudText(frame, x, DoomConfig.values.hud.topRow, expected)
 END CheckDemoText;
 
 PROCEDURE {TEST} DemoExit*;
@@ -375,17 +379,19 @@ VAR game: Doom.Game;
 	simulation: GameLoop.Simulation;
 	frame: GameSurface.Frame;
 	pose: Doom.Pose;
-	bestX: SIGNED32;
+	bestX, bottom: SIGNED32;
 BEGIN
 	NEW(game);
 	NEW(simulation, game.Step);
 	NEW(frame, DoomConfig.values.width, DoomConfig.values.height);
 	bestX := frame.width - 84;
+	bottom := DoomConfig.values.hud.bottomRow;
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "            ");
 	FinishDemoRun(game, simulation, 35, 0);
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0006.22");
+	CheckHudText(frame, frame.width - 60, bottom, "              ");
 	game.Use;
 	ASSERT(simulation.Advance(1));
 	game.Render(frame);
@@ -408,23 +414,29 @@ BEGIN
 	CheckDemoText(frame, frame.width - 32, "0007.22");
 	CheckDemoText(frame, bestX, "BEST 0006.22");
 	CheckDemoText(frame, frame.width - 168, "SPLIT BEHIND 0004.77");
+	CheckHudText(frame, frame.width - 60, bottom, "SLOWER 0001.00");
 	game.Use;
 	ASSERT(simulation.Advance(1));
+	game.Render(frame);
+	CheckHudText(frame, frame.width - 60, bottom, "              ");
 	FinishDemoRun(game, simulation, 0, 70);
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0006.22");
 	CheckDemoText(frame, frame.width - 164, "SPLIT AHEAD 0002.77");
+	CheckHudText(frame, frame.width - 60, bottom, "SLOWER 0001.00");
 	game.Use;
 	ASSERT(simulation.Advance(1));
 	FinishDemoRun(game, simulation, 0, 0);
 	game.Render(frame);
 	CheckDemoText(frame, bestX, "BEST 0005.22");
+	CheckHudText(frame, frame.width - 60, bottom, "FASTER 0001.00");
 	CheckDemoText(frame, frame.width - 164, "SPLIT AHEAD 0002.77");
 	game.Use;
 	ASSERT(simulation.Advance(1));
 	FinishDemoRun(game, simulation, 0, 0);
 	game.Render(frame);
 	CheckDemoText(frame, frame.width - 160, "SPLIT EVEN 0002.77");
+	CheckHudText(frame, frame.width - 52, bottom, "TIED 0000.00");
 	simulation.Close
 END DemoBest;
 

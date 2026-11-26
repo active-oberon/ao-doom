@@ -3,7 +3,7 @@ MODULE DoomConfig;
 IMPORT YAML, JSON, Strings, DoomFormat, DoomThings, GameAnimation, MathL;
 
 CONST HudCharacterAdvance* = 4;
-	HudGlyphHeight = 5;
+	HudGlyphHeight* = 5;
 	HudStatDigits* = 3;
 	HudPickupDigits* = 5;
 	DefaultFile* = "doom.yaml";
