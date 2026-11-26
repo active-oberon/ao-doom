@@ -26,8 +26,8 @@ scene runs without any game assets. Launch without arguments to play it. Pass
 both partitions and approach the green panel on the far wall to finish the
 route. The clock shows seconds and hundredths from the first move to the exit.
 `SPLIT` shows the time at the first crossing of the second partition.
-`AHEAD`, `BEHIND` or `EVEN` compares it with the split from the best completed
-run at the start of the attempt.
+The `AHEAD`, `BEHIND` or `EVEN` line below `SPLIT` shows the time difference
+from the best completed run's split at the start of the attempt.
 `BEST` records the fastest finish in the current game session.
 `FASTER`, `SLOWER` or `TIED` shows the time difference from the previous record
 at the finish, starting with the second completed attempt. Press the Use
