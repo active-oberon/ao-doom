@@ -1,4 +1,6 @@
-# Non-crushing ceiling actions
+# Ceiling actions
+
+## Non-crushing ceilings
 
 Use action 41 lowers tagged idle ceilings to their captured floor and consumes
 its line after a successful start. Action 43 performs the same lowering with a
@@ -25,20 +27,45 @@ spawn volumes retain the existing preview policy. Failed map replacement keeps
 the current world and motion; hidden upper wall resources validate first.
 The engine still owns immutable geometry, anchors, collision and rendering.
 
+## Cyclic crushers
+
+Accepted crossings start normal cycles with actions 25, 73 and 141 and fast
+cycles with actions 6 and 77. Actions 57 and 74 pause matching tagged crushers.
+Actions 73, 74 and 77 repeat. Another start resumes the saved direction,
+speed and contact timer. The paused crusher keeps its sector claim.
+
+The ceiling descends from its captured starting height to the captured floor
+plus the configured gap and then returns to the top. When a lowering step
+would block a previously fitting player or solid actor, the ceiling holds its
+last fitting height. The first blocked tick applies damage, then the damage
+interval repeats while blocked. The player uses the regular armor rules.
+Damageable actors taking the same hit share one new health snapshot. Solid
+decorations can block without taking damage. After clearance the ceiling
+continues descending and the contact timer resets.
+
+One-way actions 44 and 72 remain open. Action 141 moves at normal speed. Audio
+and exact classic crushing motion remain open. The
+[original action IDs](https://github.com/id-Software/DOOM/blob/master/linuxdoom-1.10/p_spec.c#L521)
+are the format reference.
+
 ## Configuration
 
-Every complete external profile must add:
+Every complete profile requires the following keys. This is the standard profile.
 
 ```yaml
 ceilings:
   speed_per_tick: 1
+  fast_crusher_speed_per_tick: 2
+  crusher_floor_gap: 8
+  crusher_damage: 10
+  crusher_damage_ticks: 4
 ```
 
-The speed accepts 0.01-64 Doom map units per simulation tick. It is independent
-of door and floor speeds. Missing fields, invalid types and out-of-range values
-reject the profile without replacing prior settings. The alternate test profile
-uses speed 3, compared with door speed 4 and floor speed 2. No compiled fallback
-values or duplicate YAML settings were added.
+Both speeds accept 0.01–64 Doom map units per simulation tick. The floor gap
+accepts 0–64 map units. Damage and its tick interval are positive integers.
+Missing fields, invalid types and out-of-range values reject the profile and
+keep the prior settings. The alternate test profile uses speeds 3 and 5 and a
+12-unit floor gap.
 
 ## Reference and limits
 
@@ -49,7 +76,7 @@ Raise destinations never fall below the initial ceiling. Isolated or already
 high sectors complete with zero travel; negative heights use the real maximum
 neighbor rather than a zero sentinel. These are deliberate safe bounds rather
 than reproductions of vanilla edge-map quirks. A source shortcut comment marks
-the boundary. Exact classic plane timing, sound and crushing remain open.
+the boundary. Exact classic plane timing and sound remain open.
 
 ## Running
 
@@ -63,6 +90,22 @@ cd build/ceilings-linux
 Press E in the first map; walk forward with W in the second. Matching Windows
 files are under `build/ceilings-windows`; A2 packages are under
 `build/ceilings-a2-{unix,win}`. Both new cases are included in `task gui-check`.
+
+To try a crusher, build into `build/crushers-linux` with the same `check`
+command, then run `./ao-doom crusher-player.wad E1M1` from that directory.
+Walk forward through the first portal and release W inside the next sector.
+The health readout drops when the ceiling reaches the player. Back out with S.
+
+## Crusher verification (2026-11-26)
+
+- Linux and Windows SDK under Wine each passed 46 check groups using 540
+  generated WADs. The focused tests cover cycle endpoints, both pause directions,
+  repeat and one-shot triggers, sector claims, damage cadence, player retreat
+  and death, simultaneous actor damage, and custom settings.
+- The Linux X11 run verified starting the crusher, losing health, retreating
+  and closing with Escape. Full-symbol A2 Unix64 and Win64 builds produced
+  integrity-checked packages. Original campaigns, native Windows and A2 runtime
+  were outside this check.
 
 ## Verification (2026-11-15)
 

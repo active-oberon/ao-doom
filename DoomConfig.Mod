@@ -148,7 +148,8 @@ Settings* = RECORD
 	switchPairs*: POINTER TO ARRAY OF SwitchPair;
 	playerRadius*, playerHeight*, playerStep*, playerEye*, moveSpeed*, turnSpeed*: FLOAT64;
 	doorSpeed*, fastDoorSpeed*, useRange*, doorTopGap*: FLOAT64;
-	ceilingSpeed*: FLOAT64;
+	ceilingSpeed*, fastCrusherSpeed*, crusherGap*: FLOAT64;
+	crusherDamage*, crusherDamageTicks*: SIGNED32;
 	teleportReactionTicks*, telefragDamage*: SIGNED32;
 	floorSpeed*, platformSpeed*, fastPlatformSpeed*, perpetualPlatformSpeed*: FLOAT64;
 	fastFloorSpeed*, floorRaiseStep*, floorLargeRaiseStep*, floorTurboLowerGap*: FLOAT64;
@@ -1139,8 +1140,12 @@ BEGIN
 		~Integer(object, "close_wait_ticks", 1, MAX(SIGNED32), candidate.doorCloseWait, error) OR
 		~Real(object, "use_range", 1, 1024, DoomFormat.UnitsPerWorld, candidate.useRange, error) OR
 		~Real(object, "top_gap", 0, 128, DoomFormat.UnitsPerWorld, candidate.doorTopGap, error) OR
-		~Section(root, "ceilings", "|speed_per_tick|", object, error) OR
+		~Section(root, "ceilings", "|speed_per_tick|fast_crusher_speed_per_tick|crusher_floor_gap|crusher_damage|crusher_damage_ticks|", object, error) OR
 		~Real(object, "speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.ceilingSpeed, error) OR
+		~Real(object, "fast_crusher_speed_per_tick", 0.01, 64, DoomFormat.UnitsPerWorld, candidate.fastCrusherSpeed, error) OR
+		~Real(object, "crusher_floor_gap", 0, 64, DoomFormat.UnitsPerWorld, candidate.crusherGap, error) OR
+		~Integer(object, "crusher_damage", 1, MAX(SIGNED32), candidate.crusherDamage, error) OR
+		~Integer(object, "crusher_damage_ticks", 1, MAX(SIGNED32), candidate.crusherDamageTicks, error) OR
 		~Section(root, "teleports", "|reaction_ticks|telefrag_damage|", object, error) OR
 		~Integer(object, "reaction_ticks", 0, MAX(SIGNED32), candidate.teleportReactionTicks, error) OR
 		~Integer(object, "telefrag_damage", 1, MAX(SIGNED32), candidate.telefragDamage, error) OR
@@ -1680,6 +1685,14 @@ BEGIN
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(0), settings);
 	RejectField(root, object, "speed_per_tick", JSON.NewNumber(65), settings);
 	RejectField(root, object, "speed_per_tick", JSON.NewString("1"), settings);
+	RejectField(root, object, "fast_crusher_speed_per_tick", NIL, settings);
+	RejectField(root, object, "fast_crusher_speed_per_tick", JSON.NewNumber(0), settings);
+	RejectField(root, object, "crusher_floor_gap", NIL, settings);
+	RejectField(root, object, "crusher_floor_gap", JSON.NewNumber(-1), settings);
+	RejectField(root, object, "crusher_damage", NIL, settings);
+	RejectField(root, object, "crusher_damage", JSON.NewNumber(0), settings);
+	RejectField(root, object, "crusher_damage_ticks", NIL, settings);
+	RejectField(root, object, "crusher_damage_ticks", JSON.NewNumber(1.5), settings);
 	value := root.Get("teleports");
 	object := value(JSON.Object);
 	RejectField(root, object, "reaction_ticks", NIL, settings);

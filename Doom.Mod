@@ -426,8 +426,13 @@ TYPE
 							RETURN
 						END
 					END;
-					doors.StepOccupied(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet,
-						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, sprites.FitsCeilings);
+					doors.StepCrushing(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet,
+						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, CeilingActorsFit, CrushOccupants);
+					IF inventory.health = 0 THEN
+						use := FALSE;
+						reloading := FALSE;
+						RETURN
+					END;
 					floors.Step(world, pose.x, pose.y, DoomConfig.values.playerRadius, feet,
 						DoomConfig.values.playerHeight, DoomConfig.values.playerStep, MoveFloorActors);
 					ASSERT(world.MovePlayerObserved(pose.x, pose.y, feet, dx, dy,
@@ -481,6 +486,21 @@ TYPE
 				floors.Shot(world, line)
 			END
 		END Shot;
+
+		(* CeilingActorsFit reads the latest snapshot because an earlier crusher can kill an obstructing actor. *)
+		PROCEDURE CeilingActorsFit(before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
+		BEGIN
+			RETURN sprites.FitsCeilings(before, after, sector)
+		END CeilingActorsFit;
+
+		(* CrushOccupants applies contact damage without publishing obstructed geometry. *)
+		PROCEDURE CrushOccupants(before, after: GameGeometry.World; sector: SIGNED32; playerBlocked: BOOLEAN);
+		BEGIN
+			IF playerBlocked THEN
+				DoomInventory.Hurt(inventory, DoomConfig.values.crusherDamage)
+			END;
+			sprites := sprites.CrushCeiling(before, after, sector)
+		END CrushOccupants;
 
 		(* MoveFloorActors publishes carried actor positions only when every valid solid volume still fits. *)
 		PROCEDURE MoveFloorActors(before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;

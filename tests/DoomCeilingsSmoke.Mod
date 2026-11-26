@@ -1,6 +1,6 @@
 MODULE DoomCeilingsSmoke;
 
-IMPORT DoomConfig, Doom, DoomMap, DoomWad, DoomInventory, GameGeometry, GameSurface, GameRenderer;
+IMPORT DoomConfig, Doom, DoomMap, DoomWad, DoomInventory, DoomSprites, GameGeometry, GameSurface, GameRenderer;
 
 PROCEDURE Load(CONST path: ARRAY OF CHAR; VAR map: DoomMap.Map);
 VAR archive: DoomWad.Archive;
@@ -226,8 +226,180 @@ BEGIN
 	ASSERT(map.world.Region(1).ceiling = 93.0 / 64);
 	Advance(map, 26);
 	ASSERT(map.world.Region(1).ceiling = 16.0 / 64);
+	ASSERT(DoomConfig.values.crusherDamage = 7);
+	ASSERT(DoomConfig.values.crusherDamageTicks = 6);
+	Load("crusher-77.wad", map);
+	Cross(map);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = 91.0 / 64);
+	Advance(map, 13);
+	ASSERT(map.world.Region(2).ceiling = 28.0 / 64);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = 33.0 / 64);
 	ASSERT(DoomConfig.Load("doom.yaml", error))
 END CustomSpeed;
+
+PROCEDURE {TEST} CrusherCycle*;
+VAR map: DoomMap.Map;
+	old: GameGeometry.World;
+BEGIN
+	Load("crusher-73.wad", map);
+	old := map.world;
+	ASSERT(~Use(map));
+	map.doors.Shot(map.world, 8);
+	Advance(map, 1);
+	ASSERT(map.world = old);
+	Cross(map);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = 95.0 / 64);
+	ASSERT(map.actions.Special(8) = 73);
+	map.doors.Crossed(3.5, 0, 4.5, 0);
+	map.doors.ApplyCrossings(map.world);
+	Advance(map, 10);
+	ASSERT(map.world.Region(2).ceiling = 95.0 / 64);
+	ASSERT(~map.actions.Claim(2));
+	ASSERT(map.actions.Special(9) = 74);
+	Cross(map);
+	Advance(map, 71);
+	ASSERT(map.world.Region(2).ceiling = 24.0 / 64);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = 25.0 / 64);
+	map.doors.Crossed(3.5, 0, 4.5, 0);
+	map.doors.ApplyCrossings(map.world);
+	Advance(map, 10);
+	ASSERT(map.world.Region(2).ceiling = 25.0 / 64);
+	Cross(map);
+	Advance(map, 71);
+	ASSERT(map.world.Region(2).ceiling = 96.0 / 64);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = 95.0 / 64);
+	ASSERT(old.Region(2).ceiling = 96.0 / 64)
+END CrusherCycle;
+
+PROCEDURE CheckCrusherStart(CONST path: ARRAY OF CHAR; expectedHeight: FLOAT64; remaining: SIGNED32);
+VAR map: DoomMap.Map;
+BEGIN
+	Load(path, map);
+	Cross(map);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = expectedHeight);
+	ASSERT(map.actions.Special(8) = remaining)
+END CheckCrusherStart;
+
+PROCEDURE {TEST} CrusherTriggers*;
+VAR map: DoomMap.Map;
+BEGIN
+	CheckCrusherStart("crusher-6.wad", 94.0 / 64, 0);
+	CheckCrusherStart("crusher-77.wad", 94.0 / 64, 77);
+	CheckCrusherStart("crusher-141.wad", 95.0 / 64, 0);
+	Load("crusher-25.wad", map);
+	Cross(map);
+	Advance(map, 1);
+	ASSERT(map.world.Region(2).ceiling = 95.0 / 64);
+	ASSERT(map.actions.Special(8) = 0);
+	map.doors.Crossed(3.5, 0, 4.5, 0);
+	map.doors.ApplyCrossings(map.world);
+	Advance(map, 10);
+	ASSERT(map.world.Region(2).ceiling = 95.0 / 64);
+	ASSERT(map.actions.Special(9) = 0);
+	ASSERT(~map.actions.Claim(2))
+END CrusherTriggers;
+
+PROCEDURE {TEST} CrusherPlayer*;
+VAR game: Doom.Game;
+	error: ARRAY 256 OF CHAR;
+	i, health: SIGNED32;
+	position: FLOAT64;
+BEGIN
+	NEW(game);
+	ASSERT(game.Load("crusher-player.wad", "E1M1", error));
+	health := game.Inventory().health;
+	game.Controls(1, 0, 0);
+	FOR i := 1 TO 14 DO
+		game.Step(i)
+	END;
+	game.Controls(0, 0, 0);
+	FOR i := 15 TO 30 DO
+		game.Step(i)
+	END;
+	ASSERT(game.world.Region(1).ceiling = 72.0 / 64);
+	ASSERT(game.Inventory().health = health);
+	game.Step(31);
+	ASSERT(game.Inventory().health = health - 10);
+	FOR i := 32 TO 34 DO
+		game.Step(i)
+	END;
+	ASSERT(game.Inventory().health = health - 10);
+	game.Step(35);
+	ASSERT(game.Inventory().health = health - 20);
+	ASSERT(game.world.Region(1).ceiling = 72.0 / 64);
+	game.Controls(-1, 0, 0);
+	FOR i := 36 TO 52 DO
+		game.Step(i)
+	END;
+	ASSERT(game.State().x < -DoomConfig.values.playerRadius);
+	ASSERT(game.world.Region(1).ceiling < 72.0 / 64);
+	health := game.Inventory().health;
+	game.Controls(0, 0, 0);
+	FOR i := 53 TO 80 DO
+		game.Step(i)
+	END;
+	ASSERT(game.Inventory().health = health);
+	NEW(game);
+	ASSERT(game.Load("crusher-player.wad", "E1M1", error));
+	game.Controls(1, 0, 0);
+	FOR i := 1 TO 14 DO
+		game.Step(i)
+	END;
+	game.Controls(0, 0, 0);
+	FOR i := 15 TO 66 DO
+		game.Step(i)
+	END;
+	ASSERT(game.Inventory().health = 10);
+	position := game.State().x;
+	game.Controls(1, 0, 0);
+	game.Step(67);
+	ASSERT(game.Inventory().health = 0);
+	ASSERT(game.State().x = position)
+END CrusherPlayer;
+
+PROCEDURE {TEST} CrusherActors*;
+VAR game: Doom.Game;
+	map: DoomMap.Map;
+	candidate: GameGeometry.World;
+	hurt: DoomSprites.Scene;
+	heights: ARRAY 3 OF FLOAT64;
+	error: ARRAY 256 OF CHAR;
+	i: SIGNED32;
+BEGIN
+	Load("crusher-actors.wad", map);
+	Cross(map);
+	Advance(map, 45);
+	ASSERT(map.world.Region(2).ceiling = 58.0 / 64);
+	FOR i := 0 TO 2 DO
+		heights[i] := map.world.Region(i).ceiling
+	END;
+	heights[2] := 57.0 / 64;
+	candidate := map.world.WithCeilings(heights);
+	ASSERT(~map.sprites.FitsCeilings(map.world, candidate, 2));
+	hurt := map.sprites.CrushCeiling(map.world, candidate, 2);
+	ASSERT((hurt.Health(0) = 10) & (hurt.Health(1) = 10));
+	ASSERT((map.sprites.Health(0) = 20) & (map.sprites.Health(1) = 20));
+	NEW(game);
+	ASSERT(game.Load("crusher-actors.wad", "E1M1", error));
+	game.Controls(1, 0, 0);
+	FOR i := 1 TO 6 DO
+		game.Step(i)
+	END;
+	game.Controls(0, 0, 0);
+	FOR i := 7 TO 49 DO
+		game.Step(i)
+	END;
+	ASSERT(game.world.Region(2).ceiling = 58.0 / 64);
+	game.Step(50);
+	ASSERT(game.world.Region(2).ceiling = 57.0 / 64);
+	ASSERT(game.Inventory().health = DoomConfig.values.inventory.initialHealth)
+END CrusherActors;
 
 PROCEDURE Do*;
 VAR error: ARRAY 256 OF CHAR;
@@ -238,7 +410,11 @@ BEGIN
 	BoundsAndOwnership;
 	OccupantsAndGroups;
 	SwitchesAndReplacement;
-	CustomSpeed
+	CustomSpeed;
+	CrusherCycle;
+	CrusherTriggers;
+	CrusherPlayer;
+	CrusherActors
 END Do;
 
 END DoomCeilingsSmoke.

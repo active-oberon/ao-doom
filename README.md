@@ -76,9 +76,11 @@ volumes retain the existing preview policy. Door sounds and monster activation
 remain unimplemented. See [door occupancy checks](docs/DOOR_OCCUPANTS.md).
 Non-crushing ceiling actions 41/43 lower tagged ceilings to their captured floor
 through one-shot/repeat use; crossing action 40 raises them to the highest
-adjacent ceiling without a door gap. They reuse `DoomDoors`, immutable geometry
-and occupancy checks. Complete profiles must add `ceilings.speed_per_tick`
-(standard 1 map unit per tick). See [ceiling actions](docs/CEILINGS.md).
+adjacent ceiling without a door gap. Cyclic crushers start on crossing actions
+6/25/73/77/141 and pause on 57/74. A later start resumes their direction and
+contact timer. A blocked descent applies periodic damage to the player and
+affected actors while holding the last fitting ceiling height. See
+[ceiling actions and required YAML](docs/CEILINGS.md).
 Walk actions 39 and 97 teleport the player through a front-side crossing to
 the first eligible type-14 marker in the lowest matching tagged sector.
 Action 39 is consumed by the first crossing, including a reverse crossing or
@@ -125,8 +127,8 @@ surface is captured when the action starts. Busy targets keep their current
 motion. Changed floor names also affect later stair chains. Existing floor
 speed YAML applies without additional fields. Sector specials are retained as
 game metadata; sector damage, secrets and other special effects remain open.
-See [floor surface changes](docs/FLOOR_CHANGES.md). Remaining floors, crushers
-and sound are not implemented.
+See [floor surface changes](docs/FLOOR_CHANGES.md). Additional floor actions,
+one-way crushing ceilings and sound remain open.
 Walk actions 59/93 raise tagged idle floors by `floors.raise_step` and copy the
 triggering line's front-sector floor texture and special immediately on activation.
 Action 59 is one-shot; 93 repeats. Busy targets retain their surfaces; subsequent
@@ -461,7 +463,8 @@ fallback values. Failed reads preserve previously loaded settings.
 Distances use Doom map units. Player and plane speeds are per simulation tick;
 turning uses radians per tick. `simulation`, `player`, `doors` and `hud` control
 timing, collision dimensions, motion, door interaction and panel layout/colors.
-`ceilings.speed_per_tick` is mandatory and accepts 0.01-64 map units per tick.
+`ceilings` requires normal and fast crusher speeds, the crusher floor gap,
+contact damage and its tick interval. See [ceiling settings](docs/CEILINGS.md#configuration).
 `player.pickup_radius` and `pickup_below_feet` control item reach.
 `stairs` requires `speed_per_tick`, `fast_speed_per_tick`, `step` and `fast_step`.
 Speeds accept 0.01-64 map units per tick; steps accept 0.01-128 map units.

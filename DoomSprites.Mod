@@ -150,29 +150,35 @@ TYPE
 			RETURN snapshot
 		END CopyState;
 
-		(* FitsCeilings tests live solid footprints, including objects reaching into a neighboring door sector. *)
+		(* PinchedByCeiling only detects newly obstructed solid volumes, including footprints across a portal. *)
+		PROCEDURE PinchedByCeiling(before, after: GameGeometry.World; sector, i: SIGNED32): BOOLEAN;
+		VAR feet, height, floor: FLOAT64;
+		BEGIN
+			IF (actors[i].radius <= 0) OR ((actors[i].initialHealth > 0) & (hitpoints[i] = 0)) OR
+				(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) OR
+				~after.TouchesSector(sector, states[i].x, states[i].y, actors[i].radius) THEN
+				RETURN FALSE
+			END;
+			height := actors[i].height / DoomFormat.UnitsPerWorld;
+			feet := states[i].feet;
+			IF actors[i].ceiling THEN
+				feet := before.Region(states[i].sector).ceiling - height
+			END;
+			IF ~before.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, floor) THEN
+				RETURN FALSE
+			END;
+			IF actors[i].ceiling THEN
+				feet := after.Region(states[i].sector).ceiling - height
+			END;
+			RETURN ~after.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, floor)
+		END PinchedByCeiling;
+
 		PROCEDURE FitsCeilings*(before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
 		VAR i: SIGNED32;
-			feet, height, floor: FLOAT64;
 		BEGIN
 			FOR i := 0 TO count - 1 DO
-				IF (actors[i].radius > 0) & ((actors[i].initialHealth = 0) OR (hitpoints[i] > 0)) &
-					~(i MOD DoomFormat.CollectionWordBits IN collected[i DIV DoomFormat.CollectionWordBits]) &
-					after.TouchesSector(sector, states[i].x, states[i].y, actors[i].radius) THEN
-					height := actors[i].height / DoomFormat.UnitsPerWorld;
-					feet := states[i].feet;
-					IF actors[i].ceiling THEN
-						feet := before.Region(states[i].sector).ceiling - height
-					END;
-					(* Preserve the existing preview policy for invalid spawn volumes. *)
-					IF before.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, floor) THEN
-						IF actors[i].ceiling THEN
-							feet := after.Region(states[i].sector).ceiling - height
-						END;
-						IF ~after.Stand(states[i].x, states[i].y, actors[i].radius, feet, height, 0, floor) THEN
-							RETURN FALSE
-						END
-					END
+				IF PinchedByCeiling(before, after, sector, i) THEN
+					RETURN FALSE
 				END
 			END;
 			RETURN TRUE
@@ -363,7 +369,7 @@ TYPE
 			RETURN target
 		END Target;
 
-		PROCEDURE Damage(index, amount: SIGNED32): Scene;
+		PROCEDURE CopyHealth(): Scene;
 		VAR snapshot: Scene;
 			i: SIGNED32;
 		BEGIN
@@ -372,9 +378,33 @@ TYPE
 			FOR i := 0 TO count - 1 DO
 				snapshot.hitpoints[i] := hitpoints[i]
 			END;
+			RETURN snapshot
+		END CopyHealth;
+
+		PROCEDURE Damage(index, amount: SIGNED32): Scene;
+		VAR snapshot: Scene;
+		BEGIN
+			snapshot := CopyHealth();
 			snapshot.hitpoints[index] := MAX(0, hitpoints[index] - amount);
 			RETURN snapshot
 		END Damage;
+
+		(* CrushCeiling copies health once so one contact can damage several actors atomically. *)
+		PROCEDURE CrushCeiling*(before, after: GameGeometry.World; sector: SIGNED32): Scene;
+		VAR snapshot: Scene;
+			i: SIGNED32;
+		BEGIN
+			snapshot := SELF;
+			FOR i := 0 TO count - 1 DO
+				IF (hitpoints[i] > 0) & PinchedByCeiling(before, after, sector, i) THEN
+					IF snapshot = SELF THEN
+						snapshot := CopyHealth()
+					END;
+					snapshot.hitpoints[i] := MAX(0, hitpoints[i] - DoomConfig.values.crusherDamage)
+				END
+			END;
+			RETURN snapshot
+		END CrushCeiling;
 
 		(* TeleportPlayer prepares an atomic telefrag snapshot. Solid decorations or
 		   survivors reject the landing without publishing any partial damage. *)

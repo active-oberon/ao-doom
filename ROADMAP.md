@@ -61,7 +61,7 @@ ray clipping, texture anchors and rendering. TouchesSector limits occupant check
 Player and grounded things ride accepted planes; valid solid volumes prevent
 pinching, and obstructed rising lifts reverse. Pre-existing invalid spawn
 volumes keep the preview behavior and do not stop planes. Remaining floor
-variants, crushers, sound and classic
+variants, one-way crushing ceilings, sound and classic
 ordering/timing fidelity remain open. Evidence is in scratch/floors-check.md.
 
 ## Delivered additional floor variants
@@ -74,7 +74,7 @@ both fixed raises and the lowering gap. Existing shared ownership, obstruction,
 switches, surface snapshots and player riding apply. Regression coverage includes
 lower-and-change followed by a fixed raise, accepted versus blocked crossings
 and failed map replacement during motion. See docs/FLOOR_VARIANTS.md.
-Remaining floor/ceiling actions, crushers, sound and exact classic timing remain open.
+Remaining floor/ceiling actions, sound and exact classic timing remain open.
 
 ## Delivered player teleport stage
 
@@ -199,13 +199,22 @@ occupancy checks and shared sector ownership apply. Blocked lowering retains
 ownership and resumes without reversal or damage. Mandatory `ceilings` YAML
 owns the speed. Manual doors cannot reverse an active non-door ceiling.
 Action 40 retains the original ceiling-first ownership behavior, leaving floors
-unchanged. Safe bounds for isolated/already-high sectors, exact classic timing,
-sounds and crushing remain compatibility boundaries. See docs/CEILINGS.md.
+unchanged. Isolated and already-high sectors use safe bounds. Exact classic
+timing and sounds remain open. See docs/CEILINGS.md.
+
+## Delivered cyclic crushers
+
+Crossing actions 6/25/73/77/141 start cyclic ceilings. Actions 57/74 stop
+matching crushers while preserving their sector claims, direction and timer.
+A later start resumes them. On contact the last fitting ceiling height is
+retained and the player and affected actors take periodic damage. Once clear,
+the ceiling continues downward. Complete YAML owns speed, clearance and damage.
+One-way actions, sound and exact classic crusher motion remain open.
 
 ## Remaining delivery areas
 
-- Map progression: remaining floor/ceiling actions,
-  crushers, monster teleporters, sector damage and secrets, plus original exit visuals
+- Map progression: remaining floor/ceiling actions, including one-way crushing
+  ceilings, monster teleporters, sector damage and secrets, plus original exit visuals
   and edition-specific behavior.
 - Actor behavior: all classic monsters, movement and route finding, sound wake,
   attack/pain/death states, projectiles, infighting, drops and boss actions.

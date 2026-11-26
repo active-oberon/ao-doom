@@ -48,6 +48,13 @@ CONST Raise = 1;
 	WalkRaiseCeiling = 40;
 	SwitchLowerCeiling = 41;
 	ButtonLowerCeiling = 43;
+	WalkFastCrusher = 6;
+	WalkCrusher = 25;
+	WalkStopCrusher = 57;
+	RepeatCrusher = 73;
+	RepeatStopCrusher = 74;
+	RepeatFastCrusher = 77;
+	WalkSilentCrusher = 141;
 	Unsupported = 0;
 	Manual = 1;
 	Switch = 2;
@@ -59,13 +66,17 @@ CONST Raise = 1;
 	CloseWaitOpenDoor = 3;
 	LowerCeiling = 4;
 	RaiseCeiling = 5;
+	Crusher = 6;
+	StopCrusher = 7;
 	Closed = 0;
 	Opening = 1;
 	Closing = -1;
 	Waiting = 2;
+	Paused = 3;
 
 TYPE
 	Occupants* = PROCEDURE {DELEGATE} (before, after: GameGeometry.World; sector: SIGNED32): BOOLEAN;
+	CrushingHit* = PROCEDURE {DELEGATE} (before, after: GameGeometry.World; sector: SIGNED32; playerBlocked: BOOLEAN);
 
 	Trigger = RECORD
 		special, front, back, tag, activation, kind, key: SIGNED32;
@@ -74,7 +85,7 @@ TYPE
 	END;
 
 	Door = RECORD
-		direction, timer, kind: SIGNED32;
+		direction, oldDirection, timer, kind: SIGNED32;
 		top, bottom, speed: FLOAT64
 	END;
 
@@ -124,7 +135,7 @@ TYPE
 						moving[triggers[i].back] := TRUE
 					END
 				END;
-				IF triggers[i].activation > Manual THEN
+				IF (triggers[i].activation > Manual) & (triggers[i].kind # StopCrusher) THEN
 					movingTags[triggers[i].tag] := TRUE
 				END
 			END;
@@ -172,8 +183,22 @@ TYPE
 
 		PROCEDURE Start(world: GameGeometry.World; sector: SIGNED32; CONST trigger: Trigger): BOOLEAN;
 		VAR region: GameGeometry.Sector;
-			top: FLOAT64;
+			top, bottom: FLOAT64;
 		BEGIN
+			IF trigger.kind = StopCrusher THEN
+				IF (doors[sector].kind # Crusher) OR (doors[sector].direction = Paused) THEN
+					RETURN FALSE
+				END;
+				doors[sector].oldDirection := doors[sector].direction;
+				doors[sector].direction := Paused;
+				DEC(active);
+				RETURN TRUE
+			END;
+			IF (trigger.kind = Crusher) & (doors[sector].direction = Paused) THEN
+				doors[sector].direction := doors[sector].oldDirection;
+				INC(active);
+				RETURN TRUE
+			END;
 			IF doors[sector].direction # Closed THEN
 				IF (trigger.activation = Manual) & (trigger.kind = RaiseDoor) &
 					(doors[sector].kind < LowerCeiling) THEN
@@ -188,6 +213,7 @@ TYPE
 			END;
 			region := world.Region(sector);
 			top := region.ceiling;
+			bottom := region.floor;
 			IF (trigger.kind = RaiseDoor) OR (trigger.kind = OpenDoor) THEN
 				top := Top(world, sector, FALSE);
 				IF (top = MAX(FLOAT64)) OR (top < region.floor) OR
@@ -196,22 +222,32 @@ TYPE
 				END
 			ELSIF trigger.kind = RaiseCeiling THEN
 				top := Top(world, sector, TRUE)
+			ELSIF trigger.kind = Crusher THEN
+				bottom := bottom + DoomConfig.values.crusherGap;
+				IF bottom >= top THEN
+					RETURN FALSE
+				END
 			END;
 			IF ~actions.Claim(sector) THEN
 				RETURN FALSE
 			END;
 			doors[sector].top := top;
-			doors[sector].bottom := region.floor;
+			doors[sector].bottom := bottom;
 			doors[sector].kind := trigger.kind;
 			doors[sector].speed := DoomConfig.values.doorSpeed;
 			IF trigger.fast THEN
 				doors[sector].speed := DoomConfig.values.fastDoorSpeed
 			END;
-			IF (trigger.kind = LowerCeiling) OR (trigger.kind = RaiseCeiling) THEN
+			IF trigger.kind >= LowerCeiling THEN
 				doors[sector].speed := DoomConfig.values.ceilingSpeed
 			END;
+			IF (trigger.kind = Crusher) & trigger.fast THEN
+				doors[sector].speed := DoomConfig.values.fastCrusherSpeed
+			END;
+			doors[sector].timer := 0;
 			doors[sector].direction := Opening;
-			IF (trigger.kind = CloseDoor) OR (trigger.kind = CloseWaitOpenDoor) OR (trigger.kind = LowerCeiling) THEN
+			IF (trigger.kind = CloseDoor) OR (trigger.kind = CloseWaitOpenDoor) OR (trigger.kind = LowerCeiling) OR
+				(trigger.kind = Crusher) THEN
 				doors[sector].direction := Closing
 			END;
 			INC(active);
@@ -302,13 +338,45 @@ TYPE
 			StepOccupied(world, x, y, radius, feet, height, step, NIL)
 		END Step;
 
-		(* Occupancy is queried before publishing each closing ceiling; blocked doors keep their sector claim. *)
 		PROCEDURE StepOccupied*(VAR world: GameGeometry.World; x, y, radius, feet, height, step: FLOAT64;
 			occupants: Occupants);
+		BEGIN
+			StepCrushing(world, x, y, radius, feet, height, step, occupants, NIL)
+		END StepOccupied;
+
+		(* AdvanceCrusher retains the last fitting height until the obstruction clears. *)
+		PROCEDURE AdvanceCrusher(VAR world: GameGeometry.World; candidate: GameGeometry.World; sector: SIGNED32;
+			playerBlocked: BOOLEAN; occupants: Occupants; hit: CrushingHit);
+		BEGIN
+			IF (doors[sector].direction = Closing) &
+				(playerBlocked OR ((occupants # NIL) & ~occupants(world, candidate, sector))) THEN
+				heights[sector] := world.Region(sector).ceiling;
+				IF doors[sector].timer = 0 THEN
+					IF hit # NIL THEN
+						hit(world, candidate, sector, playerBlocked)
+					END;
+					doors[sector].timer := DoomConfig.values.crusherDamageTicks
+				END;
+				DEC(doors[sector].timer);
+				RETURN
+			END;
+			world := candidate;
+			doors[sector].timer := 0;
+			IF heights[sector] = doors[sector].bottom THEN
+				doors[sector].direction := Opening
+			ELSIF heights[sector] = doors[sector].top THEN
+				doors[sector].direction := Closing
+			END
+		END AdvanceCrusher;
+
+		(* StepCrushing checks occupancy before publishing new ceiling snapshots. *)
+		PROCEDURE StepCrushing*(VAR world: GameGeometry.World; x, y, radius, feet, height, step: FLOAT64;
+			occupants: Occupants; hit: CrushingHit);
 		VAR i: SIGNED32;
 			region: GameGeometry.Sector;
 			candidate: GameGeometry.World;
 			previous, floor: FLOAT64;
+			playerBlocked: BOOLEAN;
 		BEGIN
 			IF active = 0 THEN
 				RETURN
@@ -327,11 +395,11 @@ TYPE
 							doors[i].direction := Closing
 						END
 					END
-				ELSIF doors[i].direction # Closed THEN
+				ELSIF (doors[i].direction = Opening) OR (doors[i].direction = Closing) THEN
 					previous := heights[i];
 					IF doors[i].direction = Opening THEN
 						heights[i] := MIN(doors[i].top, heights[i] + doors[i].speed)
-					ELSIF doors[i].kind = LowerCeiling THEN
+					ELSIF (doors[i].kind = LowerCeiling) OR (doors[i].kind = Crusher) THEN
 						heights[i] := MAX(doors[i].bottom, heights[i] - doors[i].speed)
 					ELSE
 						region := world.Region(i);
@@ -339,7 +407,12 @@ TYPE
 					END;
 					candidate := world.WithCeilings(heights^);
 					ASSERT(candidate # NIL);
-					IF ~candidate.Stand(x, y, radius, feet, height, step, floor) OR
+					playerBlocked := ~candidate.Stand(x, y, radius, feet, height, step, floor);
+					IF doors[i].kind = Crusher THEN
+						playerBlocked := playerBlocked & world.TouchesSector(i, x, y, radius) &
+							world.Stand(x, y, radius, feet, height, step, floor);
+						AdvanceCrusher(world, candidate, i, playerBlocked, occupants, hit)
+					ELSIF playerBlocked OR
 						((doors[i].direction = Closing) & (occupants # NIL) & ~occupants(world, candidate, i)) THEN
 						heights[i] := previous;
 						IF (doors[i].kind # CloseDoor) & (doors[i].kind # LowerCeiling) THEN
@@ -373,7 +446,7 @@ TYPE
 					END
 				END
 			END
-		END StepOccupied;
+		END StepCrushing;
 	END Controller;
 
 PROCEDURE Classify(VAR trigger: Trigger);
@@ -390,7 +463,8 @@ BEGIN
 		trigger.activation := Switch
 	| WalkOpen, WalkClose, WalkRaise, WalkCloseWaitOpen, WalkRepeatClose, WalkRepeatCloseWaitOpen,
 		WalkRepeatOpen, WalkRepeatRaise, WalkFastRaise, WalkFastOpen, WalkFastClose,
-		WalkRepeatFastRaise, WalkRepeatFastOpen, WalkRepeatFastClose, WalkRaiseCeiling:
+		WalkRepeatFastRaise, WalkRepeatFastOpen, WalkRepeatFastClose, WalkRaiseCeiling,
+		WalkFastCrusher, WalkCrusher, WalkStopCrusher, RepeatCrusher, RepeatStopCrusher, RepeatFastCrusher, WalkSilentCrusher:
 		trigger.activation := Walk
 	| GunOpen:
 		trigger.activation := Gun
@@ -409,6 +483,10 @@ BEGIN
 		trigger.kind := LowerCeiling
 	| WalkRaiseCeiling:
 		trigger.kind := RaiseCeiling
+	| WalkFastCrusher, WalkCrusher, RepeatCrusher, RepeatFastCrusher, WalkSilentCrusher:
+		trigger.kind := Crusher
+	| WalkStopCrusher, RepeatStopCrusher:
+		trigger.kind := StopCrusher
 	ELSE
 		trigger.kind := RaiseDoor
 	END;
@@ -422,13 +500,14 @@ BEGIN
 	ELSE
 	END;
 	trigger.fast := (trigger.special = FastRaise) OR (trigger.special = FastOpen) OR
+		(trigger.special = WalkFastCrusher) OR (trigger.special = RepeatFastCrusher) OR
 		((trigger.special >= WalkRepeatFastRaise) & (trigger.special <= ButtonFastClose)) OR
 		(trigger.special = BlueButtonOpen) OR ((trigger.special >= BlueSwitchOpen) & (trigger.special <= YellowSwitchOpen));
 	CASE trigger.special OF
 	Raise, BlueRaise, YellowRaise, RedRaise, FastRaise, ButtonClose, ButtonOpen, ButtonRaise, GunOpen,
 		WalkRepeatClose, WalkRepeatCloseWaitOpen, WalkRepeatOpen, WalkRepeatRaise,
 		WalkRepeatFastRaise, WalkRepeatFastOpen, WalkRepeatFastClose, ButtonFastRaise, ButtonFastOpen, ButtonFastClose,
-		BlueButtonOpen, RedButtonOpen, YellowButtonOpen, ButtonLowerCeiling:
+		BlueButtonOpen, RedButtonOpen, YellowButtonOpen, ButtonLowerCeiling, RepeatCrusher, RepeatStopCrusher, RepeatFastCrusher:
 		trigger.repeat := TRUE
 	ELSE
 		trigger.repeat := FALSE

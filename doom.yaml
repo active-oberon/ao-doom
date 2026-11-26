@@ -25,6 +25,10 @@ doors:
   top_gap: 4
 ceilings:
   speed_per_tick: 1
+  fast_crusher_speed_per_tick: 2
+  crusher_floor_gap: 8
+  crusher_damage: 10
+  crusher_damage_ticks: 4
 teleports:
   reaction_ticks: 18
   telefrag_damage: 10000

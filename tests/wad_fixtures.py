@@ -316,6 +316,21 @@ def ceiling_lumps(special=41, portal=False):
     return lumps
 
 
+def crusher_lumps(start, stop=74, near=False):
+    lumps = ceiling_lumps(start, portal=True)
+    lines = bytearray(lumps[2][1])
+    struct.pack_into("<2H", lines, 9 * 14 + 6, stop, 7)
+    lumps[2] = ("LINEDEFS", bytes(lines))
+    if near:
+        sectors = bytearray(lumps[8][1])
+        struct.pack_into("<hh", sectors, 26, 16, 96)
+        struct.pack_into("<H", sectors, 26 + 24, 7)
+        struct.pack_into("<hh", sectors, 52, 0, 192)
+        struct.pack_into("<H", sectors, 52 + 24, 0)
+        lumps[8] = ("SECTORS", bytes(sectors))
+    return lumps
+
+
 def floor_lumps(special=62, crossing=False, floor=96, portal=True, ride=False):
     lumps = sector_lumps(floor=floor, ceiling=192)
     lumps[1] = ("THINGS", struct.pack("<5h", 224 if ride else -32 if portal or crossing else -224, 0,
@@ -859,6 +874,11 @@ def fixtures(directory):
     files["ceiling-isolated.wad"] = wad(extra)
     files["ceiling-actors.wad"] = wad(sprite_lumps(ceiling_lumps(43),
         things=[(128, 64, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
+    for special in (6, 25, 73, 77, 141):
+        files[f"crusher-{special}.wad"] = wad(crusher_lumps(special, stop=57 if special == 25 else 74))
+    files["crusher-player.wad"] = wad(crusher_lumps(73, near=True))
+    files["crusher-actors.wad"] = wad(sprite_lumps(crusher_lumps(73),
+        things=[(384, 64, 0, 2035, 7), (384, -64, 0, 2035, 7)]) + [("BAR1A0", sprite_patch())])
     for special in (42, 63, 114, 116):
         files[f"door-occupants-{special}.wad"] = wad(sprite_lumps(
             tagged_door_lumps(special, ceiling=128), [(128, 0, 0, 2035, 7)]) +
